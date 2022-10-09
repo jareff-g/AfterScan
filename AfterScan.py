@@ -932,28 +932,29 @@ def video_generation_phase():
 
         # Cannot call popen with a list in windows. Seems it was a bug
         # already in 2018: https://bugs.python.org/issue32764
-        if IsWindows:
-            cmd_ffmpeg = (FfmpegBinName +
-                          " -y " +
-                          "-f image2 " +
-                          "-start_number " + str(StartFrame +
-                                                 FirstAbsoluteFrame) +
-                          " -framerate " + str(VideoFps) +
-                          " -i \""
+        if IsWindows or True:
+            cmd_ffmpeg = (FfmpegBinName
+                          + ' -y'
+                          + ' -f image2'
+                          + ' -start_number ' + str(StartFrame +
+                                                 FirstAbsoluteFrame)
+                          + ' -framerate ' + str(VideoFps)
+                          + ' -i "'
                           + os.path.join(TargetDir,
                                          FrameFilenameOutputPattern)
-                          + "\"")
+                          + '"')
             if FramesToEncode > 0:
-                cmd_ffmpeg += ("-frames:v" + str(FramesToEncode))
-            cmd_ffmpeg += (" -an " +
-                           "-vcodec libx264 " +
-                           "-preset veryslow " +
-                           "-crf 18 " +
-                           "-aspect 4:3 " +
-                           "-pix_fmt yuv420p " +
-                           "\"" + os.path.join(
+                cmd_ffmpeg += (' -frames:v' + str(FramesToEncode))
+            cmd_ffmpeg += (' -an'
+                           + ' -vcodec libx264'
+                           + ' -preset ' + ffmpeg_preset.get()
+                           + ' -crf 18'
+                           + ' -aspect 4:3'
+                           + ' -pix_fmt yuv420p'
+                           + ' '
+                           + '"' + os.path.join(
                                TargetDir,
-                               TargetVideoFilename) + "\"")
+                               TargetVideoFilename) + '"')
             logging.debug("Generated ffmpeg command: %s", cmd_ffmpeg)
             ffmpeg_generation_succeeded = sp.call(cmd_ffmpeg) == 0
         else:
