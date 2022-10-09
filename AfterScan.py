@@ -932,7 +932,7 @@ def video_generation_phase():
 
         # Cannot call popen with a list in windows. Seems it was a bug
         # already in 2018: https://bugs.python.org/issue32764
-        if IsWindows or True:
+        if IsWindows:
             cmd_ffmpeg = (FfmpegBinName
                           + ' -y'
                           + ' -f image2'
