@@ -1069,7 +1069,7 @@ def widget_status_update(widget_state=0, button_action=0):
     global stabilization_threshold_label
     global generate_video_checkbox, skip_frame_regeneration_cb
     global video_target_dir, video_target_folder_btn
-    global video_filename_label, video_title_label
+    global video_filename_label, video_title_label, video_title_name
     global video_fps_dropdown
     global resolution_dropdown
     global video_filename_name
@@ -1114,6 +1114,7 @@ def widget_status_update(widget_state=0, button_action=0):
         video_target_folder_btn.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         video_filename_label.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         video_title_label.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
+        video_title_name.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         video_fps_dropdown.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         resolution_dropdown.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         video_filename_name.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
