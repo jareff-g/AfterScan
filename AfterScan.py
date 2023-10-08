@@ -2636,6 +2636,7 @@ def video_generation_loop():
                 "\'Skip Frame regeneration\' is not selected, and try again.")
             generation_exit()  # Restore all settings to normal
         else:
+            get_target_dir_file_list()
             logging.debug(
                 "First filename in list: %s, extracted number: %s",
                 os.path.basename(SourceDirFileList[0]), first_absolute_frame)
