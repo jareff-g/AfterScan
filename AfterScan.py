@@ -32,7 +32,7 @@ from tkinter import *
 
 import tkinter.font as tkfont
 
-from PIL import ImageTk, Image
+from PIL import ImageTk, Image, ImageDraw, ImageFont
 
 import os
 import time
@@ -50,6 +50,8 @@ import threading
 import re
 import shutil
 from enum import Enum
+import textwrap
+import random
 
 # Frame vars
 first_absolute_frame = 0
@@ -103,6 +105,7 @@ default_project_config = {
     "skip_frame_regeneration": False,
     "FFmpegPreset": "veryslow",
     "VideoFilename": "",
+    "VideoTitle": "",
     "FillBorders": False,
     "FillBordersThickness": 5,
     "FillBordersMode": "smear",
@@ -131,11 +134,13 @@ HoleSearchBottomRight = (0, 0)
 
 # Film frames (in/out) file vars
 TargetVideoFilename = ""
+TargetVideoTitle = ""
 SourceDir = ""
 TargetDir = ""
 VideoTargetDir = ""
 FrameFilenameOutputPattern = "picture_out-%05d.jpg"
-FrameCheckFilenameOutputPattern = "picture_out-*.jpg"  # Req. for ffmpeg gen.
+TitleFilenameOutputPattern = "picture_out(title)-%05d.jpg"
+FrameCheckFilenameOutputPattern = "picture_out*.jpg"  # Req. for ffmpeg gen.
 SourceDirFileList = []
 TargetDirFileList = []
 film_type = 'S8'
@@ -295,6 +300,9 @@ def set_project_defaults():
     project_config["VideoFilename"] = ""
     video_filename_name.delete(0, 'end')
     video_filename_name.insert('end', project_config["VideoFilename"])
+    project_config["VideoTitle"] = ""
+    video_title_name.delete(0, 'end')
+    video_title_name.insert('end', project_config["VideoTitle"])
     project_config["FillBorders"] = False
     fill_borders.set(project_config["FillBorders"])
 
@@ -416,6 +424,7 @@ def save_project_config():
     project_config["PerformCropping"] = perform_cropping.get()
     project_config["FrameFillType"] = frame_fill_type.get()
     project_config["VideoFilename"] = video_filename_name.get()
+    project_config["VideoTitle"] = video_title_name.get()
     project_config["FrameFrom"] = int(frame_from_str.get())
     project_config["FrameTo"] = int(frame_to_str.get())
     if StabilizeAreaDefined:
@@ -478,7 +487,7 @@ def decode_project_config():
     global frame_input_filename_pattern
     global encode_all_frames, frames_to_encode
     global skip_frame_regeneration
-    global generate_video, video_filename_name
+    global generate_video, video_filename_name, video_title_name
     global CropTopLeft, CropBottomRight, perform_cropping
     global StabilizeAreaDefined, film_hole_height, film_type
     global ExpertMode
@@ -614,6 +623,12 @@ def decode_project_config():
         video_filename_name.insert('end', TargetVideoFilename)
     else:
         video_filename_name.delete(0, 'end')
+    if 'VideoTitle' in project_config:
+        TargetVideoTitle = project_config["VideoTitle"]
+        video_title_name.delete(0, 'end')
+        video_title_name.insert('end', TargetVideoTitle)
+    else:
+        video_title_name.delete(0, 'end')
     if 'skip_frame_regeneration' in project_config:
         skip_frame_regeneration.set(project_config["skip_frame_regeneration"])
     else:
@@ -1054,7 +1069,7 @@ def widget_status_update(widget_state=0, button_action=0):
     global stabilization_threshold_label
     global generate_video_checkbox, skip_frame_regeneration_cb
     global video_target_dir, video_target_folder_btn
-    global video_filename_label
+    global video_filename_label, video_title_label
     global video_fps_dropdown
     global resolution_dropdown
     global video_filename_name
@@ -1098,6 +1113,7 @@ def widget_status_update(widget_state=0, button_action=0):
         video_target_dir.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         video_target_folder_btn.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         video_filename_label.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
+        video_title_label.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         video_fps_dropdown.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         resolution_dropdown.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         video_filename_name.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
@@ -2420,6 +2436,102 @@ def frame_generation_loop():
     win.after(1, frame_generation_loop)
 
 
+def get_text_dimensions(text_string, font):
+    # https://stackoverflow.com/a/46220683/9263761
+    ascent, descent = font.getmetrics()
+
+    text_width = font.getmask(text_string).getbbox()[2]
+    text_height = font.getmask(text_string).getbbox()[3] + descent
+
+    return (text_width, text_height)
+
+
+def get_adjusted_font(image, text):
+    max_size = 96
+    try_again = False
+    draw = ImageDraw.Draw(image)
+    image_width, image_height = image.size
+    lines = textwrap.wrap(text, width=40)
+    while max_size > 8:
+        status_str = "Status: Calculating title font size %u" % max_size
+        app_status_label.config(text=status_str, fg='black')
+        font = ImageFont.truetype('DejaVuSans-Bold.ttf', max_size)
+        try_again = False
+        num_lines = 0
+        for line in lines:
+            #line_width, line_height = font.getsize(line)
+            line_width, line_height = get_text_dimensions(line,font)
+            if line_width > int(image_width*0.8):
+                max_size -= 1
+                try_again = True
+                break
+            else:
+                num_lines += 1
+        if not try_again:
+            return font, num_lines
+    return 0
+
+
+def draw_multiple_line_text(image, text, font, text_color, num_lines):
+    '''
+    From unutbu on [python PIL draw multiline text on image](https://stackoverflow.com/a/7698300/395857)
+    '''
+    draw = ImageDraw.Draw(image)
+    image_width, image_height = image.size
+    lines = textwrap.wrap(text, width=40)
+    line_num = 0
+    for line in lines:
+        #line_width, line_height = font.getsize(line)
+        line_width, line_height = get_text_dimensions(line,font)
+        y_text = (image_height-(line_height*num_lines))/2 + line_num * line_height
+        draw.text(((image_width - line_width) / 2, y_text),
+                  line, font=font, fill=text_color)
+        line_num += 1
+
+
+def video_create_title():
+    global video_title_name, TargetVideoTitle
+    global VideoFps
+    global StartFrame, first_absolute_frame, title_num_frames, frames_to_encode
+
+    if len(video_title_name.get()):   # if title defined --> kiki
+        TargetVideoTitle = video_title_name.get()
+        title_duration = round(len(video_title_name.get())*50/1000) # 50 ms per char
+        title_duration = min(title_duration, 10)    # no more than 10 sec
+        title_duration = max(title_duration, 3)    # no less than 3 sec
+        title_num_frames = title_duration * VideoFps
+        # Custom font style and font size
+        #myFont = ImageFont.truetype('FreeMonoBold.ttf', 96)
+        img = Image.open(os.path.join(TargetDir, FrameFilenameOutputPattern % (StartFrame + first_absolute_frame)))
+        myFont, num_lines = get_adjusted_font(img, TargetVideoTitle)
+        if myFont == 0:
+            return
+        title_frame_idx = 0
+        title_first_frame = random.randint(StartFrame + first_absolute_frame, StartFrame + first_absolute_frame + frames_to_encode - title_num_frames - 1)
+        for i in range (title_first_frame, title_first_frame + title_num_frames):
+            status_str = "Status: Generating title %.1f%%" % (((i - title_first_frame) * 100 / title_num_frames))
+            app_status_label.config(text=status_str, fg='black')
+            # Open an Image
+            img = Image.open(os.path.join(TargetDir, FrameFilenameOutputPattern % ((int(i/2)+1)*2)))
+
+            # Call draw Method to add 2D graphics in an image
+            #I1 = ImageDraw.Draw(img)
+            # Add Text to an image
+            #I1.multiline_text((28, 36), TargetVideoTitle, font=myFont, fill=(255, 0, 0))
+            draw_multiple_line_text(img, TargetVideoTitle, myFont, (255,255,255), num_lines)
+            # Display edited image
+            #img.show()
+
+            # Save the edited image
+            img.save(os.path.join(TargetDir, TitleFilenameOutputPattern % title_frame_idx))
+            title_frame_idx += 1
+            win.update()
+    else:
+        title_duration = 0
+        title_num_frames = 0
+
+
+
 def call_ffmpeg():
     global VideoTargetDir, TargetDir
     global cmd_ffmpeg
@@ -2431,7 +2543,7 @@ def call_ffmpeg():
     global FrameFilenameOutputPattern
     global first_absolute_frame, frames_to_encode
     global out_frame_width, out_frame_height
-
+    global title_num_frames
 
     extra_input_options = []
     extra_output_options = []
@@ -2439,7 +2551,7 @@ def call_ffmpeg():
         extra_input_options += ['-s:v', str(out_frame_width)
                                 + 'x' + str(out_frame_height)]
     if frames_to_encode > 0:
-        extra_output_options += ['-frames:v', str(frames_to_encode)]
+        extra_output_options += ['-frames:v', str(frames_to_encode+title_num_frames)]
     if ExpertMode and fill_borders.get():
         extra_output_options += [
              '-filter_complex',
@@ -2459,12 +2571,16 @@ def call_ffmpeg():
                   '-stats',
                   '-flush_packets', '1',
                   '-f', 'image2',
-                  '-start_number', str(StartFrame +
-                                       first_absolute_frame),
                   '-framerate', str(VideoFps)]
+    if title_num_frames == 0:
+        cmd_ffmpeg.extend(['-start_number', str(StartFrame + first_absolute_frame)])
     cmd_ffmpeg.extend(extra_input_options)
-    cmd_ffmpeg.extend(
-                  ['-i', os.path.join(TargetDir, FrameFilenameOutputPattern)])
+    if title_num_frames == 0:
+        cmd_ffmpeg.extend(['-i', os.path.join(TargetDir, FrameFilenameOutputPattern)])
+    else:
+        cmd_ffmpeg.extend(
+                ['-pattern_type', 'glob',
+                '-i', os.path.join(TargetDir, FrameCheckFilenameOutputPattern)])
     cmd_ffmpeg.extend(extra_output_options)
     cmd_ffmpeg.extend(
         ['-an',  # no audio
@@ -2489,7 +2605,7 @@ def video_generation_loop():
     global TargetVideoFilename
     global ffmpeg_success, ffmpeg_encoding_status
     global ffmpeg_process
-    global frames_to_encode
+    global frames_to_encode, title_num_frames
     global app_status_label
     global BatchJobRunning
     global StartFrame, first_absolute_frame
@@ -2521,6 +2637,7 @@ def video_generation_loop():
             logging.debug(
                 "First filename in list: %s, extracted number: %s",
                 os.path.basename(SourceDirFileList[0]), first_absolute_frame)
+            video_create_title()
             ffmpeg_success = False
             ffmpeg_encoding_thread = threading.Thread(target=call_ffmpeg)
             ffmpeg_encoding_thread.daemon = True
@@ -2552,7 +2669,7 @@ def video_generation_loop():
                     frame_slider.set(StartFrame + first_absolute_frame + encoded_frame)
                     frame_slider.config(label='Global:' +
                                               str(StartFrame + first_absolute_frame + encoded_frame))
-                    status_str = "Status: Generating video %.1f%%" % (encoded_frame*100/frames_to_encode)
+                    status_str = "Status: Generating video %.1f%%" % (encoded_frame*100/(frames_to_encode+title_num_frames))
                     app_status_label.config(text=status_str, fg='black')
                     display_output_frame_by_number(encoded_frame)
                 else:
@@ -2730,9 +2847,9 @@ def build_ui():
     global Go_btn
     global Exit_btn
     global video_fps_dropdown_selected, skip_frame_regeneration_cb
-    global video_fps_dropdown, video_fps_label, video_filename_name
+    global video_fps_dropdown, video_fps_label, video_filename_name, video_title_name
     global resolution_dropdown, resolution_label, resolution_dropdown_selected
-    global video_target_dir, video_target_folder_btn, video_filename_label
+    global video_target_dir, video_target_folder_btn, video_filename_label, video_title_label
     global ffmpeg_preset
     global ffmpeg_preset_rb1, ffmpeg_preset_rb2, ffmpeg_preset_rb3
     global skip_frame_regeneration
@@ -3076,6 +3193,16 @@ def build_ui():
                              sticky=W)
     video_filename_name.delete(0, 'end')
     video_filename_name.insert('end', TargetVideoFilename)
+    video_row += 1
+
+    # Video title (add title at the start of the video)
+    video_title_label = Label(video_frame, text='Video title:')
+    video_title_label.grid(row=video_row, column=0, sticky=W)
+    video_title_name = Entry(video_frame, width=26, borderwidth=1)
+    video_title_name.grid(row=video_row, column=1, columnspan=2,
+                             sticky=W)
+    video_title_name.delete(0, 'end')
+    video_title_name.insert('end', TargetVideoTitle)
     video_row += 1
 
     # Drop down to select FPS
