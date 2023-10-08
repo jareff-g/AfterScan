@@ -2488,6 +2488,7 @@ def draw_multiple_line_text(image, text, font, text_color, num_lines):
         draw.text(((image_width - line_width) / 2, y_text),
                   line, font=font, fill=text_color)
         line_num += 1
+    draw.rectangle([int(image_width*0.05), int(image_height*0.05), int(image_width*0.95), int(image_height*0.95)], fill=None, outline='white', width=20)
 
 
 def video_create_title():
