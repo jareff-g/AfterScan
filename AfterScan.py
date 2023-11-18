@@ -1941,7 +1941,21 @@ def stabilize_image(img):
     left_stripe_image = get_image_left_stripe(img)
 
     # Search film hole pattern
-    top_left, match_level = match_template(film_hole_template, left_stripe_image, float(StabilizationThreshold))
+    WorkStabilizationThreshold = StabilizationThreshold
+    BestStabilizationThreshold = StabilizationThreshold
+    best_match_level = 0
+    while True:
+        top_left, match_level = match_template(film_hole_template, left_stripe_image, float(WorkStabilizationThreshold))
+        if match_level > best_match_level:
+            best_match_level = match_level
+            BestStabilizationThreshold = WorkStabilizationThreshold
+        if match_level > 0.9:
+            break
+        elif float(WorkStabilizationThreshold) > 50:
+            WorkStabilizationThreshold = float(WorkStabilizationThreshold) - 10
+        else:
+            top_left, match_level = match_template(film_hole_template, left_stripe_image, float(BestStabilizationThreshold))
+            break
     if top_left[1] != -1:
         # The coordinates returned by match template are relative to the
         # cropped image. In order to calculate the correct values to provide
