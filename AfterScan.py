@@ -65,6 +65,11 @@ CurrentFrame = 0
 StartFrame = 0
 frame_selected = 0
 global work_image, base_image, original_image
+# FPM calculation (taken from ALT-Scann8)
+FPM_LastMinuteFrameTimes = list()
+FPM_StartTime = time.ctime()
+FPM_CalculatedValue = -1
+
 
 # Configuration & support file vars
 script_dir = os.path.realpath(sys.argv[0])
@@ -84,14 +89,12 @@ pattern_filename_r8 = os.path.join(aux_dir, "Pattern.R8.jpg")
 pattern_filename_s8 = os.path.join(aux_dir, "Pattern.S8.jpg")
 pattern_filename_custom = os.path.join(aux_dir, "Pattern.custom.jpg")
 pattern_filename = pattern_filename_s8
-frame_hdr_filename_pattern = "hdrpic*.jpg"
 files_to_delete = []
 
 default_project_config = {
     "SourceDir": "",
     "TargetDir": "",
     "VideoTargetDir": "",
-    "FrameInputFilenamePattern": "picture-*.jpg",
     "FilmType": "S8",
     "PerformCropping": False,
     "PerformDenoise": False,
@@ -139,9 +142,16 @@ TargetVideoTitle = ""
 SourceDir = ""
 TargetDir = ""
 VideoTargetDir = ""
-FrameFilenameOutputPattern = "picture_out-%05d.jpg"
-TitleFilenameOutputPattern = "picture_out(title)-%05d.jpg"
-FrameCheckFilenameOutputPattern = "picture_out-?????.jpg"  # Req. for ffmpeg gen.
+FrameInputFilenamePattern = "picture-*.jpg"
+FrameOutputFilenamePattern = "picture_out-%05d.jpg"
+TitleOutputFilenamePattern = "picture_out(title)-%05d.jpg"
+FrameCheckOutputFilenamePattern = "picture_out-?????.jpg"  # Req. for ffmpeg gen.
+HdrInputFilenamePattern = "hdrpic*.3.jpg"   # In HDR mode, use 3rd frame as guide
+HdrSetInputFilenamePattern = "hdrpic-%05d.%1d.jpg"   # Req. to fetch each HDR frame set
+perform_merge = False   # No HDR by default. Updated when building file list from input folder
+MergeMertens = None
+images_to_merge = []
+
 SourceDirFileList = []
 TargetDirFileList = []
 film_type = 'S8'
@@ -489,7 +499,6 @@ def decode_project_config():
     global CurrentFrame, frame_slider
     global VideoFps, video_fps_dropdown_selected
     global resolution_dropdown, resolution_dropdown_selected
-    global frame_input_filename_pattern
     global encode_all_frames, frames_to_encode
     global skip_frame_regeneration
     global generate_video, video_filename_name, video_title_name
@@ -643,10 +652,6 @@ def decode_project_config():
         skip_frame_regeneration.set(project_config["skip_frame_regeneration"])
     else:
         skip_frame_regeneration.set(False)
-    if not 'FrameInputFilenamePattern' in project_config:
-        project_config["FrameInputFilenamePattern"] = "picture-*.jpg"
-    frame_input_filename_pattern.delete(0, 'end')
-    frame_input_filename_pattern.insert('end', project_config["FrameInputFilenamePattern"])
     if 'FFmpegPreset' in project_config:
         ffmpeg_preset.set(project_config["FFmpegPreset"])
     else:
@@ -950,6 +955,32 @@ def display_ffmpeg_result(ffmpeg_output):
     ffmpeg_result_sb.config(command=ffmpeg_label.yview)
 
 
+def register_frame():
+    global FPM_LastMinuteFrameTimes
+    global FPM_StartTime
+    global FPM_CalculatedValue
+
+    # Get current time
+    frame_time = time.time()
+    # Determine if we should start new count (last capture older than 5 seconds)
+    if len(FPM_LastMinuteFrameTimes) == 0 or FPM_LastMinuteFrameTimes[-1] < frame_time - 12:
+        FPM_StartTime = frame_time
+        FPM_LastMinuteFrameTimes.clear()
+        FPM_CalculatedValue = -1
+    # Add current time to list
+    FPM_LastMinuteFrameTimes.append(frame_time)
+    # Remove entries older than one minute
+    FPM_LastMinuteFrameTimes.sort()
+    while FPM_LastMinuteFrameTimes[0] <= frame_time-60:
+        FPM_LastMinuteFrameTimes.remove(FPM_LastMinuteFrameTimes[0])
+    # Calculate current value, only if current count has been going for more than 10 seconds
+    if frame_time - FPM_StartTime > 60:  # no calculations needed, frames in list are all in th elast 60 seconds
+        FPM_CalculatedValue = len(FPM_LastMinuteFrameTimes)
+    elif frame_time - FPM_StartTime > 10:  # some  calculations needed if less than 60 sec
+        FPM_CalculatedValue = int((len(FPM_LastMinuteFrameTimes) * 60) / (frame_time - FPM_StartTime))
+
+
+
 """
 #######################
 File handling functions
@@ -958,7 +989,9 @@ File handling functions
 
 
 def set_source_folder():
-    global SourceDir, CurrentFrame, frame_slider, Go_btn, cropping_btn
+    global SourceDir, frames_source_dir
+    global TargetDir, frames_target_dir
+    global CurrentFrame, frame_slider, Go_btn, cropping_btn
     global first_absolute_frame
     global project_name
 
@@ -984,8 +1017,8 @@ def set_source_folder():
         # Create a project id (folder name) for the stats logging below
         # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
         project_name = os.path.split(SourceDir)[-1].replace(',', ';')
+        general_config["SourceDir"] = SourceDir
 
-    general_config["SourceDir"] = SourceDir
 
     load_project_config()  # Needs SourceDir defined
 
@@ -993,6 +1026,18 @@ def set_source_folder():
 
     # Load matching file list from newly selected dir
     get_source_dir_file_list()  # first_absolute_frame is set here
+
+    # If not defined in project, create target folder inside source folder
+    if TargetDir == '':
+        TargetDir = os.path.join(SourceDir, 'out')
+        if not os.path.isdir(TargetDir):
+            os.mkdir(TargetDir)
+        get_target_dir_file_list()
+        frames_target_dir.delete(0, 'end')
+        frames_target_dir.insert('end', TargetDir)
+        frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
+        set_project_defaults()
+        project_config["TargetDir"] = TargetDir
 
     # Enable Start and Crop buttons, plus slider, once we have files to handle
     cropping_btn.config(state=NORMAL)
@@ -1024,8 +1069,7 @@ def set_frames_target_folder():
         frames_target_dir.insert('end', TargetDir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
         set_project_defaults()
-
-    project_config["TargetDir"] = TargetDir
+        project_config["TargetDir"] = TargetDir
 
 
 def set_video_target_folder():
@@ -1063,7 +1107,6 @@ def widget_status_update(widget_state=0, button_action=0):
     global frame_slider, Go_btn, Exit_btn
     global frames_source_dir, source_folder_btn
     global frames_target_dir, target_folder_btn
-    global frame_input_filename_pattern
     global encode_all_frames, encode_all_frames_checkbox
     global frame_from_entry, frame_to_entry, frames_separator_label
     global frames_to_encode_label
@@ -1095,7 +1138,6 @@ def widget_status_update(widget_state=0, button_action=0):
         source_folder_btn.config(state=widget_state)
         frames_target_dir.config(state=widget_state)
         target_folder_btn.config(state=widget_state)
-        frame_input_filename_pattern.config(state=widget_state)
         encode_all_frames_checkbox.config(state=widget_state)
         frame_from_entry.config(state=widget_state if not encode_all_frames.get() else DISABLED)
         frame_to_entry.config(state=widget_state if not encode_all_frames.get() else DISABLED)
@@ -1155,14 +1197,6 @@ def update_frame_to(event):
     else:
         select_scale_frame(frame_to_str.get())
         frame_slider.set(frame_to_str.get())
-
-
-def frame_input_filename_pattern_focus_out(event):
-    global frame_input_filename_pattern
-
-    project_config["FrameInputFilenamePattern"] = frame_input_filename_pattern.get()
-    get_source_dir_file_list()
-    init_display()
 
 
 def custom_ffmpeg_path_focus_out(event):
@@ -1321,7 +1355,7 @@ def scale_display_update():
         if perform_rotation.get():
             img = rotate_image(img)
         if perform_stabilization.get():
-            img = stabilize_image(img)
+            img = stabilize_image(img, img)
         if perform_cropping.get():
             img = crop_image(img, CropTopLeft, CropBottomRight)
         else:
@@ -1479,7 +1513,7 @@ def select_rectangle_area(is_cropping=False):
         original_image = rotate_image(original_image)
     # Stabilize image to make sure target image matches user visual definition
     if is_cropping and perform_stabilization.get():
-        original_image = stabilize_image(original_image)
+        original_image = stabilize_image(original_image, original_image)
     # Scale area selection image as required
     work_image = np.copy(original_image)
     img_width = work_image.shape[1]
@@ -1888,7 +1922,7 @@ def display_output_frame_by_number(frame_number):
     global StartFrame
     global TargetDirFileList
 
-    TargetFile = TargetDir + '/' + FrameFilenameOutputPattern % (StartFrame + frame_number)
+    TargetFile = TargetDir + '/' + FrameOutputFilenamePattern % (StartFrame + frame_number)
 
     if TargetFile in TargetDirFileList:
         img = cv2.imread(TargetFile, cv2.IMREAD_UNCHANGED)
@@ -1934,7 +1968,7 @@ def rotate_image(img):
     rotated = cv2.warpAffine(img, M, (w, h))
     return rotated
 
-def stabilize_image(img):
+def stabilize_image(img, img_ref):
     global SourceDirFileList, CurrentFrame
     global first_absolute_frame, StartFrame
     global HoleSearchTopLeft, HoleSearchBottomRight
@@ -1949,13 +1983,13 @@ def stabilize_image(img):
     global stabilization_threshold_match_label
 
     # Get image dimensions to perform image shift later
-    width = img.shape[1]
-    height = img.shape[0]
+    width = img_ref.shape[1]
+    height = img_ref.shape[0]
 
     # Get crop height to calculate if part of the image will be missing
     crop_height = CropBottomRight[1]-CropTopLeft[1]
 
-    left_stripe_image = get_image_left_stripe(img)
+    left_stripe_image = get_image_left_stripe(img_ref)
 
     # Search film hole pattern
     WorkStabilizationThreshold = StabilizationThreshold
@@ -1966,10 +2000,10 @@ def stabilize_image(img):
         if match_level > best_match_level:
             best_match_level = match_level
             BestStabilizationThreshold = WorkStabilizationThreshold
-        if match_level > 0.9:
+        if match_level > 0.95:
             break
-        elif float(WorkStabilizationThreshold) > 50:
-            WorkStabilizationThreshold = float(WorkStabilizationThreshold) - 10
+        elif float(WorkStabilizationThreshold) > 20:
+            WorkStabilizationThreshold = float(WorkStabilizationThreshold) - 5
         else:
             top_left, match_level = match_template(film_hole_template, left_stripe_image, float(BestStabilizationThreshold))
             break
@@ -2160,28 +2194,40 @@ def get_source_dir_file_list():
     global frame_slider
     global area_select_image_factor, screen_height
     global frames_target_dir
+    global perform_merge
 
     if not os.path.isdir(SourceDir):
         return
 
+    # Try first with standard scan filename template
     SourceDirFileList = sorted(list(glob(os.path.join(
         SourceDir,
-        project_config["FrameInputFilenamePattern"]))))
+        FrameInputFilenamePattern))))
     if len(SourceDirFileList) == 0:
-        tk.messagebox.showerror("Error!",
-                                "No files match pattern name. "
-                                "Please specify new one and try again")
-        clear_image()
-        frames_target_dir.delete(0, 'end')
-        return
+        # If no files match standard pattern, try with HDR pattern
+        SourceDirFileList = sorted(list(glob(os.path.join(
+            SourceDir,
+            HdrInputFilenamePattern))))
+        if len(SourceDirFileList) == 0:
+            tk.messagebox.showerror("Error!",
+                                    "No files match pattern name. "
+                                    "Please specify new one and try again")
+            clear_image()
+            frames_target_dir.delete(0, 'end')
+            return
+        else:
+            perform_merge = True
+    else:
+        perform_merge = False
 
     # Sanity check for CurrentFrame
     if CurrentFrame >= len(SourceDirFileList):
         CurrentFrame = 0
 
-    first_absolute_frame = int(
-        ''.join(list(filter(str.isdigit,
-                            os.path.basename(SourceDirFileList[0])))))
+    # Extract frame number from filename
+    temp = re.findall(r'\d+', os.path.basename(SourceDirFileList[0]))
+    numbers = list(map(int, temp))
+    first_absolute_frame = numbers[0]
     last_absolute_frame = first_absolute_frame + len(SourceDirFileList)-1
     frame_slider.config(from_=0, to=len(SourceDirFileList)-1,
                         label='Global:'+str(CurrentFrame+first_absolute_frame))
@@ -2211,7 +2257,7 @@ def get_target_dir_file_list():
         return
 
     TargetDirFileList = sorted(list(glob(os.path.join(
-        TargetDir, FrameCheckFilenameOutputPattern))))
+        TargetDir, FrameCheckOutputFilenamePattern))))
     if len(TargetDirFileList) != 0:
         # read image
         img = cv2.imread(TargetDirFileList[0], cv2.IMREAD_UNCHANGED)
@@ -2230,7 +2276,7 @@ def valid_generated_frame_range():
     for i in range(first_absolute_frame + StartFrame,
                    first_absolute_frame + StartFrame + frames_to_encode):
         file_to_check = os.path.join(TargetDir,
-                                     FrameFilenameOutputPattern % i)
+                                     FrameOutputFilenamePattern % i)
         if file_to_check in TargetDirFileList:
             file_count += 1
     logging.debug("Checking frame range %i-%i: %i files found",
@@ -2403,21 +2449,6 @@ def generation_exit():
     win.update()
 
 
-def build_hdr_file_list():
-    global SourceDirHdrFileList
-    SourceDirHdrFileList = sorted(list(glob(os.path.join(
-        SourceDir, frame_hdr_filename_pattern))))
-    return len(SourceDirHdrFileList)
-
-def hdr_merge_loop():
-    global SourceDirHdrFileList
-    # Get current file
-    file = SourceDirHdrFileList[CurrentHdrFrame]
-    # read image
-    img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
-    # To be done: Read 6 hdr images, merge them, and let go for next loop
-    win.after(1, hdr_merge_loop)
-
 def frame_generation_loop():
     global perform_stabilization, perform_cropping, perform_rotation, perform_denoise
     global ConvertLoopExitRequested
@@ -2425,19 +2456,22 @@ def frame_generation_loop():
     global TargetDir
     global CurrentFrame, first_absolute_frame
     global StartFrame, frames_to_encode, frame_selected
-    global FrameFilenameOutputPattern
+    global FrameOutputFilenamePattern
     global BatchJobRunning
     global ffmpeg_success, ffmpeg_encoding_status
     global TargetDirFileList
     global GenerateCsv, CsvFile
     global frame_slider
+    global MergeMertens, images_to_merge
+    global FPM_CalculatedValue
 
     if CurrentFrame >= StartFrame + frames_to_encode:
+        FPM_CalculatedValue = -1
         status_str = "Status: Frame generation OK"
         app_status_label.config(text=status_str, fg='green')
         # Refresh Target dir file list
         TargetDirFileList = sorted(list(glob(os.path.join(
-            TargetDir, FrameCheckFilenameOutputPattern))))
+            TargetDir, FrameCheckOutputFilenamePattern))))
         if GenerateCsv:
             CsvFile.close()
             name, ext = os.path.splitext(CsvPathName)
@@ -2463,21 +2497,40 @@ def frame_generation_loop():
         app_status_label.config(text=status_str, fg='red')
         generation_exit()
         stabilization_threshold_match_label.config(fg='lightgray', bg='lightgray', text='')
+        FPM_CalculatedValue = -1
         return
 
-    # Get current file
-    file = SourceDirFileList[CurrentFrame]
-    # read image
-    img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
+    # Get current file(s)
+    if perform_merge:
+        images_to_merge.clear()
+        file1 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (CurrentFrame + first_absolute_frame, 1))
+        images_to_merge.append(cv2.imread(file1, cv2.IMREAD_UNCHANGED))
+        file2 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (CurrentFrame + first_absolute_frame, 2))
+        img_ref = cv2.imread(file2, cv2.IMREAD_UNCHANGED)   # Keep second frame of the set for stabilization reference
+        images_to_merge.append(img_ref)
+        file3 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (CurrentFrame + first_absolute_frame, 3))
+        images_to_merge.append(cv2.imread(file3, cv2.IMREAD_UNCHANGED))
+        file4 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (CurrentFrame + first_absolute_frame, 4))
+        images_to_merge.append(cv2.imread(file4, cv2.IMREAD_UNCHANGED))
+        img = MergeMertens.process(images_to_merge)
+        img = img - img.min()  # Now between 0 and 8674
+        img = img / img.max() * 255
+        img = np.uint8(img)
+    else:
+        file = SourceDirFileList[CurrentFrame]
+        # read image
+        img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
+        img_ref = img   # Reference image is the same image for standard capture
 
     if img is None:
         logging.error(
             "Error reading frame %i, skipping", CurrentFrame)
     else:
+        register_frame()
         if perform_rotation.get():
             img = rotate_image(img)
         if perform_stabilization.get():
-            img = stabilize_image(img)
+            img = stabilize_image(img, img_ref)
         if perform_cropping.get():
             img = crop_image(img, CropTopLeft, CropBottomRight)
         else:
@@ -2495,14 +2548,16 @@ def frame_generation_loop():
             CurrentFrame = StartFrame + frames_to_encode - 1
 
         if os.path.isdir(TargetDir):
-            target_file = os.path.join(TargetDir, FrameFilenameOutputPattern % (first_absolute_frame + CurrentFrame))
+            target_file = os.path.join(TargetDir, FrameOutputFilenamePattern % (first_absolute_frame + CurrentFrame))
             cv2.imwrite(target_file, img)
 
         frame_selected.set(CurrentFrame)
         frame_slider.set(CurrentFrame)
         frame_slider.config(label='Processed:'+
                             str(CurrentFrame+first_absolute_frame-StartFrame))
-        status_str = "Status: Generating frames %.1f%%" % ((CurrentFrame-StartFrame)*100/frames_to_encode)
+        status_str = "Status: Generating %sframes %.1f%%" % ('merged ' if perform_merge else '', ((CurrentFrame-StartFrame)*100/frames_to_encode))
+        if FPM_CalculatedValue != -1:  # FPM not calculated yet, display some indication
+            status_str = status_str + ' (FPM:%d)' % (FPM_CalculatedValue)
         app_status_label.config(text=status_str, fg='black')
 
     CurrentFrame += 1
@@ -2578,7 +2633,7 @@ def video_create_title():
         title_num_frames = title_duration * VideoFps
         # Custom font style and font size
         #myFont = ImageFont.truetype('FreeMonoBold.ttf', 96)
-        img = Image.open(os.path.join(TargetDir, FrameFilenameOutputPattern % (StartFrame + first_absolute_frame)))
+        img = Image.open(os.path.join(TargetDir, FrameOutputFilenamePattern % (StartFrame + first_absolute_frame)))
         myFont, num_lines = get_adjusted_font(img, TargetVideoTitle)
         if myFont == 0:
             return
@@ -2588,7 +2643,7 @@ def video_create_title():
             status_str = "Status: Generating title %.1f%%" % (((i - title_first_frame) * 100 / title_num_frames))
             app_status_label.config(text=status_str, fg='black')
             # Open an Image
-            img = Image.open(os.path.join(TargetDir, FrameFilenameOutputPattern % ((int(i/2)+1)*2)))
+            img = Image.open(os.path.join(TargetDir, FrameOutputFilenamePattern % ((int(i/2)+1)*2)))
 
             # Call draw Method to add 2D graphics in an image
             #I1 = ImageDraw.Draw(img)
@@ -2599,7 +2654,7 @@ def video_create_title():
             #img.show()
 
             # Save the edited image
-            img.save(os.path.join(TargetDir, TitleFilenameOutputPattern % title_frame_idx))
+            img.save(os.path.join(TargetDir, TitleOutputFilenamePattern % title_frame_idx))
             title_frame_idx += 1
             win.update()
     else:
@@ -2616,7 +2671,7 @@ def call_ffmpeg():
     global StartFrame
     global ffmpeg_process, ffmpeg_success
     global ffmpeg_encoding_status
-    global FrameFilenameOutputPattern
+    global FrameOutputFilenamePattern
     global first_absolute_frame, frames_to_encode
     global out_frame_width, out_frame_height
     global title_num_frames
@@ -2632,12 +2687,12 @@ def call_ffmpeg():
                   '-f', 'image2',
                   '-framerate', str(VideoFps),
                   '-start_number', str(StartFrame + first_absolute_frame)]
-    cmd_ffmpeg.extend(['-i', os.path.join(TargetDir, FrameFilenameOutputPattern)])
+    cmd_ffmpeg.extend(['-i', os.path.join(TargetDir, FrameOutputFilenamePattern)])
     if title_num_frames > 0:   # There is a title
         cmd_ffmpeg.extend(['-f', 'image2',
                            '-framerate', str(VideoFps),
                            '-start_number', str(StartFrame + first_absolute_frame),
-                           '-i', os.path.join(TargetDir, TitleFilenameOutputPattern)])
+                           '-i', os.path.join(TargetDir, TitleOutputFilenamePattern)])
     # Create filter_complex or one or two inputs
     filter_complex_options=''
     # Main video
@@ -2837,6 +2892,7 @@ def afterscan_init():
     global ExpertMode
     global job_list_listbox
     global BigSize
+    global MergeMertens
 
     # Initialize logging
     log_path = aux_dir
@@ -2894,6 +2950,9 @@ def afterscan_init():
     TopWinX = win.winfo_x()
     TopWinY = win.winfo_y()
 
+    # Create MergeMertens Object for HDR
+    MergeMertens = cv2.createMergeMertens()
+
     WinInitDone = True
 
     logging.info("AfterScan initialized")
@@ -2932,7 +2991,6 @@ def build_ui():
     global skip_frame_regeneration
     global ExpertMode
     global pattern_filename
-    global frame_input_filename_pattern
     global frame_slider, CurrentFrame, frame_selected
     global film_type, film_hole_template
     global job_list_listbox
@@ -3035,18 +3093,6 @@ def build_ui():
 
     folder_bottom_frame = Frame(folder_frame)
     folder_bottom_frame.pack(side=BOTTOM, ipady=2)
-
-    frame_filename_pattern_frame = Frame(folder_frame)
-    frame_filename_pattern_frame.pack(side=TOP, anchor=W)
-    frame_filename_pattern_label = Label(frame_filename_pattern_frame,
-                                         text='Frame input filename pattern:')
-    frame_filename_pattern_label.pack(side=LEFT, anchor=W)
-    frame_input_filename_pattern = Entry(frame_filename_pattern_frame,
-                                         width=20, borderwidth=1)
-    frame_input_filename_pattern.bind("<FocusOut>", frame_input_filename_pattern_focus_out)
-    frame_input_filename_pattern.pack(side=LEFT, anchor=W)
-    frame_input_filename_pattern.delete(0, 'end')
-    frame_input_filename_pattern.insert('end', project_config["FrameInputFilenamePattern"])
 
     # Define post-processing area *********************************************
     postprocessing_frame = LabelFrame(right_area_frame,
