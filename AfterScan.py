@@ -161,6 +161,7 @@ frame_fill_type = 'none'
 ConvertLoopExitRequested = False
 ConvertLoopRunning = False
 BatchJobRunning = False
+BatchAutostart = False
 
 # preview dimensions (4/3 format) vars
 BigSize = True
@@ -444,8 +445,8 @@ def save_project_config():
     project_config["FrameFillType"] = frame_fill_type.get()
     project_config["VideoFilename"] = video_filename_name.get()
     project_config["VideoTitle"] = video_title_name.get()
-    project_config["FrameFrom"] = int(frame_from_str.get())
-    project_config["FrameTo"] = int(frame_to_str.get())
+    project_config["FrameFrom"] = frame_from_str.get()
+    project_config["FrameTo"] = frame_to_str.get()
     if StabilizeAreaDefined:
         project_config["HoleHeight"] = film_hole_height
         project_config["PerformStabilization"] = perform_stabilization.get()
@@ -567,7 +568,10 @@ def decode_project_config():
         frame_to_str.set(str(project_config["FrameTo"]))
     else:
         frame_to_str.set('0')
-    frames_to_encode = int(frame_to_str.get()) - int(frame_from_str.get()) + 1
+    if frame_to_str.get() != '' and frame_from_str.get() != '':
+        frames_to_encode = int(frame_to_str.get()) - int(frame_from_str.get()) + 1
+    else:
+        frames_to_encode = 0
 
     if not 'FilmType' in project_config:
         project_config["FilmType"] = 'S8'
@@ -707,6 +711,9 @@ def job_list_process_selection(evt):
 
     # Note here that Tkinter passes an event object to onselect()
     # w = evt.widget - We already know the widget
+
+    if job_list_listbox.len == 0:
+        return
 
     selected = int(job_list_listbox.curselection()[0])
     entry = job_list_listbox.get(selected)
@@ -885,7 +892,7 @@ def job_processing_loop():
     global CurrentJobEntry
     global BatchJobRunning
     global project_config_from_file
-    global suspend_on_joblist_end
+    global suspend_on_completion
 
     job_started = False
     idx = 0
@@ -914,7 +921,7 @@ def job_processing_loop():
     if not job_started:
         CurrentJobEntry = -1
         generation_exit()
-        if suspend_on_joblist_end.get():
+        if suspend_on_completion.get() == 'batch_completion':
             system_suspend()
 
 
@@ -1197,6 +1204,10 @@ def update_frame_to(event):
     else:
         select_scale_frame(frame_to_str.get())
         frame_slider.set(frame_to_str.get())
+
+def on_paste_all_entries(event, entry):
+    # Delete the selected text
+    entry.delete(tk.SEL_FIRST, tk.SEL_LAST)
 
 
 def custom_ffmpeg_path_focus_out(event):
@@ -2440,7 +2451,10 @@ def generation_exit():
                     break
                 idx += 1
             job_list_listbox.itemconfig(idx, fg='green')
-            win.after(100, job_processing_loop)         # Continue with next
+            if suspend_on_completion.get() == 'job_completion':
+                system_suspend()
+            else:
+                win.after(100, job_processing_loop)         # Continue with next
     else:
         Go_btn.config(text="Start", bg=save_bg, fg=save_fg)
     ConvertLoopExitRequested = False  # Reset flags
@@ -3006,6 +3020,7 @@ def build_ui():
     global frame_from_str, frame_to_str, frame_from_entry, frame_to_entry, frames_separator_label
     global suspend_on_joblist_end
     global frame_fill_type
+    global suspend_on_completion
 
     # Create a frame to add a border to the preview
     left_area_frame = Frame(win)
@@ -3070,6 +3085,7 @@ def build_ui():
     frames_source_dir.delete(0, 'end')
     frames_source_dir.insert('end', SourceDir)
     frames_source_dir.after(100, frames_source_dir.xview_moveto, 1)
+    frames_source_dir.bind('<<Paste>>', lambda event, entry=frames_source_dir: on_paste_all_entries(event, entry))
 
     source_folder_btn = Button(source_folder_frame, text='Source', width=6,
                                height=1, command=set_source_folder,
@@ -3082,6 +3098,7 @@ def build_ui():
     frames_target_dir = Entry(target_folder_frame, width=36,
                                     borderwidth=1)
     frames_target_dir.pack(side=LEFT)
+    frames_target_dir.bind('<<Paste>>', lambda event, entry=frames_target_dir: on_paste_all_entries(event, entry))
     target_folder_btn = Button(target_folder_frame, text='Target', width=6,
                                height=1, command=set_frames_target_folder,
                                activebackground='green',
@@ -3121,6 +3138,7 @@ def build_ui():
     frame_from_entry.grid(row=postprocessing_row, column=1, sticky=W)
     frame_from_entry.config(state=NORMAL)
     frame_from_entry.bind("<Double - Button - 1>", update_frame_from)
+    frame_from_entry.bind('<<Paste>>', lambda event, entry=frame_from_entry: on_paste_all_entries(event, entry))
     frame_to_str = tk.StringVar(value=str(from_frame))
     frames_separator_label = tk.Label(postprocessing_frame, text='to', width=4)
     frames_separator_label.grid(row=postprocessing_row, column=1, sticky=E)
@@ -3128,6 +3146,7 @@ def build_ui():
     frame_to_entry.grid(row=postprocessing_row, column=2, sticky=W)
     frame_to_entry.config(state=NORMAL)
     frame_to_entry.bind("<Double - Button - 1>", update_frame_to)
+    frame_to_entry.bind('<<Paste>>', lambda event, entry=frame_to_entry: on_paste_all_entries(event, entry))
 
     postprocessing_row += 1
 
@@ -3304,7 +3323,7 @@ def build_ui():
     skip_frame_regeneration_cb = tk.Checkbutton(
         video_frame, text='Skip Frame regeneration',
         variable=skip_frame_regeneration, onvalue=True, offvalue=False,
-        width=28)
+        width=20)
     skip_frame_regeneration_cb.grid(row=video_row, column=1,
                                     columnspan=2, sticky=W)
     skip_frame_regeneration_cb.config(state=NORMAL if ffmpeg_installed
@@ -3317,6 +3336,7 @@ def build_ui():
                              sticky=W)
     video_target_dir.delete(0, 'end')
     video_target_dir.insert('end', '')
+    video_target_dir.bind('<<Paste>>', lambda event, entry=video_target_dir: on_paste_all_entries(event, entry))
     video_target_folder_btn = Button(video_frame, text='Target', width=6,
                                height=1, command=set_video_target_folder,
                                activebackground='green',
@@ -3332,6 +3352,7 @@ def build_ui():
                              sticky=W)
     video_filename_name.delete(0, 'end')
     video_filename_name.insert('end', TargetVideoFilename)
+    video_filename_name.bind('<<Paste>>', lambda event, entry=video_filename_name: on_paste_all_entries(event, entry))
     video_row += 1
 
     # Video title (add title at the start of the video)
@@ -3342,6 +3363,7 @@ def build_ui():
                              sticky=W)
     video_title_name.delete(0, 'end')
     video_title_name.insert('end', TargetVideoTitle)
+    video_title_name.bind('<<Paste>>', lambda event, entry=video_title_name: on_paste_all_entries(event, entry))
     video_row += 1
 
     # Drop down to select FPS
@@ -3428,6 +3450,7 @@ def build_ui():
     custom_ffmpeg_path.delete(0, 'end')
     custom_ffmpeg_path.insert('end', FfmpegBinName)
     custom_ffmpeg_path.bind("<FocusOut>", custom_ffmpeg_path_focus_out)
+    custom_ffmpeg_path.bind('<<Paste>>', lambda event, entry=custom_ffmpeg_path: on_paste_all_entries(event, entry))
     video_row += 1
 
     # Define job list area ***************************************************
@@ -3438,7 +3461,7 @@ def build_ui():
     job_list_row = 0
 
     # job listbox
-    job_list_listbox = Listbox(job_list_frame, width=67 if BigSize else 42, height=9)
+    job_list_listbox = Listbox(job_list_frame, width=65 if BigSize else 42, height=13)
     job_list_listbox.grid(column=0, row=0, padx=5, pady=2, ipadx=5)
     job_list_listbox.bind("<Delete>", job_list_delete_current)
     job_list_listbox.bind("<Return>", job_list_load_current)
@@ -3487,12 +3510,28 @@ def build_ui():
     start_batch_btn.pack(side=TOP, padx=2, pady=2)
 
     # Suspend on end checkbox
-    suspend_on_joblist_end = tk.BooleanVar(value=False)
-    suspend_on_joblist_end_cb = tk.Checkbutton(
-        job_list_btn_frame, text='Suspend on end',
-        variable=suspend_on_joblist_end, onvalue=True, offvalue=False,
-        width=13)
-    suspend_on_joblist_end_cb.pack(side=TOP, padx=2, pady=2)
+    # suspend_on_joblist_end = tk.BooleanVar(value=False)
+    # suspend_on_joblist_end_cb = tk.Checkbutton(
+    #     job_list_btn_frame, text='Suspend on end',
+    #     variable=suspend_on_joblist_end, onvalue=True, offvalue=False,
+    #     width=13)
+    # suspend_on_joblist_end_cb.pack(side=TOP, padx=2, pady=2)
+
+    suspend_on_completion_label = Label(job_list_btn_frame, text='Suspend on:')
+    suspend_on_completion_label.pack(side=TOP, anchor=W, padx=2, pady=2)
+    suspend_on_completion = StringVar()
+    suspend_on_batch_completion_rb = Radiobutton(job_list_btn_frame, text="Job completion",
+                                  variable=suspend_on_completion, value='job_completion')
+    suspend_on_batch_completion_rb.pack(side=TOP, anchor=W, padx=2, pady=2)
+    suspend_on_job_completion_rb = Radiobutton(job_list_btn_frame, text="Batch completion",
+                                  variable=suspend_on_completion, value='batch_completion')
+    suspend_on_job_completion_rb.pack(side=TOP, anchor=W, padx=2, pady=2)
+    no_suspend_rb = Radiobutton(job_list_btn_frame, text="No suspend",
+                                  variable=suspend_on_completion, value='no_suspend')
+    no_suspend_rb.pack(side=TOP, anchor=W, padx=2, pady=2)
+
+    suspend_on_completion.set("no_suspend")
+
 
     postprocessing_bottom_frame = Frame(video_frame, width=30)
     postprocessing_bottom_frame.grid(row=video_row, column=0)
@@ -3522,6 +3561,8 @@ def main(argv):
     global default_project_config
     global is_demo
     global GenerateCsv
+    global suspend_on_joblist_end
+    global BatchAutostart
 
     LoggingMode = "warning"
 
@@ -3545,7 +3586,7 @@ def main(argv):
     film_bw_template =  cv2.imread(pattern_bw_filename, 0)
     film_wb_template =  cv2.imread(pattern_wb_filename, 0)
 
-    opts, args = getopt.getopt(argv, "hiel:dc")
+    opts, args = getopt.getopt(argv, "hiel:dcs")
 
     for opt, arg in opts:
         if opt == '-l':
@@ -3558,14 +3599,16 @@ def main(argv):
             IgnoreConfig = True
         elif opt == '-d':
             is_demo = True
+        elif opt == '-s':
+            BatchAutostart = True
         elif opt == '-h':
             print("AfterScan")
             print("  -l <log mode>  Set log level:")
             print("      <log mode> = [DEBUG|INFO|WARNING|ERROR]")
-            print("  -c             Generate CSV file with misaligned frames")
-            print("  -e             Enable expert mode")
             print("  -i             Ignore existing config")
-            print("  -s             Smaller font")
+            print("  -e             Enable expert mode")
+            print("  -c             Generate CSV file with misaligned frames")
+            print("  -s             Initiate batch on startup (and suspend on batch completion)")
             exit()
 
     LogLevel = getattr(logging, LoggingMode.upper(), None)
@@ -3640,6 +3683,11 @@ def main(argv):
         frame_slider.set(CurrentFrame)
 
     init_display()
+
+    # If BatchAutostart, enable suspend on completion and start batch
+    if BatchAutostart:
+        suspend_on_joblist_end.set(True)
+        win.after(2000, start_processing_job_list) # Wait 2 sec. to allow main loop to start
 
     # Main Loop
     win.mainloop()  # running the loop that works as a trigger
