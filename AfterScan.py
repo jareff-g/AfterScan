@@ -19,9 +19,9 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.9.1"
-__date__ = "2024-01-13"
-__version_highlight__ = "Bugfixes"
+__version__ = "1.9.2"
+__date__ = "2024-01-14"
+__version_highlight__ = "Make new automatic stabilization project-specific"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -141,6 +141,7 @@ default_interhole_height_r8 = 808
 hole_template_bw_filename = os.path.join(aux_dir, "Pattern_BW.jpg")
 hole_template_wb_filename = os.path.join(aux_dir, "Pattern_WB.jpg")
 film_hole_template = None
+film_hole_template_scale = 1.0
 HoleSearchTopLeft = (0, 0)
 HoleSearchBottomRight = (0, 0)
 
@@ -491,6 +492,11 @@ def save_project_config():
     project_config["FrameTo"] = frame_to_str.get()
     if StabilizeAreaDefined:
         project_config["PerformStabilization"] = perform_stabilization.get()
+        if not encode_all_frames.get():
+            project_config["HolePos"] = list(expected_hole_template_pos)
+            project_config["CustomHolePos"] = list(expected_hole_template_pos_custom)
+            project_config["HoleScale"] = film_hole_template_scale
+
 
     # No longer saving to dedicated file, all project settings in common file now
     # with open(project_config_filename, 'w+') as f:
@@ -549,6 +555,7 @@ def decode_project_config():
     global CustomTemplateDefined
     global hole_template_filename, expected_hole_template_pos
     global hole_template_filename_custom, expected_hole_template_pos_custom
+    global film_hole_template_scale
     global frame_from_str, frame_to_str
     global project_name
     global force_4_3_crop, force_16_9_crop
@@ -720,6 +727,22 @@ def decode_project_config():
         perform_stabilization.set(project_config["PerformStabilization"])
     else:
         perform_stabilization.set(False)
+
+    if 'HolePos' in project_config:
+        expected_hole_template_pos = tuple(project_config["HolePos"])
+    else:
+        expected_hole_template_pos = (0,0)
+
+    if 'CustomHolePos' in project_config:
+        expected_hole_template_pos_custom = tuple(project_config["CustomHolePos"])
+    else:
+        expected_hole_template_pos_custom = (0, 0)
+
+    if 'HoleScale' in project_config:
+        film_hole_template_scale = project_config["HoleScale"]
+        set_scaled_template()
+    else:
+        film_hole_template_scale = 1.0
 
     if 'PerformRotation' in project_config:
         perform_rotation.set(project_config["PerformRotation"])
@@ -1683,7 +1706,7 @@ def detect_film_type():
         other_film_type = 'R8'
 
     # Create a list with 5 evenly distributed values between CurrentFrame and len(SourceDirFileList) - CurrentFrame
-    num_frames = min(5,len(SourceDirFileList)-CurrentFrame)
+    num_frames = min(10,len(SourceDirFileList)-CurrentFrame)
     FramesToCheck = np.linspace(CurrentFrame, len(SourceDirFileList) - CurrentFrame - 1, num_frames).astype(int).tolist()
     for frame_to_check in FramesToCheck:
         img = cv2.imread(SourceDirFileList[frame_to_check], cv2.IMREAD_UNCHANGED)
@@ -1696,7 +1719,7 @@ def detect_film_type():
         result = cv2.matchTemplate(search_img, template_2, cv2.TM_CCOEFF_NORMED)
         (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
         top_left_2 = (maxLoc[1], maxLoc[0])
-        if top_left_1[1] > top_left_2[1]:
+        if top_left_1[0] > top_left_2[0]:
             count1 += 1
         else:
             count2 += 1
@@ -1717,11 +1740,17 @@ def detect_film_type():
 
 
 # Functions in charge of finding the best template for currently loaded set of frames
-def set_best_template():
+def set_scaled_template():
+    global hole_template_filename, film_hole_template, film_hole_template_scale
+    template = cv2.imread(hole_template_filename, cv2.IMREAD_GRAYSCALE)
+    film_hole_template = resize_image(template, film_hole_template_scale * 100)
+
+
+def set_best_template(first_frame, last_frame):
     global win, CurrentFrame, ReferenceFrame, SourceDirFileList
     global TemplateTopLeft, TemplateBottomRight
     global expected_hole_template_pos
-    global film_hole_template
+    global film_hole_template, film_hole_template_scale
     global CustomTemplateDefined
     global app_status_label
 
@@ -1738,21 +1767,21 @@ def set_best_template():
 
     candidates = []
     frame_found = False
-    total_frames = len(SourceDirFileList) - CurrentFrame
+    total_frames = last_frame - first_frame + 1
     # Start checking 10% ahead, in case first frames are not OK. Random seed in case it fails and needs to be repeated
     if total_frames > 110:
-        start_frame = CurrentFrame + int((total_frames - 100) * 0.1) + random.randint(1, 100)
+        start_frame = first_frame + int((total_frames - 100) * 0.1) + random.randint(1, 100)
     else:
-        start_frame = CurrentFrame
-    num_frames = min(100,len(SourceDirFileList)-start_frame)
+        start_frame = first_frame
+    num_frames = min(100,last_frame-start_frame)
     # Create a list with 10 evenly distributed values between CurrentFrame and len(SourceDirFileList) - CurrentFrame
-    FramesToCheck = np.linspace(start_frame, len(SourceDirFileList) - start_frame - 1, num_frames).astype(int).tolist()
+    FramesToCheck = np.linspace(start_frame, last_frame - start_frame - 1, num_frames).astype(int).tolist()
     for frame_to_check in FramesToCheck:
         work_image = cv2.imread(SourceDirFileList[frame_to_check], cv2.IMREAD_UNCHANGED)
         work_image = get_image_left_stripe(work_image)
         y_center_image = int(work_image.shape[0]/2)
         shift_allowed = int (work_image.shape[0] * 0.01)     # Allow up to 10% difference between center of image and center of detected template
-        TemplateTopLeft, TemplateBottomRight, film_hole_template = get_best_template_size(work_image)
+        TemplateTopLeft, TemplateBottomRight, film_hole_template_scale, film_hole_template = get_best_template_size(work_image)
         expected_hole_template_pos = TemplateTopLeft
         iy = TemplateTopLeft[1]
         y_ = TemplateBottomRight[1]
@@ -1761,12 +1790,13 @@ def set_best_template():
             frame_found = True
             break
         else:
-            candidates.append((TemplateTopLeft, abs(y_center_template - y_center_image), frame_to_check, film_hole_template))
+            candidates.append((TemplateTopLeft, abs(y_center_template - y_center_image), frame_to_check, film_hole_template_scale, film_hole_template))
     if not frame_found:
         # Get the item with lowest difference to the centred position
         best_candidate = min(candidates, key=lambda x: x[1])
         expected_hole_template_pos = best_candidate[0]
-        film_hole_template = best_candidate[3]
+        film_hole_template_scale = best_candidate[3]
+        film_hole_template = best_candidate[4]
         tk.messagebox.showwarning(
             "No centered frame found meeting criteria",
             f"Degraded candidate selected: Frame {best_candidate[2]}, expected template position {expected_hole_template_pos}"
@@ -1823,7 +1853,7 @@ def get_best_template_size(img):
     logging.debug(f"Match found - scale {scale:.2f}, maxVal {maxVal:.2f}, maxLoc {maxLoc}, t.height {best_template.shape[0]}")
     (startX, startY) = (maxLoc[0], maxLoc[1])
     (endX, endY) = (maxLoc[0] + best_template.shape[1] - 1, maxLoc[1] + best_template.shape[0] - 1)
-    return (startX, startY), (endX, endY), best_template
+    return (startX, startY), (endX, endY), scale, best_template
 
 
 
@@ -2083,15 +2113,31 @@ def select_rectangle_area(is_cropping=False):
 
 
 def select_cropping_area():
-    global RectangleWindowTitle
+    global win, RectangleWindowTitle
     global perform_cropping
     global CropTopLeft, CropBottomRight
     global CropAreaDefined
     global RectangleTopLeft, RectangleBottomRight
+    global expected_hole_template_pos, project_config
+    global encode_all_frames, from_frame, to_frame, ReferenceFrame
 
     # Disable all buttons in main window
     widget_status_update(DISABLED,0)
     win.update()
+
+    if not encode_all_frames.get():
+        win.config(cursor="watch")
+        win.update()  # Force an update to apply the cursor change
+        set_best_template(int(frame_from_str.get()), int(frame_to_str.get()))
+        select_scale_frame(ReferenceFrame)
+        frame_slider.set(ReferenceFrame)
+        project_config["HolePos"] = expected_hole_template_pos
+        project_config["HoleScale"] = film_hole_template_scale
+        win.config(cursor="")
+        win.update()  # Force an update to apply the cursor change
+    else:
+        del project_config["HolePos"]
+        del project_config["HoleScale"]
 
     RectangleWindowTitle = CropWindowTitle
 
@@ -2759,9 +2805,13 @@ def get_source_dir_file_list():
     sample_frame = CurrentFrame + int((len(SourceDirFileList) - CurrentFrame) * 0.1)
     work_image = cv2.imread(SourceDirFileList[sample_frame], cv2.IMREAD_UNCHANGED)
     # Next 3 statements were done only if batch mode was not active, but they are needed in all cases
-    set_hole_search_area(work_image)
-    detect_film_type()
-    set_film_type()
+    if BatchJobRunning:
+        logging.debug(f"Skipping hole template adjustment in batch mode")
+    else:
+        logging.debug(f"Adjusting hole template...")
+        set_hole_search_area(work_image)
+        detect_film_type()
+        set_film_type()
     # Select area window should be proportional to screen height
     # Deduct 120 pixels (approximately) for taskbar + window title
     area_select_image_factor = (screen_height - 200) / work_image.shape[0]
@@ -2770,7 +2820,7 @@ def get_source_dir_file_list():
     if CropBottomRight == (0,0):
         CropBottomRight = (work_image.shape[1], work_image.shape[0])
 
-    set_best_template()
+    set_best_template(0, len(SourceDirFileList))
     widget_status_update(NORMAL)
 
     return len(SourceDirFileList)
