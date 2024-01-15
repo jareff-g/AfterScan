@@ -3856,7 +3856,7 @@ def build_ui():
     frame_slider.set(CurrentFrame)
 
     # Application status label
-    app_status_label = Label(regular_top_section_frame, width=55, borderwidth=2,
+    app_status_label = Label(regular_top_section_frame, width=45 if BigSize else 55, borderwidth=2,
                              relief="groove", text='Status: Idle',
                              highlightthickness=1, font=("Arial", FontSize))
     app_status_label.grid(row=1, column=0, columnspan=3, pady=5)
