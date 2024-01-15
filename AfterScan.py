@@ -267,6 +267,7 @@ IsLinux = False
 IsMac = False
 
 is_demo = False
+ForceSmallSize = False
 debug_enabled = False
 debug_template_match = False
 developer_debug = False
@@ -1563,12 +1564,12 @@ def display_template_selection():
     template_popup_window = Toplevel(win)
     template_popup_window.title("Hole Template match debug info")
 
-    template_popup_window.minsize(width=440, height=template_popup_window.winfo_height())
+    template_popup_window.minsize(width=300, height=template_popup_window.winfo_height())
 
     # Create two paralell vertical frames
     left_frame = Frame(template_popup_window, width=60, height=8)
     left_frame.pack(side=LEFT)
-    right_frame = Frame(template_popup_window, width=380, height=8)
+    right_frame = Frame(template_popup_window, width=280, height=8)
     right_frame.pack(side=LEFT)
     # Add a label and a close button to the popup window
     #label = Label(left_frame, text="Current template:")
@@ -1590,11 +1591,11 @@ def display_template_selection():
     template_canvas.image = DisplayableImage
 
     # Add a label with the film type
-    film_type_label = Label(right_frame, text=f"Film type: {film_type.get()}")
+    film_type_label = Label(right_frame, text=f"Film type: {film_type.get()}", font=("Arial", FontSize))
     film_type_label.pack(pady=5, padx=10, anchor="center")
 
     # Add a label with the cropping dimensions
-    crop_label = Label(right_frame, text=f"Crop: {CropTopLeft}, {CropBottomRight}")
+    crop_label = Label(right_frame, text=f"Crop: {CropTopLeft}, {CropBottomRight}", font=("Arial", FontSize))
     crop_label.pack(pady=5, padx=10, anchor="center")
 
     # Add a label with the stabilization info
@@ -1602,19 +1603,19 @@ def display_template_selection():
         hole_template_pos = expected_hole_template_pos_custom
     else:
         hole_template_pos = expected_hole_template_pos
-    hole_pos_label = Label(right_frame, text=f"Expected template pos: {hole_template_pos}")
+    hole_pos_label = Label(right_frame, text=f"Expected template pos: {hole_template_pos}", font=("Arial", FontSize))
     hole_pos_label.pack(pady=5, padx=10, anchor="center")
 
-    search_area_label = Label(right_frame, text=f"Search Area: {HoleSearchTopLeft}, {HoleSearchBottomRight}")
+    search_area_label = Label(right_frame, text=f"Search Area: {HoleSearchTopLeft}, {HoleSearchBottomRight}", font=("Arial", FontSize))
     search_area_label.pack(pady=5, padx=10, anchor="center")
 
-    current_frame_label = Label(right_frame, text="Current:", width=45)
+    current_frame_label = Label(right_frame, text="Current:", width=45, font=("Arial", FontSize))
     current_frame_label.pack(pady=5, padx=10, anchor="center")
 
-    display_reference_frame_button = Button(right_frame, text="Display reference frame", command=display_reference_frame)
+    display_reference_frame_button = Button(right_frame, text="Display reference frame", command=display_reference_frame, font=("Arial", FontSize))
     display_reference_frame_button.pack(pady=10, padx=10, anchor="center")
 
-    close_button = Button(right_frame, text="Close", command=display_template_closure)
+    close_button = Button(right_frame, text="Close", command=display_template_closure, font=("Arial", FontSize))
     close_button.pack(pady=10, padx=10, anchor="center")
 
     # Run a loop for the popup window
@@ -2136,8 +2137,10 @@ def select_cropping_area():
         win.config(cursor="")
         win.update()  # Force an update to apply the cursor change
     else:
-        del project_config["HolePos"]
-        del project_config["HoleScale"]
+        if 'HolePos' in project_config:
+            del project_config["HolePos"]
+        if 'HoleScale' in project_config:
+            del project_config["HoleScale"]
 
     RectangleWindowTitle = CropWindowTitle
 
@@ -2806,9 +2809,9 @@ def get_source_dir_file_list():
     work_image = cv2.imread(SourceDirFileList[sample_frame], cv2.IMREAD_UNCHANGED)
     # Next 3 statements were done only if batch mode was not active, but they are needed in all cases
     if BatchJobRunning:
-        logging.debug(f"Skipping hole template adjustment in batch mode")
+        logging.debug("Skipping hole template adjustment in batch mode")
     else:
-        logging.debug(f"Adjusting hole template...")
+        logging.debug("Adjusting hole template...")
         set_hole_search_area(work_image)
         detect_film_type()
         set_film_type()
@@ -3699,7 +3702,7 @@ def afterscan_init():
     global LogLevel
     global PreviewWidth, PreviewHeight
     global screen_height
-    global BigSize
+    global BigSize, FontSize
     global MergeMertens
 
     # Initialize logging
@@ -3724,18 +3727,20 @@ def afterscan_init():
     # Get screen size - maxsize gives the usable screen size
     screen_width, screen_height = win.maxsize()
     # Set dimensions of UI elements adapted to screen size
-    if screen_height >= 1000:
+    if screen_height >= 1000 and not ForceSmallSize:
         BigSize = True
+        FontSize = 11
         PreviewWidth = 700
         PreviewHeight = 540
         app_width = PreviewWidth + 420
         app_height = PreviewHeight + 310
     else:
         BigSize = False
+        FontSize = 8
         PreviewWidth = 500
         PreviewHeight = 380
-        app_width = PreviewWidth + 420
-        app_height = PreviewHeight + 470
+        app_width = PreviewWidth + 380
+        app_height = PreviewHeight + 330
 
     win.title('AfterScan ' + __version__)  # setting title of the window
     win.geometry('1080x700')  # setting the size of the window
@@ -3818,6 +3823,7 @@ def build_ui():
     global fast_stabilization_rb, precise_stabilization_rb
     global ExpertMode
     global display_template
+    global BigSize, FontSize
 
     # Create a frame to add a border to the preview
     left_area_frame = Frame(win)
@@ -3838,46 +3844,45 @@ def build_ui():
 
     # Create frame to display current frame and slider
     frame_frame = LabelFrame(regular_top_section_frame, text='Current frame',
-                               width=35, height=10)
+                               width=35, height=10, font=("Arial", FontSize))
     frame_frame.grid(row=0, column=0, sticky=W)
 
     frame_selected = IntVar()
     frame_slider = Scale(frame_frame, orient=HORIZONTAL, from_=0, to=0,
                          variable=frame_selected, command=select_scale_frame,
                          length=120, label='Global:',
-                         highlightthickness=1, takefocus=1)
+                         highlightthickness=1, takefocus=1, font=("Arial", FontSize))
     frame_slider.pack(side=BOTTOM, ipady=4)
     frame_slider.set(CurrentFrame)
 
     # Application status label
-    app_status_label = Label(regular_top_section_frame, width=45, borderwidth=2,
+    app_status_label = Label(regular_top_section_frame, width=55, borderwidth=2,
                              relief="groove", text='Status: Idle',
-                             highlightthickness=1)
-    app_status_label.grid(row=1, column=0, columnspan=3, sticky=W,
-                          pady=5)
+                             highlightthickness=1, font=("Arial", FontSize))
+    app_status_label.grid(row=1, column=0, columnspan=3, pady=5)
 
     # Application Exit button
     Exit_btn = Button(regular_top_section_frame, text="Exit", width=10,
                       height=5, command=exit_app, activebackground='red',
-                      activeforeground='white', wraplength=80)
+                      activeforeground='white', wraplength=80, font=("Arial", FontSize))
     Exit_btn.grid(row=0, column=1, sticky=W, padx=5)
 
 
     # Application start button
     Go_btn = Button(regular_top_section_frame, text="Start", width=12, height=5,
                     command=start_convert, activebackground='green',
-                    activeforeground='white', wraplength=80)
+                    activeforeground='white', wraplength=80, font=("Arial", FontSize))
     Go_btn.grid(row=0, column=2, sticky=W)
 
     # Create frame to select source and target folders *******************************
     folder_frame = LabelFrame(right_area_frame, text='Folder selection', width=50,
-                              height=8)
-    folder_frame.pack(side=TOP, padx=2, pady=2, anchor=W, ipadx=5)
+                              height=8, font=("Arial", FontSize))
+    folder_frame.pack(side=TOP, padx=2, pady=2, ipadx=5)
 
     source_folder_frame = Frame(folder_frame)
     source_folder_frame.pack(side=TOP)
     frames_source_dir = Entry(source_folder_frame, width=36,
-                                    borderwidth=1)
+                                    borderwidth=1, font=("Arial", FontSize))
     frames_source_dir.pack(side=LEFT)
     frames_source_dir.delete(0, 'end')
     frames_source_dir.insert('end', SourceDir)
@@ -3887,19 +3892,19 @@ def build_ui():
     source_folder_btn = Button(source_folder_frame, text='Source', width=6,
                                height=1, command=set_source_folder,
                                activebackground='green',
-                               activeforeground='white', wraplength=80)
+                               activeforeground='white', wraplength=80, font=("Arial", FontSize))
     source_folder_btn.pack(side=LEFT)
 
     target_folder_frame = Frame(folder_frame)
     target_folder_frame.pack(side=TOP)
     frames_target_dir = Entry(target_folder_frame, width=36,
-                                    borderwidth=1)
+                                    borderwidth=1, font=("Arial", FontSize))
     frames_target_dir.pack(side=LEFT)
     frames_target_dir.bind('<<Paste>>', lambda event, entry=frames_target_dir: on_paste_all_entries(event, entry))
     target_folder_btn = Button(target_folder_frame, text='Target', width=6,
                                height=1, command=set_frames_target_folder,
                                activebackground='green',
-                               activeforeground='white', wraplength=80)
+                               activeforeground='white', wraplength=80, font=("Arial", FontSize))
     target_folder_btn.pack(side=LEFT)
 
     save_bg = source_folder_btn['bg']
@@ -3911,17 +3916,17 @@ def build_ui():
     # Define post-processing area *********************************************
     postprocessing_frame = LabelFrame(right_area_frame,
                                       text='Frame post-processing',
-                                      width=40, height=8)
+                                      width=40, height=8, font=("Arial", FontSize))
     postprocessing_frame.pack(side=TOP, padx=2, pady=2, ipadx=5)
     postprocessing_row = 0
 
     # Radio buttons to select R8/S8. Required to select adequate pattern, and match position
     film_type = StringVar()
     film_type_S8_rb = Radiobutton(postprocessing_frame, text="Super 8", command=set_film_type,
-                                  variable=film_type, value='S8')
+                                  variable=film_type, value='S8', font=("Arial", FontSize))
     film_type_S8_rb.grid(row=postprocessing_row, column=0, sticky=W)
     film_type_R8_rb = Radiobutton(postprocessing_frame, text="Regular 8", command=set_film_type,
-                                  variable=film_type, value='R8')
+                                  variable=film_type, value='R8', font=("Arial", FontSize))
     film_type_R8_rb.grid(row=postprocessing_row, column=1, sticky=W)
     film_type.set(project_config["FilmType"])
     postprocessing_row += 1
@@ -3931,7 +3936,7 @@ def build_ui():
     encode_all_frames_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Encode all frames',
         variable=encode_all_frames, onvalue=True, offvalue=False,
-        command=encode_all_frames_selection, width=14)
+        command=encode_all_frames_selection, width=14, font=("Arial", FontSize))
     encode_all_frames_checkbox.grid(row=postprocessing_row, column=0,
                                            columnspan=3, sticky=W)
     postprocessing_row += 1
@@ -3939,18 +3944,18 @@ def build_ui():
     # Entry to enter start/end frames
     frames_to_encode_label = tk.Label(postprocessing_frame,
                                       text='Frame range:',
-                                      width=12)
+                                      width=12, font=("Arial", FontSize))
     frames_to_encode_label.grid(row=postprocessing_row, column=0, columnspan=2, sticky=W)
     frame_from_str = tk.StringVar(value=str(from_frame))
-    frame_from_entry = Entry(postprocessing_frame, textvariable=frame_from_str, width=6, borderwidth=1)
+    frame_from_entry = Entry(postprocessing_frame, textvariable=frame_from_str, width=6, borderwidth=1, font=("Arial", FontSize))
     frame_from_entry.grid(row=postprocessing_row, column=1, sticky=W)
     frame_from_entry.config(state=NORMAL)
     frame_from_entry.bind("<Double - Button - 1>", update_frame_from)
     frame_from_entry.bind('<<Paste>>', lambda event, entry=frame_from_entry: on_paste_all_entries(event, entry))
     frame_to_str = tk.StringVar(value=str(from_frame))
-    frames_separator_label = tk.Label(postprocessing_frame, text='to', width=4)
+    frames_separator_label = tk.Label(postprocessing_frame, text='to', width=4, font=("Arial", FontSize))
     frames_separator_label.grid(row=postprocessing_row, column=1, sticky=E)
-    frame_to_entry = Entry(postprocessing_frame, textvariable=frame_to_str, width=6, borderwidth=1)
+    frame_to_entry = Entry(postprocessing_frame, textvariable=frame_to_str, width=6, borderwidth=1, font=("Arial", FontSize))
     frame_to_entry.grid(row=postprocessing_row, column=2, sticky=W)
     frame_to_entry.config(state=NORMAL)
     frame_to_entry.bind("<Double - Button - 1>", update_frame_to)
@@ -3963,7 +3968,7 @@ def build_ui():
     perform_rotation_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Rotate image:',
         variable=perform_rotation, onvalue=True, offvalue=False, width=11,
-        command=perform_rotation_selection)
+        command=perform_rotation_selection, font=("Arial", FontSize))
     perform_rotation_checkbox.grid(row=postprocessing_row, column=0,
                                         columnspan=1, sticky=W)
     perform_rotation_checkbox.config(state=NORMAL)
@@ -3976,7 +3981,7 @@ def build_ui():
         postprocessing_frame,
         command=(rotation_angle_selection_aux, '%d'), width=5,
         textvariable=rotation_angle_str, from_=-5, to=5,
-        format="%.1f", increment=0.1)
+        format="%.1f", increment=0.1, font=("Arial", FontSize))
     rotation_angle_spinbox.grid(row=postprocessing_row, column=1, sticky=W)
     rotation_angle_spinbox.bind("<FocusOut>", rotation_angle_spinbox_focus_out)
     rotation_angle_selection('down')
@@ -3992,20 +3997,20 @@ def build_ui():
     perform_stabilization_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Stabilize',
         variable=perform_stabilization, onvalue=True, offvalue=False, width=7,
-        command=perform_stabilization_selection)
+        command=perform_stabilization_selection, font=("Arial", FontSize))
     perform_stabilization_checkbox.grid(row=postprocessing_row, column=0,
                                         columnspan=1, sticky=W)
     # Label to display the match level of current frame to template
-    stabilization_threshold_match_label = Label(postprocessing_frame, width=4, borderwidth=1, relief='sunken')
+    stabilization_threshold_match_label = Label(postprocessing_frame, width=4, borderwidth=1, relief='sunken', font=("Arial", FontSize))
     stabilization_threshold_match_label.grid(row=postprocessing_row, column=0, sticky=E)
 
     # Radio buttons to selected between fast and precide stabilization
     stabilization_type = StringVar()
     fast_stabilization_rb = Radiobutton(postprocessing_frame, text='Fast',
-                                    variable=stabilization_type, value='fast')
+                                    variable=stabilization_type, value='fast', font=("Arial", FontSize))
     fast_stabilization_rb.grid(row=postprocessing_row, column=1)
     precise_stabilization_rb = Radiobutton(postprocessing_frame, text='Precise',
-                                    variable=stabilization_type, value='precise')
+                                    variable=stabilization_type, value='precise', font=("Arial", FontSize))
     precise_stabilization_rb.grid(row=postprocessing_row, column=2)
     stabilization_type.set('fast')
 
@@ -4016,24 +4021,24 @@ def build_ui():
     perform_cropping_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Crop', variable=perform_cropping,
         onvalue=True, offvalue=False, command=perform_cropping_selection,
-        width=4)
+        width=4, font=("Arial", FontSize))
     perform_cropping_checkbox.grid(row=postprocessing_row, column=0, sticky=W)
     force_4_3_crop = tk.BooleanVar(value=False)
     force_4_3_crop_checkbox = tk.Checkbutton(
         postprocessing_frame, text='4:3', variable=force_4_3_crop,
         onvalue=True, offvalue=False, command=force_4_3_selection,
-        width=4)
+        width=4, font=("Arial", FontSize))
     force_4_3_crop_checkbox.grid(row=postprocessing_row, column=0, sticky=E)
     force_16_9_crop = tk.BooleanVar(value=False)
     force_16_9_crop_checkbox = tk.Checkbutton(
         postprocessing_frame, text='16:9', variable=force_16_9_crop,
         onvalue=True, offvalue=False, command=force_16_9_selection,
-        width=4)
+        width=4, font=("Arial", FontSize))
     force_16_9_crop_checkbox.grid(row=postprocessing_row, column=1, sticky=W)
     cropping_btn = Button(postprocessing_frame, text='Define crop area',
                           width=12, height=1, command=select_cropping_area,
                           activebackground='green', activeforeground='white',
-                          wraplength=120)
+                          wraplength=120, font=("Arial", FontSize))
     cropping_btn.grid(row=postprocessing_row, column=2, sticky=E)
     postprocessing_row += 1
 
@@ -4042,7 +4047,7 @@ def build_ui():
     perform_sharpness_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Sharpen', variable=perform_sharpness,
         onvalue=True, offvalue=False, command=perform_sharpness_selection,
-        width=7)
+        width=7, font=("Arial", FontSize))
     perform_sharpness_checkbox.grid(row=postprocessing_row, column=0, sticky=W)
 
     # Check box to perform denoise
@@ -4050,7 +4055,7 @@ def build_ui():
     perform_denoise_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Denoise', variable=perform_denoise,
         onvalue=True, offvalue=False, command=perform_denoise_selection,
-        width=7)
+        width=7, font=("Arial", FontSize))
     perform_denoise_checkbox.grid(row=postprocessing_row, column=1, sticky=W)
     postprocessing_row += 1
 
@@ -4063,13 +4068,13 @@ def build_ui():
     # captured without the required part.
     frame_fill_type = StringVar()
     perform_fill_none_rb = Radiobutton(postprocessing_frame, text='No frame fill',
-                                    variable=frame_fill_type, value='none')
+                                    variable=frame_fill_type, value='none', font=("Arial", FontSize))
     perform_fill_none_rb.grid(row=postprocessing_row, column=0, sticky=W)
     perform_fill_fake_rb = Radiobutton(postprocessing_frame, text='Fake fill',
-                                    variable=frame_fill_type, value='fake')
+                                    variable=frame_fill_type, value='fake', font=("Arial", FontSize))
     perform_fill_fake_rb.grid(row=postprocessing_row, column=1, sticky=W)
     perform_fill_dumb_rb = Radiobutton(postprocessing_frame, text='Dumb fill',
-                                    variable=frame_fill_type, value='dumb')
+                                    variable=frame_fill_type, value='dumb', font=("Arial", FontSize))
     perform_fill_dumb_rb.grid(row=postprocessing_row, column=2, sticky=W)
     frame_fill_type.set('fake')
 
@@ -4081,7 +4086,7 @@ def build_ui():
                                                          text='Alert when image out of bounds',
                                                          variable=stabilization_bounds_alert,
                                                          onvalue=True, offvalue=False,
-                                                         width=40)
+                                                         width=40, font=("Arial", FontSize))
     stabilization_bounds_alert_checkbox.grid(row=postprocessing_row, column=0, columnspan=3, sticky=W)
 
     postprocessing_row += 1
@@ -4089,7 +4094,7 @@ def build_ui():
     # Define video generating area ************************************
     video_frame = LabelFrame(right_area_frame,
                              text='Video generation',
-                             width=50, height=8)
+                             width=50, height=8, font=("Arial", FontSize))
     video_frame.pack(side=TOP, padx=2, pady=2, ipadx=5)
     video_row = 0
 
@@ -4100,7 +4105,7 @@ def build_ui():
                                              variable=generate_video,
                                              onvalue=True, offvalue=False,
                                              command=generate_video_selection,
-                                             width=5)
+                                             width=5, font=("Arial", FontSize))
     generate_video_checkbox.grid(row=video_row, column=0, sticky=W)
     generate_video_checkbox.config(state=NORMAL if ffmpeg_installed
                                    else DISABLED)
@@ -4109,7 +4114,7 @@ def build_ui():
     skip_frame_regeneration_cb = tk.Checkbutton(
         video_frame, text='Skip Frame regeneration',
         variable=skip_frame_regeneration, onvalue=True, offvalue=False,
-        width=20)
+        width=20, font=("Arial", FontSize))
     skip_frame_regeneration_cb.grid(row=video_row, column=1,
                                     columnspan=2, sticky=W)
     skip_frame_regeneration_cb.config(state=NORMAL if ffmpeg_installed
@@ -4117,7 +4122,7 @@ def build_ui():
     video_row += 1
 
     # Video target folder
-    video_target_dir = Entry(video_frame, width=36, borderwidth=1)
+    video_target_dir = Entry(video_frame, width=36, borderwidth=1, font=("Arial", FontSize))
     video_target_dir.grid(row=video_row, column=0, columnspan=2,
                              sticky=W)
     video_target_dir.delete(0, 'end')
@@ -4126,12 +4131,12 @@ def build_ui():
     video_target_folder_btn = Button(video_frame, text='Target', width=6,
                                height=1, command=set_video_target_folder,
                                activebackground='green',
-                               activeforeground='white', wraplength=80)
+                               activeforeground='white', wraplength=80, font=("Arial", FontSize))
     video_target_folder_btn.grid(row=video_row, column=2, columnspan=2, sticky=W)
     video_row += 1
 
     # Video filename
-    video_filename_label = Label(video_frame, text='Video filename:')
+    video_filename_label = Label(video_frame, text='Video filename:', font=("Arial", FontSize))
     video_filename_label.grid(row=video_row, column=0, sticky=W)
     video_filename_name = Entry(video_frame, width=26, borderwidth=1)
     video_filename_name.grid(row=video_row, column=1, columnspan=2,
@@ -4142,7 +4147,7 @@ def build_ui():
     video_row += 1
 
     # Video title (add title at the start of the video)
-    video_title_label = Label(video_frame, text='Video title:')
+    video_title_label = Label(video_frame, text='Video title:', font=("Arial", FontSize))
     video_title_label.grid(row=video_row, column=0, sticky=W)
     video_title_name = Entry(video_frame, width=26, borderwidth=1)
     video_title_name.grid(row=video_row, column=1, columnspan=2,
@@ -4177,13 +4182,13 @@ def build_ui():
     # Create FPS Dropdown menu
     video_fps_frame = Frame(video_frame)
     video_fps_frame.grid(row=video_row, column=0, sticky=W)
-    video_fps_label = Label(video_fps_frame, text='FPS:')
+    video_fps_label = Label(video_fps_frame, text='FPS:', font=("Arial", FontSize))
     video_fps_label.pack(side=LEFT, anchor=W)
     video_fps_label.config(state=DISABLED)
     video_fps_dropdown = OptionMenu(video_fps_frame,
                                     video_fps_dropdown_selected, *fps_list,
                                     command=set_fps)
-    video_fps_dropdown.config(takefocus=1)
+    video_fps_dropdown.config(takefocus=1, font=("Arial", FontSize))
     video_fps_dropdown.pack(side=LEFT, anchor=E)
     video_fps_dropdown.config(state=DISABLED)
 
@@ -4194,16 +4199,16 @@ def build_ui():
     ffmpeg_preset = StringVar()
     ffmpeg_preset_rb1 = Radiobutton(ffmpeg_preset_frame,
                                     text="Best quality (slow)",
-                                    variable=ffmpeg_preset, value='veryslow')
+                                    variable=ffmpeg_preset, value='veryslow', font=("Arial", FontSize))
     ffmpeg_preset_rb1.pack(side=TOP, anchor=W)
     ffmpeg_preset_rb1.config(state=DISABLED)
     ffmpeg_preset_rb2 = Radiobutton(ffmpeg_preset_frame, text="Medium",
-                                    variable=ffmpeg_preset, value='medium')
+                                    variable=ffmpeg_preset, value='medium', font=("Arial", FontSize))
     ffmpeg_preset_rb2.pack(side=TOP, anchor=W)
     ffmpeg_preset_rb2.config(state=DISABLED)
     ffmpeg_preset_rb3 = Radiobutton(ffmpeg_preset_frame,
                                     text="Fast (low quality)",
-                                    variable=ffmpeg_preset, value='veryfast')
+                                    variable=ffmpeg_preset, value='veryfast', font=("Arial", FontSize))
     ffmpeg_preset_rb3.pack(side=TOP, anchor=W)
     ffmpeg_preset_rb3.config(state=DISABLED)
     ffmpeg_preset.set('medium')
@@ -4219,21 +4224,21 @@ def build_ui():
     # Create resolution Dropdown menu
     resolution_frame = Frame(video_frame)
     resolution_frame.grid(row=video_row, column=0, columnspan= 2, sticky=W)
-    resolution_label = Label(resolution_frame, text='Resolution:')
+    resolution_label = Label(resolution_frame, text='Resolution:', font=("Arial", FontSize))
     resolution_label.pack(side=LEFT, anchor=W)
     resolution_label.config(state=DISABLED)
     resolution_dropdown = OptionMenu(resolution_frame,
                                     resolution_dropdown_selected, *resolution_dict.keys(),
                                     command=set_resolution)
-    resolution_dropdown.config(takefocus=1)
+    resolution_dropdown.config(takefocus=1, font=("Arial", FontSize))
     resolution_dropdown.pack(side=LEFT, anchor=E)
     resolution_dropdown.config(state=DISABLED)
     video_row += 1
 
     # Custom ffmpeg path
-    custom_ffmpeg_path_label = Label(video_frame, text='Custom FFMpeg path:')
+    custom_ffmpeg_path_label = Label(video_frame, text='Custom FFMpeg path:', font=("Arial", FontSize))
     custom_ffmpeg_path_label.grid(row=video_row, column=0, sticky=W)
-    custom_ffmpeg_path = Entry(video_frame, width=26, borderwidth=1)
+    custom_ffmpeg_path = Entry(video_frame, width=26, borderwidth=1, font=("Arial", FontSize))
     custom_ffmpeg_path.grid(row=video_row, column=1, columnspan=2, sticky=W)
     custom_ffmpeg_path.delete(0, 'end')
     custom_ffmpeg_path.insert('end', FfmpegBinName)
@@ -4245,7 +4250,7 @@ def build_ui():
     if ExpertMode:
         extra_frame = LabelFrame(right_area_frame,
                                  text='Extra options',
-                                 width=50, height=8)
+                                 width=50, height=8, font=("Arial", FontSize))
         extra_frame.pack(side=TOP, padx=5, pady=5, ipadx=5, ipady=5)
         extra_row = 0
 
@@ -4255,14 +4260,14 @@ def build_ui():
                                           width=16, height=1,
                                           command=select_custom_template,
                                           activebackground='green',
-                                          activeforeground='white')
+                                          activeforeground='white', font=("Arial", FontSize))
         custom_stabilization_btn.config(relief=SUNKEN if CustomTemplateDefined else RAISED)
         custom_stabilization_btn.grid(row=extra_row, column=0, columnspan=1, padx=5, pady=5, sticky=W)
 
         # Spinbox to select stabilization threshold
         stabilization_threshold_label = tk.Label(extra_frame,
                                                  text='Threshold:',
-                                                 width=11)
+                                                 width=11, font=("Arial", FontSize))
         stabilization_threshold_label.grid(row=extra_row, column=1,
                                            columnspan=1, sticky=E)
         stabilization_threshold_str = tk.StringVar(value=str(StabilizationThreshold))
@@ -4271,7 +4276,7 @@ def build_ui():
         stabilization_threshold_spinbox = tk.Spinbox(
             extra_frame,
             command=(stabilization_threshold_selection_aux, '%d'), width=6,
-            textvariable=stabilization_threshold_str, from_=0, to=255)
+            textvariable=stabilization_threshold_str, from_=0, to=255, font=("Arial", FontSize))
         stabilization_threshold_spinbox.grid(row=extra_row, column=2, sticky=W)
         stabilization_threshold_spinbox.bind("<FocusOut>", stabilization_threshold_spinbox_focus_out)
 
@@ -4285,18 +4290,18 @@ def build_ui():
                                                      variable=display_template,
                                                      onvalue=True, offvalue=False,
                                                      command=display_template_selection,
-                                                     width=32)
+                                                     width=32, font=("Arial", FontSize))
             display_template_checkbox.grid(row=extra_row, column=0, columnspan=2, sticky=W)
 
 
     # Define job list area ***************************************************
     job_list_frame = LabelFrame(left_area_frame,
                              text='Job List',
-                             width=67, height=8)
+                             width=67, height=8, font=("Arial", FontSize))
     job_list_frame.pack(side=TOP, padx=2, pady=2, anchor=W)
 
     # job listbox
-    job_list_listbox = Listbox(job_list_frame, width=65 if BigSize else 42, height=13)
+    job_list_listbox = Listbox(job_list_frame, width=65 if BigSize else 60, height=13, font=("Arial", FontSize))
     job_list_listbox.grid(column=0, row=0, padx=5, pady=2, ipadx=5)
     job_list_listbox.bind("<Delete>", job_list_delete_current)
     job_list_listbox.bind("<Return>", job_list_load_current)
@@ -4325,25 +4330,25 @@ def build_ui():
     # Add job button
     add_job_btn = Button(job_list_btn_frame, text="Add job", width=12, height=1,
                     command=job_list_add_current, activebackground='green',
-                    activeforeground='white', wraplength=100)
+                    activeforeground='white', wraplength=100, font=("Arial", FontSize))
     add_job_btn.pack(side=TOP, padx=2, pady=2)
 
     # Delete job button
     delete_job_btn = Button(job_list_btn_frame, text="Delete job", width=12, height=1,
                     command=job_list_delete_selected, activebackground='green',
-                    activeforeground='white', wraplength=100)
+                    activeforeground='white', wraplength=100, font=("Arial", FontSize))
     delete_job_btn.pack(side=TOP, padx=2, pady=2)
 
     # Rerun job button
     rerun_job_btn = Button(job_list_btn_frame, text="Rerun job", width=12, height=1,
                     command=job_list_rerun_selected, activebackground='green',
-                    activeforeground='white', wraplength=100)
+                    activeforeground='white', wraplength=100, font=("Arial", FontSize))
     rerun_job_btn.pack(side=TOP, padx=2, pady=2)
 
     # Start processing job button
     start_batch_btn = Button(job_list_btn_frame, text="Start batch", width=12, height=1,
                     command=start_processing_job_list, activebackground='green',
-                    activeforeground='white', wraplength=100)
+                    activeforeground='white', wraplength=100, font=("Arial", FontSize))
     start_batch_btn.pack(side=TOP, padx=2, pady=2)
 
     # Suspend on end checkbox
@@ -4354,17 +4359,17 @@ def build_ui():
     #     width=13)
     # suspend_on_joblist_end_cb.pack(side=TOP, padx=2, pady=2)
 
-    suspend_on_completion_label = Label(job_list_btn_frame, text='Suspend on:')
+    suspend_on_completion_label = Label(job_list_btn_frame, text='Suspend on:', font=("Arial", FontSize))
     suspend_on_completion_label.pack(side=TOP, anchor=W, padx=2, pady=2)
     suspend_on_completion = StringVar()
     suspend_on_batch_completion_rb = Radiobutton(job_list_btn_frame, text="Job completion",
-                                  variable=suspend_on_completion, value='job_completion')
+                                  variable=suspend_on_completion, value='job_completion', font=("Arial", FontSize))
     suspend_on_batch_completion_rb.pack(side=TOP, anchor=W, padx=2, pady=2)
     suspend_on_job_completion_rb = Radiobutton(job_list_btn_frame, text="Batch completion",
-                                  variable=suspend_on_completion, value='batch_completion')
+                                  variable=suspend_on_completion, value='batch_completion', font=("Arial", FontSize))
     suspend_on_job_completion_rb.pack(side=TOP, anchor=W, padx=2, pady=2)
     no_suspend_rb = Radiobutton(job_list_btn_frame, text="No suspend",
-                                  variable=suspend_on_completion, value='no_suspend')
+                                  variable=suspend_on_completion, value='no_suspend', font=("Arial", FontSize))
     no_suspend_rb.pack(side=TOP, anchor=W, padx=2, pady=2)
 
     suspend_on_completion.set("no_suspend")
@@ -4410,7 +4415,7 @@ def main(argv):
     global job_list
     global project_settings
     global default_project_config
-    global is_demo
+    global is_demo, ForceSmallSize
     global GenerateCsv
     global suspend_on_joblist_end
     global BatchAutostart
@@ -4444,7 +4449,7 @@ def main(argv):
     film_wb_template =  cv2.imread(hole_template_wb_filename, cv2.IMREAD_GRAYSCALE)
     film_corner_template = cv2.imread(hole_template_filename_corner, cv2.IMREAD_GRAYSCALE)
 
-    opts, args = getopt.getopt(argv, "hiel:dcst:")
+    opts, args = getopt.getopt(argv, "hiel:dcst:f")
 
     for opt, arg in opts:
         if opt == '-l':
@@ -4461,6 +4466,8 @@ def main(argv):
             BatchAutostart = True
         if opt == '-t':
             num_threads = int(arg)
+        if opt == '-f':
+            ForceSmallSize = True
         elif opt == '-h':
             print("AfterScan")
             print("  -l <log mode>  Set log level:")
@@ -4470,6 +4477,7 @@ def main(argv):
             print("  -c             Generate CSV file with misaligned frames")
             print("  -s             Initiate batch on startup (and suspend on batch completion)")
             print("  -t <num>       Number of threads")
+            print("  -f             Force small window size (for small screens)")
             exit()
 
     LogLevel = getattr(logging, LoggingMode.upper(), None)
