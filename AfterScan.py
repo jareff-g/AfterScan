@@ -19,7 +19,7 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.9.4"
+__version__ = "1.9.5"
 __date__ = "2024-01-16"
 __version_highlight__ = "Rework small screen mode"
 __maintainer__ = "Juan Remirez de Esparza"
@@ -1306,7 +1306,7 @@ def widget_status_update(widget_state=0, button_action=0):
         frames_to_encode_label.config(state=widget_state if not encode_all_frames.get() else DISABLED)
         frames_separator_label.config(state=widget_state if not encode_all_frames.get() else DISABLED)
         perform_rotation_checkbox.config(state=widget_state)
-        rotation_angle_spinbox.config(state=widget_state)
+        rotation_angle_spinbox.config(state=widget_state if perform_rotation.get() else DISABLED)
         rotation_angle_label.config(state=widget_state if perform_rotation.get() else DISABLED)
         perform_stabilization_checkbox.config(state=widget_state if not is_demo else NORMAL)
         perform_fill_none_rb.config(state=widget_state if not is_demo else NORMAL)
@@ -1396,6 +1396,8 @@ def custom_ffmpeg_path_focus_out(event):
 def perform_rotation_selection():
     global perform_rotation
     rotation_angle_spinbox.config(
+        state=NORMAL if perform_rotation.get() else DISABLED)
+    rotation_angle_label.config(
         state=NORMAL if perform_rotation.get() else DISABLED)
     project_config["PerformRotation"] = perform_rotation.get()
     win.after(5, scale_display_update)
@@ -3948,16 +3950,16 @@ def build_ui():
                                       width=12, font=("Arial", FontSize))
     frames_to_encode_label.grid(row=postprocessing_row, column=0, columnspan=2, sticky=W)
     frame_from_str = tk.StringVar(value=str(from_frame))
-    frame_from_entry = Entry(postprocessing_frame, textvariable=frame_from_str, width=6, borderwidth=1, font=("Arial", FontSize))
+    frame_from_entry = Entry(postprocessing_frame, textvariable=frame_from_str, width=5, borderwidth=1, font=("Arial", FontSize))
     frame_from_entry.grid(row=postprocessing_row, column=1, sticky=W)
     frame_from_entry.config(state=NORMAL)
     frame_from_entry.bind("<Double - Button - 1>", update_frame_from)
     frame_from_entry.bind('<<Paste>>', lambda event, entry=frame_from_entry: on_paste_all_entries(event, entry))
     frame_to_str = tk.StringVar(value=str(from_frame))
-    frames_separator_label = tk.Label(postprocessing_frame, text='to', width=4, font=("Arial", FontSize))
-    frames_separator_label.grid(row=postprocessing_row, column=1, sticky=E)
-    frame_to_entry = Entry(postprocessing_frame, textvariable=frame_to_str, width=6, borderwidth=1, font=("Arial", FontSize))
-    frame_to_entry.grid(row=postprocessing_row, column=2, sticky=W)
+    frames_separator_label = tk.Label(postprocessing_frame, text='to', width=2, font=("Arial", FontSize))
+    frames_separator_label.grid(row=postprocessing_row, column=1)
+    frame_to_entry = Entry(postprocessing_frame, textvariable=frame_to_str, width=5, borderwidth=1, font=("Arial", FontSize))
+    frame_to_entry.grid(row=postprocessing_row, column=1, sticky=E)
     frame_to_entry.config(state=NORMAL)
     frame_to_entry.bind("<Double - Button - 1>", update_frame_to)
     frame_to_entry.bind('<<Paste>>', lambda event, entry=frame_to_entry: on_paste_all_entries(event, entry))
@@ -3987,10 +3989,10 @@ def build_ui():
     rotation_angle_spinbox.bind("<FocusOut>", rotation_angle_spinbox_focus_out)
     rotation_angle_selection('down')
     rotation_angle_label = tk.Label(postprocessing_frame,
-                                      text='°       ',
-                                      width=4)
-    rotation_angle_label.grid(row=postprocessing_row, column=1,
-                                columnspan=1, sticky=E)
+                                      text='°',
+                                      width=1, font=("Arial", FontSize))
+    rotation_angle_label.grid(row=postprocessing_row, column=1)
+    rotation_angle_label.config(state=NORMAL)
     postprocessing_row += 1
 
     # Check box to do stabilization or not
