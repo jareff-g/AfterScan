@@ -3832,7 +3832,11 @@ def build_ui():
     left_area_frame = Frame(win)
     #left_area_frame.grid(row=0, column=0, padx=5, pady=5, sticky=N)
     left_area_frame.pack(side=LEFT, padx=5, pady=5, anchor=N)
-    draw_capture_canvas = Canvas(left_area_frame, bg='dark grey',
+    # Create a LabelFrame to act as a border
+    border_frame = tk.LabelFrame(left_area_frame, bd=2, relief=tk.GROOVE)
+    border_frame.pack(expand=True, fill="both", padx=5, pady=5)
+    # Create the canvas
+    draw_capture_canvas = Canvas(border_frame, bg='dark grey',
                                  width=PreviewWidth, height=PreviewHeight)
     draw_capture_canvas.pack(side=TOP, anchor=N)
 
