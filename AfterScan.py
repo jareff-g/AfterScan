@@ -19,8 +19,8 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.9.3"
-__date__ = "2024-01-14"
+__version__ = "1.9.4"
+__date__ = "2024-01-16"
 __version_highlight__ = "Rework small screen mode"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
@@ -268,6 +268,7 @@ IsMac = False
 
 is_demo = False
 ForceSmallSize = False
+ForceBigSize = False
 debug_enabled = False
 debug_template_match = False
 developer_debug = False
@@ -3727,7 +3728,7 @@ def afterscan_init():
     # Get screen size - maxsize gives the usable screen size
     screen_width, screen_height = win.maxsize()
     # Set dimensions of UI elements adapted to screen size
-    if screen_height >= 1000 and not ForceSmallSize:
+    if (screen_height >= 1000 and not ForceSmallSize) or ForceBigSize:
         BigSize = True
         FontSize = 11
         PreviewWidth = 700
@@ -3856,7 +3857,7 @@ def build_ui():
     frame_slider.set(CurrentFrame)
 
     # Application status label
-    app_status_label = Label(regular_top_section_frame, width=45 if BigSize else 55, borderwidth=2,
+    app_status_label = Label(regular_top_section_frame, width=46 if BigSize else 55, borderwidth=2,
                              relief="groove", text='Status: Idle',
                              highlightthickness=1, font=("Arial", FontSize))
     app_status_label.grid(row=1, column=0, columnspan=3, pady=5)
@@ -3881,7 +3882,7 @@ def build_ui():
 
     source_folder_frame = Frame(folder_frame)
     source_folder_frame.pack(side=TOP)
-    frames_source_dir = Entry(source_folder_frame, width=36,
+    frames_source_dir = Entry(source_folder_frame, width=36 if BigSize else 42,
                                     borderwidth=1, font=("Arial", FontSize))
     frames_source_dir.pack(side=LEFT)
     frames_source_dir.delete(0, 'end')
@@ -3897,7 +3898,7 @@ def build_ui():
 
     target_folder_frame = Frame(folder_frame)
     target_folder_frame.pack(side=TOP)
-    frames_target_dir = Entry(target_folder_frame, width=36,
+    frames_target_dir = Entry(target_folder_frame, width=36 if BigSize else 42,
                                     borderwidth=1, font=("Arial", FontSize))
     frames_target_dir.pack(side=LEFT)
     frames_target_dir.bind('<<Paste>>', lambda event, entry=frames_target_dir: on_paste_all_entries(event, entry))
@@ -3923,10 +3924,10 @@ def build_ui():
     # Radio buttons to select R8/S8. Required to select adequate pattern, and match position
     film_type = StringVar()
     film_type_S8_rb = Radiobutton(postprocessing_frame, text="Super 8", command=set_film_type,
-                                  variable=film_type, value='S8', font=("Arial", FontSize))
+                                  variable=film_type, width=11 if BigSize else 14, value='S8', font=("Arial", FontSize))
     film_type_S8_rb.grid(row=postprocessing_row, column=0, sticky=W)
     film_type_R8_rb = Radiobutton(postprocessing_frame, text="Regular 8", command=set_film_type,
-                                  variable=film_type, value='R8', font=("Arial", FontSize))
+                                  variable=film_type, width=11 if BigSize else 14, value='R8', font=("Arial", FontSize))
     film_type_R8_rb.grid(row=postprocessing_row, column=1, sticky=W)
     film_type.set(project_config["FilmType"])
     postprocessing_row += 1
@@ -4290,7 +4291,7 @@ def build_ui():
                                                      variable=display_template,
                                                      onvalue=True, offvalue=False,
                                                      command=display_template_selection,
-                                                     width=32, font=("Arial", FontSize))
+                                                     width=33 if BigSize else 41, font=("Arial", FontSize))
             display_template_checkbox.grid(row=extra_row, column=0, columnspan=2, sticky=W)
 
 
@@ -4301,7 +4302,7 @@ def build_ui():
     job_list_frame.pack(side=TOP, padx=2, pady=2, anchor=W)
 
     # job listbox
-    job_list_listbox = Listbox(job_list_frame, width=65 if BigSize else 60, height=13, font=("Arial", FontSize))
+    job_list_listbox = Listbox(job_list_frame, width=65 if BigSize else 60, height=13 if BigSize else 19, font=("Arial", FontSize))
     job_list_listbox.grid(column=0, row=0, padx=5, pady=2, ipadx=5)
     job_list_listbox.bind("<Delete>", job_list_delete_current)
     job_list_listbox.bind("<Return>", job_list_load_current)
@@ -4415,7 +4416,7 @@ def main(argv):
     global job_list
     global project_settings
     global default_project_config
-    global is_demo, ForceSmallSize
+    global is_demo, ForceSmallSize, ForceBigSize
     global GenerateCsv
     global suspend_on_joblist_end
     global BatchAutostart
@@ -4449,7 +4450,7 @@ def main(argv):
     film_wb_template =  cv2.imread(hole_template_wb_filename, cv2.IMREAD_GRAYSCALE)
     film_corner_template = cv2.imread(hole_template_filename_corner, cv2.IMREAD_GRAYSCALE)
 
-    opts, args = getopt.getopt(argv, "hiel:dcst:f")
+    opts, args = getopt.getopt(argv, "hiel:dcst:12")
 
     for opt, arg in opts:
         if opt == '-l':
@@ -4466,8 +4467,10 @@ def main(argv):
             BatchAutostart = True
         if opt == '-t':
             num_threads = int(arg)
-        if opt == '-f':
+        if opt == '-1':
             ForceSmallSize = True
+        if opt == '-2':
+            ForceBigSize = True
         elif opt == '-h':
             print("AfterScan")
             print("  -l <log mode>  Set log level:")
@@ -4477,7 +4480,6 @@ def main(argv):
             print("  -c             Generate CSV file with misaligned frames")
             print("  -s             Initiate batch on startup (and suspend on batch completion)")
             print("  -t <num>       Number of threads")
-            print("  -f             Force small window size (for small screens)")
             exit()
 
     LogLevel = getattr(logging, LoggingMode.upper(), None)
