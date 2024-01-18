@@ -2575,7 +2575,6 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None):
 
     # Search film hole pattern
     best_match_level = 0
-    best_match_index = 0
     best_top_left = [0,0]
 
     # Get sprocket hole area
@@ -3798,7 +3797,26 @@ def afterscan_init():
     logging.debug("AfterScan initialized")
 
 
-import tkinter as tk
+def format_tooltip_text(text, max_line_width):
+    words = text.split()
+    lines = []
+    current_line = ""
+
+    for word in words:
+        if len(current_line) + len(word) <= max_line_width:
+            current_line += word + " "
+        else:
+            lines.append(current_line.strip())
+            current_line = word + " "
+
+    # Add the last line
+    if current_line:
+        lines.append(current_line.strip())
+
+    return "\n".join(lines)
+
+
+
 
 def show_tooltip(widget, text):
     x, y, _, _ = widget.bbox("insert")
@@ -3809,7 +3827,8 @@ def show_tooltip(widget, text):
     tooltip_window.wm_overrideredirect(True)
     tooltip_window.wm_geometry(f"+{x}+{y}")
 
-    label = tk.Label(tooltip_window, text=text, background="light yellow", relief="solid", borderwidth=1, font=("Arial", FontSize))
+    formatted_text = format_tooltip_text(text, 40)
+    label = tk.Label(tooltip_window, text=formatted_text, background="light yellow", relief="solid", borderwidth=1, font=("Arial", FontSize))
     label.pack()
 
     widget.tooltip_window = tooltip_window
@@ -4084,7 +4103,7 @@ def build_ui():
     # Label to display the match level of current frame to template
     stabilization_threshold_match_label = Label(postprocessing_frame, width=4, borderwidth=1, relief='sunken', font=("Arial", FontSize))
     stabilization_threshold_match_label.grid(row=postprocessing_row, column=0, sticky=E)
-    setup_tooltip(stabilization_threshold_match_label, "This value shows the dynamic quality of sprocket hole template matching.\n Green is good, orange acceptable, red is bad.")
+    setup_tooltip(stabilization_threshold_match_label, "This value shows the dynamic quality of sprocket hole template matching. Green is good, orange acceptable, red is bad.")
 
     # Extended search checkbox (replace radio buttons for fast/precise stabilization)
     extended_stabilization = tk.BooleanVar(value=False)
@@ -4093,7 +4112,7 @@ def build_ui():
         variable=extended_stabilization, onvalue=True, offvalue=False, width=20,
         command=extended_stabilization_selection, font=("Arial", FontSize))
     extended_stabilization_checkbox.grid(row=postprocessing_row, column=1, columnspan=2)
-    setup_tooltip(extended_stabilization_checkbox, "Check to xtend the area where AfterScan looks for sprocket holes.\nIn some rare cases this might help.")
+    setup_tooltip(extended_stabilization_checkbox, "Check to xtend the area where AfterScan looks for sprocket holes. In some rare cases this might help.")
 
     postprocessing_row += 1
 
@@ -4162,11 +4181,11 @@ def build_ui():
     perform_fill_fake_rb = Radiobutton(postprocessing_frame, text='Fake fill',
                                     variable=frame_fill_type, value='fake', font=("Arial", FontSize))
     perform_fill_fake_rb.grid(row=postprocessing_row, column=1, sticky=W)
-    setup_tooltip(perform_fill_fake_rb, "Badly aligned frames will have the missing part of the image completed \nwith a fragment of the next/previous frame after stabilization.")
+    setup_tooltip(perform_fill_fake_rb, "Badly aligned frames will have the missing part of the image completed with a fragment of the next/previous frame after stabilization.")
     perform_fill_dumb_rb = Radiobutton(postprocessing_frame, text='Dumb fill',
                                     variable=frame_fill_type, value='dumb', font=("Arial", FontSize))
     perform_fill_dumb_rb.grid(row=postprocessing_row, column=2, sticky=W)
-    setup_tooltip(perform_fill_dumb_rb, "Badly aligned frames will have the missing part of the image \nfilled with the adjacent pixel row after stabilization.")
+    setup_tooltip(perform_fill_dumb_rb, "Badly aligned frames will have the missing part of the image filled with the adjacent pixel row after stabilization.")
     frame_fill_type.set('fake')
 
     postprocessing_row += 1
@@ -4212,7 +4231,7 @@ def build_ui():
                                     columnspan=2, sticky=W)
     skip_frame_regeneration_cb.config(state=NORMAL if ffmpeg_installed
                                       else DISABLED)
-    setup_tooltip(skip_frame_regeneration_cb, "If frames have ben already generated in a previous run, \nand you want to only generate the vieo, check this one.")
+    setup_tooltip(skip_frame_regeneration_cb, "If frames have ben already generated in a previous run, and you want to only generate the vieo, check this one.")
 
     video_row += 1
 
@@ -4255,7 +4274,7 @@ def build_ui():
     video_title_name.delete(0, 'end')
     video_title_name.insert('end', TargetVideoTitle)
     video_title_name.bind('<<Paste>>', lambda event, entry=video_title_name: on_paste_all_entries(event, entry))
-    setup_tooltip(video_title_name, "Video title. If entered, a simple title sequence will be generated at the start of the video, \nusing a sequence randomly selected from the same video, running at half speed.")
+    setup_tooltip(video_title_name, "Video title. If entered, a simple title sequence will be generated at the start of the video, using a sequence randomly selected from the same video, running at half speed.")
 
     video_row += 1
 
@@ -4293,7 +4312,7 @@ def build_ui():
     video_fps_dropdown.config(takefocus=1, font=("Arial", FontSize))
     video_fps_dropdown.pack(side=LEFT, anchor=E)
     video_fps_dropdown.config(state=DISABLED)
-    setup_tooltip(video_fps_dropdown, "Select the number of frames per second (FPS) of teh video to be generated.\nUsually Super8 goes at 18 FPS, and Regular 8 at 16 FPS, although some cameras \nallowed to use other speeds (faster for smoother movement, slower for extended play time)")
+    setup_tooltip(video_fps_dropdown, "Select the number of frames per second (FPS) of teh video to be generated. Usually Super8 goes at 18 FPS, and Regular 8 at 16 FPS, although some cameras allowed to use other speeds (faster for smoother movement, slower for extended play time)")
 
     # Create FFmpeg preset options
     ffmpeg_preset_frame = Frame(video_frame)
@@ -4374,7 +4393,7 @@ def build_ui():
                                           activeforeground='white', font=("Arial", FontSize))
         custom_stabilization_btn.config(relief=SUNKEN if CustomTemplateDefined else RAISED)
         custom_stabilization_btn.grid(row=extra_row, column=0, columnspan=1, padx=5, pady=5, sticky=W)
-        setup_tooltip(custom_stabilization_btn, "If you prefer to use a customized template for your project, instead \nof the automatic one selected by AfterScan, lick on this button to define it.")
+        setup_tooltip(custom_stabilization_btn, "If you prefer to use a customized template for your project, instead of the automatic one selected by AfterScan, lick on this button to define it.")
 
         # Spinbox to select stabilization threshold
         stabilization_threshold_label = tk.Label(extra_frame,
@@ -4391,7 +4410,7 @@ def build_ui():
             textvariable=stabilization_threshold_str, from_=0, to=255, font=("Arial", FontSize))
         stabilization_threshold_spinbox.grid(row=extra_row, column=2, sticky=W)
         stabilization_threshold_spinbox.bind("<FocusOut>", stabilization_threshold_spinbox_focus_out)
-        setup_tooltip(stabilization_threshold_spinbox, "Threshold value to isolate the sprocket hole from \nthe rest of the image while definint the custom template.")
+        setup_tooltip(stabilization_threshold_spinbox, "Threshold value to isolate the sprocket hole from the rest of the image while definint the custom template.")
 
         extra_row += 1
 
@@ -4405,7 +4424,7 @@ def build_ui():
                                                      command=debug_template_popup,
                                                      width=33 if BigSize else 41, font=("Arial", FontSize))
             display_template_checkbox.grid(row=extra_row, column=0, columnspan=2, sticky=W)
-            setup_tooltip(display_template_checkbox, "Display popup window with dynamic debug information.\nUseful for developers only")
+            setup_tooltip(display_template_checkbox, "Display popup window with dynamic debug information.Useful for developers only")
 
 
     # Define job list area ***************************************************
@@ -4425,7 +4444,6 @@ def build_ui():
     job_list_listbox.bind('<<ListboxSelect>>', job_list_process_selection)
     job_list_listbox.bind("u", job_list_move_up)
     job_list_listbox.bind("d", job_list_move_down)
-    setup_tooltip(job_list_listbox, "List of jobs to be processed in batch mode")
 
     # job listbox scrollbars
     job_list_listbox_scrollbar_y = Scrollbar(job_list_frame, orient="vertical")
@@ -4448,7 +4466,7 @@ def build_ui():
                     command=job_list_add_current, activebackground='green',
                     activeforeground='white', wraplength=100, font=("Arial", FontSize))
     add_job_btn.pack(side=TOP, padx=2, pady=2)
-    setup_tooltip(add_job_btn, "Add to job list a new job using the current settings defined\non the right area of the AfterScan window.")
+    setup_tooltip(add_job_btn, "Add to job list a new job using the current settings defined on the right area of the AfterScan window.")
 
     # Delete job button
     delete_job_btn = Button(job_list_btn_frame, text="Delete job", width=12, height=1,
