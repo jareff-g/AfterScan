@@ -19,9 +19,9 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.9.7"
+__version__ = "1.9.8"
 __date__ = "2024-01-18"
-__version_highlight__ = "Fixes for tooltips"
+__version_highlight__ = "Move tooltip code to specific module"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -60,6 +60,7 @@ import random
 import threading
 import queue
 from matplotlib import font_manager
+from tooltip import disable_tooltips, setup_tooltip, show_tooltip, init_tooltips
 
 # Frame vars
 first_absolute_frame = 0
@@ -269,7 +270,6 @@ IsMac = False
 is_demo = False
 ForceSmallSize = False
 ForceBigSize = False
-DisableTooltips = False
 debug_enabled = False
 debug_template_match = False
 developer_debug = False
@@ -3786,6 +3786,9 @@ def afterscan_init():
     win.option_add("*font", "TkDefaultFont 10")
     win.resizable(False, False)
 
+    # Init ToolTips
+    init_tooltips(FontSize)
+
     # Get Top window coordinates
     TopWinX = win.winfo_x()
     TopWinY = win.winfo_y()
@@ -3797,55 +3800,6 @@ def afterscan_init():
 
     logging.debug("AfterScan initialized")
 
-
-def format_tooltip_text(text, max_line_width):
-    words = text.split()
-    lines = []
-    current_line = ""
-
-    for word in words:
-        if len(current_line) + len(word) <= max_line_width:
-            current_line += word + " "
-        else:
-            lines.append(current_line.strip())
-            current_line = word + " "
-
-    # Add the last line
-    if current_line:
-        lines.append(current_line.strip())
-
-    return "\n".join(lines)
-
-
-
-
-def show_tooltip(widget, text):
-    global DisableTooltips
-    if widget["state"] == 'disabled' or DisableTooltips:
-        return
-    x, y, _, _ = widget.bbox("insert")
-    x += widget.winfo_rootx() + 25
-    y += widget.winfo_rooty() + 25
-
-    tooltip_window = tk.Toplevel(widget)
-    tooltip_window.wm_overrideredirect(True)
-    tooltip_window.wm_geometry(f"+{x}+{y}")
-
-    formatted_text = format_tooltip_text(text, 60)
-    label = tk.Label(tooltip_window, text=formatted_text, background="light yellow", relief="solid", borderwidth=1, font=("Arial", FontSize))
-    label.pack()
-
-    widget.tooltip_window = tooltip_window
-
-def hide_tooltip(widget):
-    if hasattr(widget, 'tooltip_window') and widget.tooltip_window:
-        widget.tooltip_window.destroy()
-        widget.tooltip_window = None
-
-
-def setup_tooltip(widget, tooltip_text):
-    widget.bind("<Enter>", lambda event: show_tooltip(widget, tooltip_text))
-    widget.bind("<Leave>", lambda event: hide_tooltip(widget))
 
 def build_ui():
     global win
@@ -4567,8 +4521,6 @@ def main(argv):
     global BatchAutostart
     global num_threads
     global developer_debug
-    global DisableTooltips
-
 
     LoggingMode = "INFO"
 
@@ -4619,7 +4571,7 @@ def main(argv):
         if opt == '-2':
             ForceBigSize = True
         if opt == '-n':
-            DisableTooltips = True
+            disable_tooltips()
         elif opt == '-h':
             print("AfterScan")
             print("  -l <log mode>  Set log level:")
