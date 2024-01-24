@@ -19,9 +19,9 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.9.22"
+__version__ = "1.9.30"
 __date__ = "2024-01-23"
-__version_highlight__ = "Bring back custom templates"
+__version_highlight__ = "Handling of PNG files in addition to JPG"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -152,15 +152,22 @@ TargetVideoTitle = ""
 SourceDir = ""
 TargetDir = ""
 VideoTargetDir = ""
-FrameInputFilenamePatternList = "picture-?????.jpg"
-FrameInputFilenamePattern = "picture-%05d.jpg"   # HDR frames using standard filename (2/12/2023)
-FrameHdrInputFilenamePattern = "picture-%05d.%1d.jpg"   # HDR frames using standard filename (2/12/2023)
-FrameOutputFilenamePattern = "picture_out-%05d.jpg"
-TitleOutputFilenamePattern = "picture_out(title)-%05d.jpg"
-FrameCheckOutputFilenamePattern = "picture_out-?????.jpg"  # Req. for ffmpeg gen.
-LegacyHdrInputFilenamePattern = "hdrpic-?????.3.jpg"   # In legacy HDR mode, use 3rd frame as guide
-HdrInputFilenamePattern = "picture-?????.3.jpg"   # In HDR mode, use 3rd frame as guide
-HdrSetInputFilenamePattern = "hdrpic-%05d.%1d.jpg"   # Req. to fetch each HDR frame set
+file_type = 'jpg'
+file_type_out = file_type
+FrameInputFilenamePatternList_jpg = "picture-?????.jpg"
+HdrInputFilenamePatternList_jpg = "picture-?????.3.jpg"   # In HDR mode, use 3rd frame as guide
+LegacyHdrInputFilenamePatternList_jpg = "hdrpic-?????.3.jpg"   # In legacy HDR mode, use 3rd frame as guide
+FrameInputFilenamePatternList_png = "picture-?????.png"
+HdrInputFilenamePatternList_png = "picture-?????.3.png"   # In HDR mode, use 3rd frame as guide
+LegacyHdrInputFilenamePatternList_png = "hdrpic-?????.3.png"   # In legacy HDR mode, use 3rd frame as guide
+FrameInputFilenamePattern = "picture-%05d.%s"   # HDR frames using standard filename (2/12/2023)
+FrameHdrInputFilenamePattern = "picture-%05d.%1d.%s"   # HDR frames using standard filename (2/12/2023)
+FrameOutputFilenamePattern = "picture_out-%05d.%s"
+TitleOutputFilenamePattern = "picture_out(title)-%05d.%s"
+FrameOutputFilenamePattern_for_ffmpeg = "picture_out-%05d."
+TitleOutputFilenamePattern_for_ffmpeg = "picture_out(title)-%05d."
+FrameCheckOutputFilenamePattern = "picture_out-?????.%s"  # Req. for ffmpeg gen.
+HdrSetInputFilenamePattern = "hdrpic-%05d.%1d.%s"   # Req. to fetch each HDR frame set
 HdrFilesOnly = False   # No HDR by default. Updated when building file list from input folder
 MergeMertens = None
 
@@ -2001,6 +2008,7 @@ def select_rectangle_area(is_cropping=False):
     global perform_stabilization, perform_cropping, perform_rotation
     global line_thickness
     global IsCropping
+    global file_type
 
     IsCropping = is_cropping
 
@@ -2026,7 +2034,7 @@ def select_rectangle_area(is_cropping=False):
 
     file = SourceDirFileList[CurrentFrame]
     # If HDR mode, pick the ligthest frame to select rectangle
-    file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (CurrentFrame + 1, 2))
+    file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (CurrentFrame + 1, 2, file_type))
     if os.path.isfile(file3):  # If hdr frames exist, add them
         file = file3
 
@@ -2279,7 +2287,7 @@ def select_custom_template():
             CustomTemplateDefined = True
             custom_stabilization_btn.config(relief=SUNKEN)
             file = SourceDirFileList[CurrentFrame]
-            file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (CurrentFrame+1, 2))
+            file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (CurrentFrame+1, 2, file_type))
             if os.path.isfile(file3):  # If hdr frames exist, add them
                 file = file3
             img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
@@ -2526,9 +2534,9 @@ def display_image(img):
 # No need to care about sequencing since video encoding process in AfterScan is single threaded
 def display_output_frame_by_number(frame_number):
     global StartFrame
-    global TargetDirFileList
+    global TargetDirFileList, file_type_out
 
-    TargetFile = TargetDir + '/' + FrameOutputFilenamePattern % (StartFrame + frame_number)
+    TargetFile = TargetDir + '/' + FrameOutputFilenamePattern % (StartFrame + frame_number, file_type_out)
 
     if TargetFile in TargetDirFileList:
         img = cv2.imread(TargetFile, cv2.IMREAD_UNCHANGED)
@@ -2803,20 +2811,48 @@ def get_source_dir_file_list():
     global frames_target_dir
     global HdrFilesOnly
     global CropBottomRight
+    global file_type, file_type_out
 
     if not os.path.isdir(SourceDir):
         return
 
     # Try first with standard scan filename template
-    SourceDirFileList = sorted(list(glob(os.path.join(
+    SourceDirFileList_jpg = list(glob(os.path.join(
         SourceDir,
-        FrameInputFilenamePatternList))))
-    SourceDirHdrFileList = sorted(list(glob(os.path.join(
+        FrameInputFilenamePatternList_jpg)))
+    SourceDirFileList_png = list(glob(os.path.join(
         SourceDir,
-        HdrInputFilenamePattern))))
-    SourceDirLegacyHdrFileList = sorted(list(glob(os.path.join(
+        FrameInputFilenamePatternList_png)))
+    SourceDirFileList = sorted(SourceDirFileList_jpg + SourceDirFileList_png)
+    if len(SourceDirFileList_png) != 0:
+        file_type_out = 'png'   # If we have png files in the input, we default to png for the output
+    else:
+        file_type_out = 'jpg'
+
+    SourceDirHdrFileList_jpg = list(glob(os.path.join(
         SourceDir,
-        LegacyHdrInputFilenamePattern))))
+        HdrInputFilenamePatternList_jpg)))
+    SourceDirHdrFileList_png = list(glob(os.path.join(
+        SourceDir,
+        HdrInputFilenamePatternList_png)))
+    SourceDirHdrFileList = sorted(SourceDirHdrFileList_jpg + SourceDirHdrFileList_png)
+    if len(SourceDirHdrFileList_png) != 0:
+        file_type_out = 'png'   # If we have png files in the input, we default to png for the output
+    else:
+        file_type_out = 'jpg'
+
+    SourceDirLegacyHdrFileList_jpg = list(glob(os.path.join(
+        SourceDir,
+        LegacyHdrInputFilenamePatternList_jpg)))
+    SourceDirLegacyHdrFileList_png = list(glob(os.path.join(
+        SourceDir,
+        LegacyHdrInputFilenamePatternList_png)))
+    SourceDirLegacyHdrFileList = sorted(SourceDirLegacyHdrFileList_jpg + SourceDirLegacyHdrFileList_png)
+    if len(SourceDirLegacyHdrFileList_png) != 0:
+        file_type_out = 'png'   # If we have png files in the input, we default to png for the output
+    else:
+        file_type_out = 'jpg'
+
     NumFiles = len(SourceDirFileList)
     NumHdrFiles = len(SourceDirHdrFileList)
     NumLegacyHdrFiles = len(SourceDirLegacyHdrFileList)
@@ -2885,12 +2921,13 @@ def get_target_dir_file_list():
     global TargetDir
     global TargetDirFileList
     global out_frame_width, out_frame_height
+    global file_type_out
 
     if not os.path.isdir(TargetDir):
         return
 
     TargetDirFileList = sorted(list(glob(os.path.join(
-        TargetDir, FrameCheckOutputFilenamePattern))))
+        TargetDir, FrameCheckOutputFilenamePattern % file_type_out))))
     if len(TargetDirFileList) != 0:
         # read image
         img = cv2.imread(TargetDirFileList[0], cv2.IMREAD_UNCHANGED)
@@ -2903,13 +2940,13 @@ def get_target_dir_file_list():
 
 def valid_generated_frame_range():
     global StartFrame, frames_to_encode, first_absolute_frame
-    global TargetDirFileList
+    global TargetDirFileList, file_type_out
 
     file_count = 0
     for i in range(first_absolute_frame + StartFrame,
                    first_absolute_frame + StartFrame + frames_to_encode):
         file_to_check = os.path.join(TargetDir,
-                                     FrameOutputFilenamePattern % i)
+                                     FrameOutputFilenamePattern % (i, file_type_out))
         if file_to_check in TargetDirFileList:
             file_count += 1
         else:
@@ -3140,6 +3177,7 @@ def frame_encode(frame_idx):
     global app_status_label
     global subprocess_event_queue
     global debug_template_match
+    global file_type, file_type_out
 
     images_to_merge = []
     img_ref_aux = None
@@ -3147,39 +3185,42 @@ def frame_encode(frame_idx):
     # Get current file(s)
     if HdrFilesOnly:    # Legacy HDR (before 2 Dec 2023): Dedicated filename
         images_to_merge.clear()
-        file1 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 1))
+        file1 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 1, file_type))
         img_ref = cv2.imread(file1, cv2.IMREAD_UNCHANGED)   # Keep first frame of the set for stabilization reference
         images_to_merge.append(img_ref)
-        file2 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 2))
+        file2 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 2, file_type))
         images_to_merge.append(cv2.imread(file2, cv2.IMREAD_UNCHANGED))
-        file3 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 3))
+        file3 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 3, file_type))
         images_to_merge.append(cv2.imread(file3, cv2.IMREAD_UNCHANGED))
-        file4 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 4))
+        file4 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 4, file_type))
         images_to_merge.append(cv2.imread(file4, cv2.IMREAD_UNCHANGED))
         img = MergeMertens.process(images_to_merge)
         img = img - img.min()  # Now between 0 and 8674
         img = img / img.max() * 255
         img = np.uint8(img)
     else:
-        file1 = os.path.join(SourceDir, FrameInputFilenamePattern % (frame_idx + first_absolute_frame))
+        file1 = os.path.join(SourceDir, FrameInputFilenamePattern % (frame_idx + first_absolute_frame, file_type))
+        if not os.path.isfile(file1):
+            file_type = 'png' if file_type == 'jpg' else 'jpg'  # Try with the other file type
+            file1 = os.path.join(SourceDir, FrameInputFilenamePattern % (frame_idx + first_absolute_frame, file_type))
         # read image
         img = cv2.imread(file1, cv2.IMREAD_UNCHANGED)
         img_ref = img   # Reference image is the same image for standard capture
         # Check if HDR frames exist. Can handle between 2 and 5
-        file2 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 2))
+        file2 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 2, file_type))
         if os.path.isfile(file2):   # If hdr frames exist, add them
             images_to_merge.clear()
             images_to_merge.append(img_ref)     # Add first frame
             img_ref_aux = img_ref
             img_ref = cv2.imread(file2, cv2.IMREAD_UNCHANGED) # Override stabilization reference with HDR#2
             images_to_merge.append(img_ref)
-            file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 3))
+            file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 3, file_type))
             if os.path.isfile(file3):  # If hdr frames exist, add them
                 images_to_merge.append(cv2.imread(file3, cv2.IMREAD_UNCHANGED))
-                file4 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 4))
+                file4 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 4, file_type))
                 if os.path.isfile(file4):  # If hdr frames exist, add them
                     images_to_merge.append(cv2.imread(file4, cv2.IMREAD_UNCHANGED))
-                    file5 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 5))
+                    file5 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 5, file_type))
                     if os.path.isfile(file5):  # If hdr frames exist, add them
                         images_to_merge.append(cv2.imread(file5, cv2.IMREAD_UNCHANGED))
 
@@ -3223,7 +3264,7 @@ def frame_encode(frame_idx):
             frame_idx = StartFrame + frames_to_encode - 1
 
         if os.path.isdir(TargetDir):
-            target_file = os.path.join(TargetDir, FrameOutputFilenamePattern % (first_absolute_frame + frame_idx))
+            target_file = os.path.join(TargetDir, FrameOutputFilenamePattern % (first_absolute_frame + frame_idx, file_type_out))
             cv2.imwrite(target_file, img)
 
     return len(images_to_merge) != 0
@@ -3278,6 +3319,7 @@ def check_subprocess_event_queue(user_terminated):
     global stabilization_bounds_alert_checkbox, stabilization_bounds_alert_counter
     global CsvFramesOffPercent
     global ConvertLoopRunning
+    global file_type_out
 
     # Process requests coming from workers
     while not subprocess_event_queue.empty():
@@ -3292,7 +3334,7 @@ def check_subprocess_event_queue(user_terminated):
                 app_status_label.config(text=status_str, fg='red')
                 #frame_idx = StartFrame + frames_to_encode - 1
             if os.path.isdir(TargetDir):
-                target_file = os.path.join(TargetDir, FrameOutputFilenamePattern % (first_absolute_frame + frame_idx))
+                target_file = os.path.join(TargetDir, FrameOutputFilenamePattern % (first_absolute_frame + frame_idx, file_type_out))
                 cv2.imwrite(target_file, img)
             if not user_terminated:    # Display image
                 if frame_idx >= last_displayed_image:
@@ -3324,6 +3366,7 @@ def frame_generation_loop():
     global frame_encoding_queue
     global last_displayed_image, working_threads
     global frame_encoding_queue, subprocess_event_queue
+    global file_type_out
 
     # Display encoded images from queue
     if not subprocess_event_queue.empty():
@@ -3342,7 +3385,7 @@ def frame_generation_loop():
         win.update()
         # Refresh Target dir file list
         TargetDirFileList = sorted(list(glob(os.path.join(
-            TargetDir, FrameCheckOutputFilenamePattern))))
+            TargetDir, FrameCheckOutputFilenamePattern % file_type_out))))
         if GenerateCsv:
             CsvFile.close()
             name, ext = os.path.splitext(CsvPathName)
@@ -3461,6 +3504,7 @@ def video_create_title():
     global video_title_name, TargetVideoTitle
     global VideoFps
     global StartFrame, first_absolute_frame, title_num_frames, frames_to_encode
+    global file_type_out
 
     if len(video_title_name.get()):   # if title defined --> kiki
         TargetVideoTitle = video_title_name.get()
@@ -3469,7 +3513,7 @@ def video_create_title():
         title_duration = max(title_duration, 3)    # no less than 3 sec
         title_num_frames = min(title_duration * VideoFps, frames_to_encode-1)
         # Custom font style and font size
-        img = Image.open(os.path.join(TargetDir, FrameOutputFilenamePattern % (StartFrame + first_absolute_frame)))
+        img = Image.open(os.path.join(TargetDir, FrameOutputFilenamePattern % (StartFrame + first_absolute_frame, file_type_out)))
         myFont, num_lines = get_adjusted_font(img, TargetVideoTitle)
         if myFont == 0:
             return
@@ -3479,7 +3523,7 @@ def video_create_title():
             status_str = "Status: Generating title %.1f%%" % (((i - title_first_frame) * 100 / title_num_frames))
             app_status_label.config(text=status_str, fg='black')
             # Open an Image
-            img = Image.open(os.path.join(TargetDir, FrameOutputFilenamePattern % ((int(i/2)+1)*2)))
+            img = Image.open(os.path.join(TargetDir, FrameOutputFilenamePattern % ((int(i/2)+1)*2, file_type_out)))
 
             # Call draw Method to add 2D graphics in an image
             #I1 = ImageDraw.Draw(img)
@@ -3490,7 +3534,7 @@ def video_create_title():
             #img.show()
 
             # Save the edited image
-            img.save(os.path.join(TargetDir, TitleOutputFilenamePattern % title_frame_idx))
+            img.save(os.path.join(TargetDir, TitleOutputFilenamePattern % (title_frame_idx, file_type_out)))
             title_frame_idx += 1
             win.update()
     else:
@@ -3512,6 +3556,7 @@ def call_ffmpeg():
     global first_absolute_frame, frames_to_encode
     global out_frame_width, out_frame_height
     global title_num_frames
+    global file_type_out
 
     if resolution_dict[project_config["VideoResolution"]] != '':
         video_width = resolution_dict[project_config["VideoResolution"]].split(':')[0]
@@ -3523,14 +3568,16 @@ def call_ffmpeg():
                   '-stats',
                   '-flush_packets', '1']
     if title_num_frames > 0:   # There is a title
+        pattern = TitleOutputFilenamePattern_for_ffmpeg + file_type_out
         cmd_ffmpeg.extend(['-f', 'image2',
                            '-framerate', str(VideoFps),
                            '-start_number', str(StartFrame + first_absolute_frame),
-                           '-i', os.path.join(TargetDir, TitleOutputFilenamePattern)])
+                           '-i', os.path.join(TargetDir, pattern)])
+    pattern = FrameOutputFilenamePattern_for_ffmpeg + file_type_out
     cmd_ffmpeg.extend(['-f', 'image2',
                        '-framerate', str(VideoFps),
                        '-start_number', str(StartFrame + first_absolute_frame),
-                       '-i', os.path.join(TargetDir, FrameOutputFilenamePattern)])
+                       '-i', os.path.join(TargetDir, pattern)])
     # Create filter_complex or one or two inputs
     filter_complex_options=''
     # Title sequence
