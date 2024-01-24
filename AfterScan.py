@@ -1894,8 +1894,15 @@ def get_best_template_size(img):
     #img_edges = cv2.Canny(image=img_bw, threshold1=100, threshold2=1)  # Canny Edge Detection
     img_target = img_bw
     found = None
+    # Check image size to determine scales
+    if img.shape[0] > 2000:
+        scale_from = 1.2
+        scale_to = 4.0
+    else:
+        scale_from = 0.6
+        scale_to = 2.0
     # loop over the scales of the template
-    for scale in np.linspace(0.6, 2.0, 20)[::-1]:
+    for scale in np.linspace(scale_from, scale_to, 20)[::-1]:
         # resize the image according to the scale, and keep track of the ratio of the resizing
         template_resized = resize_image(template_target, scale * 100)
         # if the resized template is bigger than the image, skip to next (should be smaller)
@@ -2976,7 +2983,8 @@ def set_hole_search_area(img):
     if extended_stabilization.get():
         logging.debug("Extended stabilization requested: Widening search area by 50 pixels")
         left_stripe_width += 50     # If precise stabilization, make search area wider (although not clear this will help instead of making it worse)
-
+    if img.shape[0] > 2000: # HQ enabled
+        left_stripe_width += 200
     # Initialize default values for perforation search area,
     # as they are relative to image size
     # Get image dimensions first
