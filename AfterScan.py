@@ -19,8 +19,8 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.9.31"
-__date__ = "2024-01-26"
+__version__ = "1.9.32"
+__date__ = "2024-01-29"
 __version_highlight__ = "Various bugfixes"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
@@ -877,7 +877,7 @@ def job_list_add_current():
             if 'CustomTemplateFilename' in project_config:
                 del project_config['CustomTemplateFilename']
         job_list_listbox.insert(listbox_index, entry_name)
-        job_list_listbox.itemconfig(listbox_index, fg='green')
+        job_list_listbox.itemconfig(listbox_index)
         job_list_listbox.select_set(listbox_index)
 
 
@@ -1700,7 +1700,12 @@ def scale_display_update():
     frame_to_display = CurrentFrame
     if frame_to_display >= len(SourceDirFileList):
         return
-    file = SourceDirFileList[frame_to_display]
+    # If HDR mode, pick the lightest frame to select rectangle
+    file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_to_display + 1, 2, file_type))
+    if os.path.isfile(file3):  # If hdr frames exist, add them
+        file = file3
+    else:
+        file = SourceDirFileList[frame_to_display]
     img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
     if img is None:
         frame_scale_refresh_done = True
@@ -1734,6 +1739,8 @@ def select_scale_frame(selected_frame):
     global frame_scale_refresh_done, frame_scale_refresh_pending
     global frame_slider
 
+    if int(selected_frame) >= len(SourceDirFileList):
+        selected_frame = str(len(SourceDirFileList) - 1)
     if not ConvertLoopRunning and not BatchJobRunning:  # Do not refresh during conversion loop
         frame_slider.focus()
         CurrentFrame = int(selected_frame)
@@ -2044,7 +2051,7 @@ def select_rectangle_area(is_cropping=False):
         rectangle_refresh = True
 
     file = SourceDirFileList[CurrentFrame]
-    # If HDR mode, pick the ligthest frame to select rectangle
+    # If HDR mode, pick the lightest frame to select rectangle
     file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (CurrentFrame + 1, 2, file_type))
     if os.path.isfile(file3):  # If hdr frames exist, add them
         file = file3
@@ -2637,7 +2644,7 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None):
         if match_level >= 0.85:
             break
         else:
-            if match_level > best_match_level:
+            if match_level >= best_match_level:
                 best_match_level = match_level
                 best_top_left = top_left
                 best_img_matched = img_matched
@@ -2995,7 +3002,7 @@ def set_hole_search_area(img):
     # Detect corner in image, to adjust search area width
     result = cv2.matchTemplate(img_target, film_corner_template, cv2.TM_CCOEFF_NORMED)
     (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
-    left_stripe_width = max(maxLoc[0] + int(film_hole_template.shape[1]/2) + 100, TemplateTopLeft[0] + film_hole_template.shape[1]) # Corner template left pos is at maxLoc[0], we add 70 (50% template width) + 100 (to get some black area)
+    left_stripe_width = max(maxLoc[0] + int(film_hole_template.shape[1]) + 100, TemplateTopLeft[0] + film_hole_template.shape[1]) # Corner template left pos is at maxLoc[0], we add 70 (50% template width) + 100 (to get some black area)
     if extended_stabilization.get():
         logging.debug("Extended stabilization requested: Widening search area by 50 pixels")
         left_stripe_width += 50     # If precise stabilization, make search area wider (although not clear this will help instead of making it worse)
