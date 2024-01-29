@@ -170,6 +170,7 @@ FrameCheckOutputFilenamePattern = "picture_out-?????.%s"  # Req. for ffmpeg gen.
 HdrSetInputFilenamePattern = "hdrpic-%05d.%1d.%s"   # Req. to fetch each HDR frame set
 HdrFilesOnly = False   # No HDR by default. Updated when building file list from input folder
 MergeMertens = None
+AlignMtb = None
 
 SourceDirFileList = []
 TargetDirFileList = []
@@ -3225,6 +3226,7 @@ def frame_encode(frame_idx):
         images_to_merge.append(cv2.imread(file3, cv2.IMREAD_UNCHANGED))
         file4 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 4, file_type))
         images_to_merge.append(cv2.imread(file4, cv2.IMREAD_UNCHANGED))
+        AlignMtb.process(images_to_merge, images_to_merge)
         img = MergeMertens.process(images_to_merge)
         img = img - img.min()  # Now between 0 and 8674
         img = img / img.max() * 255
@@ -3255,6 +3257,7 @@ def frame_encode(frame_idx):
                     if os.path.isfile(file5):  # If hdr frames exist, add them
                         images_to_merge.append(cv2.imread(file5, cv2.IMREAD_UNCHANGED))
 
+            AlignMtb.process(images_to_merge, images_to_merge)
             img = MergeMertens.process(images_to_merge)
             img = img - img.min()  # Now between 0 and 8674
             img = img / img.max() * 255
@@ -3846,7 +3849,7 @@ def afterscan_init():
     global PreviewWidth, PreviewHeight
     global screen_height
     global BigSize, FontSize
-    global MergeMertens
+    global MergeMertens, AlignMtb
 
     # Initialize logging
     log_path = aux_dir
@@ -3908,6 +3911,8 @@ def afterscan_init():
 
     # Create MergeMertens Object for HDR
     MergeMertens = cv2.createMergeMertens()
+    # Create Align MTB object for HDR
+    AlignMtb = cv2.createAlignMTB()
 
     WinInitDone = True
 
