@@ -2266,7 +2266,7 @@ def select_custom_template():
     global CropTopLeft, CropBottomRight
     global CustomTemplateDefined
     global CurrentFrame, SourceDirFileList, SourceDir, aux_dir
-    global expected_hole_template_pos_custom, hole_template_filename_custom
+    global expected_hole_template_pos_custom, hole_template_filename_custom, expected_hole_template_pos
     global StabilizationThreshold
     global custom_stabilization_btn
     global area_select_image_factor
