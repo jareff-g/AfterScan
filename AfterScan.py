@@ -176,6 +176,9 @@ SourceDirFileList = []
 TargetDirFileList = []
 film_type = 'S8'
 frame_fill_type = 'fake'
+# Dimensions of frames in collection currently loaded: x, y (as it is needed often)
+frame_width = 0
+frame_height = 0
 
 # Flow control vars
 ConvertLoopExitRequested = False
@@ -676,7 +679,7 @@ def decode_project_config():
                 film_hole_template = cv2.imread(hole_template_filename, cv2.IMREAD_GRAYSCALE)
                 TemplateTopLeft = expected_hole_template_pos_custom
                 TemplateBottomRight = (expected_hole_template_pos_custom[0] + film_hole_template.shape[1], expected_hole_template_pos_custom[1] + film_hole_template.shape[0])
-            expected_hole_template_pos = expected_hole_template_pos_custom
+                debug_template_refresh_template()
             set_film_type()
         else:
             if 'CustomTemplateFilename' in project_config:
@@ -1580,7 +1583,7 @@ def debug_template_popup():
     global HoleSearchTopLeft, HoleSearchBottomRight
     global debug_template_match, debug_template_width, debug_template_height
     global current_frame_label
-    global left_stripe_canvas, left_stripe_stabilized_canvas
+    global left_stripe_canvas, left_stripe_stabilized_canvas, template_canvas
     global SourceDirFileList, CurrentFrame
 
     if not developer_debug:
@@ -1598,7 +1601,7 @@ def debug_template_popup():
 
     template_popup_window.minsize(width=300, height=template_popup_window.winfo_height())
 
-    # Create two paralell vertical frames
+    # Create three vertical frames in the bottom horizontal frame
     left_frame = Frame(template_popup_window, width=60, height=8)
     left_frame.pack(side=LEFT)
     center_frame = Frame(template_popup_window, width=60, height=8)
@@ -1609,12 +1612,9 @@ def debug_template_popup():
     #label = Label(left_frame, text="Current template:")
     #label.pack(pady=5, padx=10, anchor=W)
 
-    file = SourceDirFileList[CurrentFrame]
-    img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
-    image_height = img.shape[0]
     ratio = 33  # Reduce template to one third
     aux = resize_image(film_hole_template, ratio)
-    template_canvas_height = int(image_height*ratio/100)
+    template_canvas_height = int(frame_height*ratio/100)
     debug_template_width = aux.shape[1]
     debug_template_height = aux.shape[0]
 
@@ -1622,6 +1622,7 @@ def debug_template_popup():
     template_canvas = Canvas(left_frame, bg='dark grey',
                                  width=debug_template_width, height=template_canvas_height)
     template_canvas.pack(side=TOP, anchor=N)
+    setup_tooltip(template_canvas, "This is the active template")
 
     DisplayableImage = ImageTk.PhotoImage(Image.fromarray(aux))
     template_canvas.create_image(0, int((template_canvas_height-debug_template_height)/2), anchor=NW, image=DisplayableImage)
@@ -1631,12 +1632,13 @@ def debug_template_popup():
     left_stripe_canvas = Canvas(center_frame, bg='dark grey',
                                  width=debug_template_width, height=debug_template_height)
     left_stripe_canvas.pack(side=LEFT, anchor=N)
-    #left_stripe_canvas.create_image(0, 0, anchor=NW, image=DisplayableImage)
+    setup_tooltip(left_stripe_canvas, "This is the template search area of current frame")
 
     # Create Canvas to display image left stripe (stabilized)
     left_stripe_stabilized_canvas = Canvas(center_frame, bg='dark grey',
                                  width=debug_template_width, height=debug_template_height)
     left_stripe_stabilized_canvas.pack(side=LEFT, anchor=N)
+    setup_tooltip(left_stripe_stabilized_canvas, "This is the current frame, stabilized")
 
     # Add a label with the film type
     film_type_label = Label(right_frame, text=f"Film type: {film_type.get()}", font=("Arial", FontSize))
@@ -1701,6 +1703,19 @@ def debug_template_display_frame_stabilized(img):
         debug_template_display_frame(left_stripe_stabilized_canvas, img_bw)
 
 
+def debug_template_refresh_template():
+    global template_canvas, film_hole_template
+
+    if debug_template_match:
+        ratio = 33  # Reduce template to one third
+        aux = resize_image(film_hole_template, ratio)
+        template_canvas_height = int(frame_height * ratio / 100)
+        debug_template_height = aux.shape[0]
+        DisplayableImage = ImageTk.PhotoImage(Image.fromarray(aux))
+        template_canvas.create_image(0, int((template_canvas_height - debug_template_height) / 2), anchor=NW,
+                                     image=DisplayableImage)
+        template_canvas.image = DisplayableImage
+
 def debug_template_display_frame(canvas, img):
     global debug_template_match, debug_template_width, debug_template_height
 
@@ -1712,7 +1727,6 @@ def debug_template_display_frame(canvas, img):
         cv2_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
         pil_image = Image.fromarray(cv2_image)
         photo_image = ImageTk.PhotoImage(image=pil_image)
-        #canvas.config(width=int(width*ratio))
         canvas.config(height=int(height*ratio))
         canvas.create_image(0, 0, anchor=NW, image=photo_image)
         canvas.image = photo_image
@@ -1844,8 +1858,15 @@ def detect_film_type():
 # Functions in charge of finding the best template for currently loaded set of frames
 def set_scaled_template():
     global hole_template_filename, film_hole_template, film_hole_template_scale
+    global TemplateTopLeft, TemplateBottomRight
+
     template = cv2.imread(hole_template_filename, cv2.IMREAD_GRAYSCALE)
     film_hole_template = resize_image(template, film_hole_template_scale * 100)
+    TemplateTopLeft = expected_hole_template_pos
+    TemplateBottomRight = (expected_hole_template_pos[0] + film_hole_template.shape[1],
+                           expected_hole_template_pos[1] + film_hole_template.shape[0])
+
+    debug_template_refresh_template()
 
 
 def set_best_template(first_frame, last_frame):
@@ -1910,6 +1931,7 @@ def set_best_template(first_frame, last_frame):
     # Set cursor back to normal
     win.config(cursor="")
     app_status_label.config(text='Status: Idle', fg='black')
+    debug_template_refresh_template()
     # Display frame selected as reference
     # select_scale_frame(frame_to_check)
     # frame_slider.set(frame_to_check)
@@ -2309,6 +2331,7 @@ def select_custom_template():
             os.remove(hole_template_filename_custom)
         CustomTemplateDefined = False
         set_film_type()
+        set_scaled_template()
     else:
         if len(SourceDirFileList) <= 0:
             tk.messagebox.showwarning(
@@ -2348,7 +2371,6 @@ def select_custom_template():
             project_config["CustomTemplateFilename"] = hole_template_filename_custom
             cv2.imwrite(hole_template_filename_custom, img_final)
             expected_hole_template_pos_custom = RectangleTopLeft
-            expected_hole_template_pos = expected_hole_template_pos_custom
             CustomTemplateWindowTitle = "Captured custom template. Press any key to continue."
             project_config['CustomTemplateExpectedPos'] = expected_hole_template_pos_custom
             win_x = int(img_final.shape[1] * area_select_image_factor)
@@ -2374,6 +2396,7 @@ def select_custom_template():
 
     project_config["CustomTemplateDefined"] = CustomTemplateDefined
     set_film_type()
+    debug_template_refresh_template()
 
     # Enable all buttons in main window
     widget_status_update(NORMAL, 0)
@@ -2856,7 +2879,7 @@ def system_suspend():
 
 
 def get_source_dir_file_list():
-    global SourceDir
+    global SourceDir, frame_width, frame_height
     global project_config
     global SourceDirFileList
     global CurrentFrame, first_absolute_frame, last_absolute_frame
@@ -2948,6 +2971,9 @@ def get_source_dir_file_list():
     # it is not so good. Take a frame 10% ahead in the set
     sample_frame = CurrentFrame + int((len(SourceDirFileList) - CurrentFrame) * 0.1)
     work_image = cv2.imread(SourceDirFileList[sample_frame], cv2.IMREAD_UNCHANGED)
+    # Set frame dimensions in globañl variable, for use everywhere
+    frame_width = work_image.shape[1]
+    frame_height = work_image.shape[0]
     # Next 3 statements were done only if batch mode was not active, but they are needed in all cases
     if BatchJobRunning:
         logging.debug("Skipping hole template adjustment in batch mode")
@@ -2958,11 +2984,11 @@ def get_source_dir_file_list():
         set_film_type()
     # Select area window should be proportional to screen height
     # Deduct 120 pixels (approximately) for taskbar + window title
-    area_select_image_factor = (screen_height - 200) / work_image.shape[0]
+    area_select_image_factor = (screen_height - 200) / frame_height
     area_select_image_factor = min(1, area_select_image_factor)
     # If no cropping defined, set whole image dimensions
     if CropBottomRight == (0,0):
-        CropBottomRight = (work_image.shape[1], work_image.shape[0])
+        CropBottomRight = (frame_width, frame_height)
 
     if not CustomTemplateDefined:
         set_best_template(0, len(SourceDirFileList))
