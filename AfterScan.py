@@ -20,7 +20,7 @@ __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __version__ = "1.9.34"
-__date__ = "2024-01-30"
+__date__ = "2024-01-31"
 __version_highlight__ = "Various bugfixes around templates"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
@@ -909,10 +909,12 @@ def job_list_load_selected():
                     hole_template_filename_custom = project_config['CustomTemplateFilename']
                 else:
                     CustomTemplateDefined = False
+                    project_config["CustomTemplateDefined"] = CustomTemplateDefined
 
             decode_project_config()
             # Load matching file list from newly selected dir
             get_source_dir_file_list()  # first_absolute_frame is set here
+            general_config["SourceDir"] = SourceDir
 
             # Enable Start and Crop buttons, plus slider, once we have files to handle
             cropping_btn.config(state=NORMAL)
@@ -1617,6 +1619,11 @@ def debug_template_popup():
     template_canvas_height = int(frame_height*ratio/100)
     debug_template_width = aux.shape[1]
     debug_template_height = aux.shape[0]
+    # Set expected hole template pos
+    if CustomTemplateDefined:
+        hole_template_pos = expected_hole_template_pos_custom
+    else:
+        hole_template_pos = expected_hole_template_pos
 
     # Create Canvas to display template
     template_canvas = Canvas(left_frame, bg='dark grey',
@@ -1625,7 +1632,7 @@ def debug_template_popup():
     setup_tooltip(template_canvas, "This is the active template")
 
     DisplayableImage = ImageTk.PhotoImage(Image.fromarray(aux))
-    template_canvas.create_image(0, int((template_canvas_height-debug_template_height)/2), anchor=NW, image=DisplayableImage)
+    template_canvas.create_image(0, int(hole_template_pos[1]*0.33), anchor=NW, image=DisplayableImage)
     template_canvas.image = DisplayableImage
 
     # Create Canvas to display image left stripe (non stabilized)
@@ -1649,10 +1656,6 @@ def debug_template_popup():
     crop_label.pack(pady=5, padx=10, anchor="center")
 
     # Add a label with the stabilization info
-    if CustomTemplateDefined:
-        hole_template_pos = expected_hole_template_pos_custom
-    else:
-        hole_template_pos = expected_hole_template_pos
     hole_pos_label = Label(right_frame, text=f"Expected template pos: {hole_template_pos}", font=("Arial", FontSize))
     hole_pos_label.pack(pady=5, padx=10, anchor="center")
 
@@ -1687,9 +1690,11 @@ def debug_template_display_info(frame_idx, top_left, move_x, move_y):
 
 
 def debug_template_display_frame_raw(img):
-    global left_stripe_canvas
+    global left_stripe_canvas, left_stripe_stabilized_canvas
 
     if debug_template_match:
+        left_stripe_canvas.config(width=int(img.shape[1]*0.33))
+        left_stripe_stabilized_canvas.config(width=img.shape[1]*0.33)
         debug_template_display_frame(left_stripe_canvas, img)
 
 
@@ -1707,13 +1712,15 @@ def debug_template_refresh_template():
     global template_canvas, film_hole_template
 
     if debug_template_match:
+        if CustomTemplateDefined:
+            hole_template_pos = expected_hole_template_pos_custom
+        else:
+            hole_template_pos = expected_hole_template_pos
         ratio = 33  # Reduce template to one third
         aux = resize_image(film_hole_template, ratio)
-        template_canvas_height = int(frame_height * ratio / 100)
-        debug_template_height = aux.shape[0]
+        template_canvas.delete('all')
         DisplayableImage = ImageTk.PhotoImage(Image.fromarray(aux))
-        template_canvas.create_image(0, int((template_canvas_height - debug_template_height) / 2), anchor=NW,
-                                     image=DisplayableImage)
+        template_canvas.create_image(0, int(hole_template_pos[1] * 0.33), anchor=NW, image=DisplayableImage)
         template_canvas.image = DisplayableImage
 
 def debug_template_display_frame(canvas, img):
@@ -1858,13 +1865,20 @@ def detect_film_type():
 # Functions in charge of finding the best template for currently loaded set of frames
 def set_scaled_template():
     global hole_template_filename, film_hole_template, film_hole_template_scale
-    global TemplateTopLeft, TemplateBottomRight
+    global TemplateTopLeft, TemplateBottomRight, expected_hole_template_pos
 
+    if film_type.get() == 'S8':
+        hole_template_filename = hole_template_filename_s8
+    else:
+        hole_template_filename = hole_template_filename_r8
     template = cv2.imread(hole_template_filename, cv2.IMREAD_GRAYSCALE)
     film_hole_template = resize_image(template, film_hole_template_scale * 100)
+    print(f"film_hole_template_scale: {film_hole_template_scale}, expected_hole_template_pos: {expected_hole_template_pos}")
     TemplateTopLeft = expected_hole_template_pos
     TemplateBottomRight = (expected_hole_template_pos[0] + film_hole_template.shape[1],
                            expected_hole_template_pos[1] + film_hole_template.shape[0])
+    TemplateTopLeft = (int(TemplateTopLeft[0]* film_hole_template_scale), int(TemplateTopLeft[1]* film_hole_template_scale))
+    TemplateBottomRight = (int(TemplateBottomRight[0]* film_hole_template_scale), int(TemplateBottomRight[1]* film_hole_template_scale))
 
     debug_template_refresh_template()
 
@@ -1905,6 +1919,7 @@ def set_best_template(first_frame, last_frame):
         y_center_image = int(work_image.shape[0]/2)
         shift_allowed = int (work_image.shape[0] * 0.1)     # Allow up to 10% difference between center of image and center of detected template
         TemplateTopLeft, TemplateBottomRight, film_hole_template_scale, film_hole_template = get_best_template_size(work_image)
+        logging.debug(f"TemplateTopLeft: {TemplateTopLeft}, TemplateBottomRight: {TemplateBottomRight}, film_hole_template_scale: {film_hole_template_scale}")
         expected_hole_template_pos = TemplateTopLeft
         iy = TemplateTopLeft[1]
         y_ = TemplateBottomRight[1]
@@ -1938,10 +1953,10 @@ def set_best_template(first_frame, last_frame):
     ReferenceFrame = frame_to_check
     win.update()  # Force an update to apply the cursor change
 
-
+# TO BE REMOVED
 # Code in this function is taken from Adrian Rosebrock sample, at URL below
 # https://pyimagesearch.com/2015/01/26/multi-scale-template-matching-using-python-opencv/
-def get_best_template_size(img):
+def get_best_template_size_old(img):
     global film_type
     # load the default template, convert it to grayscale, and detect edges
     if film_type.get() == 'S8':
@@ -1972,7 +1987,7 @@ def get_best_template_size(img):
         # detect template in the resized, grayscale image and apply template matching to find the template in the image
         result = cv2.matchTemplate(img_target, template_resized, cv2.TM_CCOEFF_NORMED)
         (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
-        logging.debug(f"Trying - scale {scale:.2f}, maxVal {maxVal:.2f}, maxLoc {maxLoc}, t.height {template_resized.shape[0]}")
+        logging.debug(f"Trying - scale {scale:.2f}, minVal {minVal:.2f}, maxVal {maxVal:.2f}, minLoc {minLoc}, maxLoc {maxLoc}, t.height {template_resized.shape[0]}")
         # check to see if the iteration should be visualized if we have found a new maximum correlation value,
         # then update the bookkeeping variable
         # logging.debug(f"Trying size@{scale:.2f}, minVal {minVal.2f}, maxVal {maxVal.2f}, minLoc {minLoc}, maxLoc {maxLoc}, t height {template_target.shape[0]}")
@@ -1986,6 +2001,32 @@ def get_best_template_size(img):
     (startX, startY) = (maxLoc[0], maxLoc[1])
     (endX, endY) = (maxLoc[0] + best_template.shape[1] - 1, maxLoc[1] + best_template.shape[0] - 1)
     return (startX, startY), (endX, endY), scale, best_template
+
+
+def get_best_template_size(img):
+    global film_type, film_hole_template_scale
+    global TemplateTopLeft, TemplateBottomRight, expected_hole_template_pos
+
+    # First of all, calculate the ratio
+    film_hole_template_scale = int(img.shape[0] / 1520)
+    # Load the default template, convert it to grayscale, and detect edges
+    # Position of default S8 template: 44,400
+    # Position of default R8 template: 135,44
+    if film_type.get() == 'S8':
+        hole_template_filename = hole_template_filename_s8
+        TemplateTopLeft = (44, 400)
+    else:
+        hole_template_filename = hole_template_filename_r8
+        TemplateTopLeft = (44, 44)
+    expected_hole_template_pos = TemplateTopLeft
+    template = cv2.imread(hole_template_filename, cv2.IMREAD_GRAYSCALE)
+    TemplateBottomRight = (TemplateTopLeft[0] + template.shape[1], TemplateTopLeft[1] + template.shape[0])
+    # resize the image according to the scale, and keep track of the ratio of the resizing
+    template_resized = resize_image(template, film_hole_template_scale * 100)
+
+    set_scaled_template()
+    logging.debug(f"get_best_template_size - TemplateTopLeft: {TemplateTopLeft}, TemplateBottomRight: {TemplateBottomRight}, film_hole_template_scale: {film_hole_template_scale}")
+    return TemplateTopLeft, TemplateBottomRight, film_hole_template_scale, template_resized
 
 
 
@@ -2448,7 +2489,7 @@ def match_template(frame_idx, template, img, thres):
     #   - Match full template
     #   - Match upper half
     #   - Match lower half
-    for i in range(0, 1):   # Go up to 3 to use two half templates (temporarily removed since it was causing slight shaking)
+    for i in range(0, 1):   # Go up to 3 to use two half templates (temporarily removed since it is not helping at all)
         if i == 0:
             aux_template = template
         elif i == 1:
@@ -2479,7 +2520,7 @@ def match_template(frame_idx, template, img, thres):
     if best_match_idx == 2:
         top_left = (top_left[0],top_left[1]-int(th/2))  # if using lower half of template, adjust coordinates accordingly
 
-    # logging.debug(f"Trying Frame {frame_idx} with template {best_match_idx}, top left is {top_left}")
+    logging.debug(f"Trying Frame {frame_idx} with template {best_match_idx}, top left is {top_left}")
 
     return top_left, round(maxVal,2), img_final
 
@@ -3060,7 +3101,6 @@ def set_hole_search_area(img):
     #left_stripe_width = max(maxLoc[0] + int(film_hole_template.shape[1]) + 100, TemplateTopLeft[0] + film_hole_template.shape[1]) # Corner template left pos is at maxLoc[0], we add 70 (50% template width) + 100 (to get some black area)
     #left_stripe_width = maxLoc[0] + int(film_corner_template.shape[1])
     left_stripe_width = maxLoc[0] + int(film_hole_template.shape[1])
-    print(f"left_stripe_width: {left_stripe_width}, img.shape[0]: {img.shape[0]}")
     left_stripe_width += 100 * int(img.shape[0]/1520)   # Increase width, proportional to the image size (100 pixels for default size 2028x1520)
     logging.debug(f"Calculated left stripe width: {left_stripe_width}")
     if extended_stabilization.get():
