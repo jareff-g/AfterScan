@@ -19,7 +19,7 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.5"
+__version__ = "1.10.6"
 __data_version__ = "1.0"
 __date__ = "2024-02-01"
 __version_highlight__ = "Code cleanup: Factorize templates in class"
@@ -1688,7 +1688,9 @@ def set_resolution(selected):
 
 
 def display_template_popup_closure():
-    global template_popup_window, display_template_popup
+    global template_popup_window, display_template_popup, debug_template_match
+
+    debug_template_match = False
 
     display_template_popup.set(False)
 
@@ -1831,8 +1833,11 @@ def debug_template_display_frame_raw(img):
     global left_stripe_canvas, left_stripe_stabilized_canvas
 
     if debug_template_match:
-        left_stripe_canvas.config(width=int(img.shape[1]*0.33))
-        left_stripe_stabilized_canvas.config(width=img.shape[1]*0.33)
+        try:
+            left_stripe_canvas.config(width=int(img.shape[1]*0.33))
+            left_stripe_stabilized_canvas.config(width=img.shape[1]*0.33)
+        except Exception as e:
+            logging.error(f"Exception {e} when configuring canvas")
         debug_template_display_frame(left_stripe_canvas, img)
 
 
@@ -1865,19 +1870,22 @@ def debug_template_refresh_template():
         film_type_text.set(f"Film type: {film_type.get()}")
 
 def debug_template_display_frame(canvas, img):
-    global debug_template_match, debug_template_width, debug_template_height
+    global debug_template_width, debug_template_height
 
     if debug_template_match:
-        height, width = img.shape
-        ratio = debug_template_height / height
-        ratio = 0.33
-        resized_image = cv2.resize(img, (int(width*ratio), int(height*ratio)))
-        pil_image = Image.fromarray(resized_image)
-        photo_image = ImageTk.PhotoImage(image=pil_image)
-        canvas.config(height=int(height*ratio))
-        canvas.create_image(0, 0, anchor=NW, image=photo_image)
-        canvas.image = photo_image
-        win.update()
+        try:
+            height, width = img.shape
+            ratio = debug_template_height / height
+            ratio = 0.33
+            resized_image = cv2.resize(img, (int(width*ratio), int(height*ratio)))
+            pil_image = Image.fromarray(resized_image)
+            photo_image = ImageTk.PhotoImage(image=pil_image)
+            canvas.config(height=int(height*ratio))
+            canvas.create_image(0, 0, anchor=NW, image=photo_image)
+            canvas.image = photo_image
+        except Exception as e:
+            logging.error(f"Exception {e} when updating canvas")
+
 
 def scale_display_update():
     global win
@@ -2498,11 +2506,7 @@ def terminate_threads(user_terminated):
     # Terminate threads
     logging.debug("Signaling exit event for threads")
     frame_encoding_event.set()
-    time.sleep(5)   # Wait 5 seconds for threads to exit
     while active_threads > 0:
-        if frame_encoding_queue.qsize == 0:
-            logging.debug("Adding End token")
-            frame_encoding_queue.put((END_TOKEN, 0))    # Threads might be stuck reading from queue, add item to allow them to exit
         logging.debug(f"Waiting for threads to stop ({active_threads} remaining)")
         check_subprocess_event_queue(user_terminated)
         win.update()
@@ -3233,7 +3237,7 @@ def generation_exit(success = True):
         time.sleep(2)
 
 
-def frame_encode(frame_idx):
+def frame_encode(frame_idx, id):
     global SourceDir, TargetDir
     global HdrFilesOnly , first_absolute_frame, frames_to_encode
     global FrameInputFilenamePattern, HdrSetInputFilenamePattern, FrameHdrInputFilenamePattern, FrameOutputFilenamePattern
@@ -3245,6 +3249,8 @@ def frame_encode(frame_idx):
 
     images_to_merge = []
     img_ref_aux = None
+
+    logging.debug(f"Thread {id}, starting to encode Frame {frame_idx}")
 
     # Get current file(s)
     if HdrFilesOnly:    # Legacy HDR (before 2 Dec 2023): Dedicated filename
@@ -3332,6 +3338,7 @@ def frame_encode(frame_idx):
         if os.path.isdir(TargetDir):
             target_file = os.path.join(TargetDir, FrameOutputFilenamePattern % (first_absolute_frame + frame_idx, file_type_out))
             cv2.imwrite(target_file, img)
+    logging.debug(f"Thread {id}, finalized to encode Frame {frame_idx}")
 
     return len(images_to_merge) != 0
 
@@ -3366,7 +3373,7 @@ def frame_encoding_thread(queue, event, id):
                 logging.error(f"Source dir {SourceDir} unmounted: Stop encoding session")
             if message[0] == "encode_frame":
                 # Encode frame
-                merged = frame_encode(message[1])
+                merged = frame_encode(message[1], id)
                 # Update UI with progress so far (double check we have not ended, it might happen during frame encoding)
                 if ConvertLoopRunning:
                     if message[1] >= last_displayed_image:
