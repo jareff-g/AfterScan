@@ -19,9 +19,9 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.0"
+__version__ = "1.10.1"
 __data_version__ = "1.0"
-__date__ = "2024-01-31"
+__date__ = "2024-02-01"
 __version_highlight__ = "Code cleanup: Factorize templates in class"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
@@ -315,7 +315,7 @@ class Template:
             self.size = (0,0)
 
     def refresh_template(self):
-        self.template = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+        self.template = cv2.imread(self.filename, cv2.IMREAD_GRAYSCALE)
         self.size = (self.template.shape[1], self.template.shape[0])
 
 
@@ -377,8 +377,10 @@ class TemplateList:
     def get_active_template(self):
         # If ratio is not 1:1 and using default template, resize
         if frame_width!=2028 and (self.active_template.type == 'S8' or self.active_template.type == 'R8'):
+            print("Get active default")
             return resize_image(self.active_template.template, int(frame_width / 2028))
         else:
+            print("Get active custom")
             return self.active_template.template
 
     def get_active_name(self):
@@ -792,38 +794,32 @@ def decode_project_config():
     if 'ExtendedStabilization' in project_config:
         extended_stabilization.set(project_config["ExtendedStabilization"])
 
-    if 'CustomTemplateDefined' in project_config:
-        # To have a custom template, both conditions (flag and filename) are mandatory
-        if project_config["CustomTemplateDefined"] and 'CustomTemplateFilename' in project_config:
-            if 'CustomTemplateName' in project_config:  # Load name if it exists, otherwise assign default
-                template_name = project_config["CustomTemplateName"]
-            else:
-                if 'FrameFrom' in project_config and 'FrameTo' in project_config:
-                    template_name = f"{os.path.split(SourceDir)[-1]}-{project_config['FrameFrom']}-{project_config['FrameTo']}"
-                else:
-                    template_name = f"{os.path.split(SourceDir)[-1]}-all"
-            if 'CustomTemplateExpectedPos' in project_config:
-                expected_hole_template_pos_custom = project_config["CustomTemplateExpectedPos"]
-            else:
-                expected_hole_template_pos_custom = (0, 0)
-            template_filename = f"Pattern.custom.{template_name}.jpg"
-            full_path_template_filename = os.path.join(aux_dir, template_filename)
-            project_custom_template_filename = project_config["CustomTemplateFilename"]
-            if project_custom_template_filename != full_path_template_filename:
-                tk.messagebox.showwarning(
-                    "Template in project invalid",
-                    f"The custom template saved for project {template_name} is invalid."
-                    "Please redefine custom template for this project.")
-                del project_config['CustomTemplateFilename']
-            template_list.add(template_name, full_path_template_filename, "custom", expected_hole_template_pos_custom)
-            debug_template_refresh_template()
+    if 'CustomTemplateDefined' in project_config and project_config["CustomTemplateDefined"] and 'CustomTemplateFilename' in project_config:
+        if 'CustomTemplateName' in project_config:  # Load name if it exists, otherwise assign default
+            template_name = project_config["CustomTemplateName"]
         else:
-            if 'CustomTemplateFilename' in project_config:
-                del project_config['CustomTemplateFilename']
+            if 'FrameFrom' in project_config and 'FrameTo' in project_config:
+                template_name = f"{os.path.split(SourceDir)[-1]}-{project_config['FrameFrom']}-{project_config['FrameTo']}"
+            else:
+                template_name = f"{os.path.split(SourceDir)[-1]}-all"
+        if 'CustomTemplateExpectedPos' in project_config:
+            expected_hole_template_pos_custom = project_config["CustomTemplateExpectedPos"]
+        else:
+            expected_hole_template_pos_custom = (0, 0)
+        template_filename = f"Pattern.custom.{template_name}.jpg"
+        full_path_template_filename = os.path.join(aux_dir, template_filename)
+        project_custom_template_filename = project_config["CustomTemplateFilename"]
+        if project_custom_template_filename != full_path_template_filename:
+            tk.messagebox.showwarning(
+                "Template in project invalid",
+                f"The custom template saved for project {template_name} is invalid."
+                "Please redefine custom template for this project.")
+            del project_config['CustomTemplateFilename']
+        template_list.add(template_name, full_path_template_filename, "custom", expected_hole_template_pos_custom)
+        debug_template_refresh_template()
     else:
         # No custom template defined, set default one
-        if not set_film_type():
-            return
+        set_film_type()
 
     if 'PerformCropping' in project_config:
         perform_cropping.set(project_config["PerformCropping"])
@@ -1698,7 +1694,8 @@ def debug_template_popup():
     global template_popup_window
     global CropTopLeft, CropBottomRight
     global debug_template_match, debug_template_width, debug_template_height
-    global current_frame_label
+    global current_frame_text, crop_text, film_type_text
+    global search_area_text, template_type_text, hole_pos_text, template_size_text
     global left_stripe_canvas, left_stripe_stabilized_canvas, template_canvas
     global SourceDirFileList, CurrentFrame
 
@@ -1760,27 +1757,45 @@ def debug_template_popup():
     setup_tooltip(left_stripe_stabilized_canvas, "This is the current frame, stabilized")
 
     # Add a label with the film type
-    film_type_label = Label(right_frame, text=f"Film type: {film_type.get()}", font=("Arial", FontSize))
+    film_type_text = tk.StringVar()
+    film_type_label = Label(right_frame, textvariable=film_type_text, font=("Arial", FontSize))
     film_type_label.pack(pady=5, padx=10, anchor="center")
+    film_type_text.set(f"Film type: {film_type.get()}")
 
     # Add a label with the cropping dimensions
-    crop_label = Label(right_frame, text=f"Crop: {CropTopLeft}, {CropBottomRight}", font=("Arial", FontSize))
+    crop_text = tk.StringVar()
+    crop_label = Label(right_frame, textvariable=crop_text, font=("Arial", FontSize))
     crop_label.pack(pady=5, padx=10, anchor="center")
+    crop_text.set(f"Crop: {CropTopLeft}, {CropBottomRight}")
+
+    # Add a label with the template type
+    template_type_text = tk.StringVar()
+    template_type_label = Label(right_frame, textvariable=template_type_text, font=("Arial", FontSize))
+    template_type_label.pack(pady=5, padx=10, anchor="center")
+    template_type_text.set(f"Template type: {template_list.get_active_type()}")
 
     # Add a label with the stabilization info
-    hole_pos_label = Label(right_frame, text=f"Expected template pos: {hole_template_pos}", font=("Arial", FontSize))
+    hole_pos_text = tk.StringVar()
+    hole_pos_label = Label(right_frame, textvariable=hole_pos_text, font=("Arial", FontSize))
     hole_pos_label.pack(pady=5, padx=10, anchor="center")
+    hole_pos_text.set(f"Expected template pos: {hole_template_pos}")
 
     #Label with template size
-    template_size_label = Label(right_frame, text=f"Template Size: {template_list.get_active_size()}", font=("Arial", FontSize))
+    template_size_text = tk.StringVar()
+    template_size_label = Label(right_frame, textvariable=template_size_text, font=("Arial", FontSize))
     template_size_label.pack(pady=5, padx=10, anchor="center")
+    template_size_text.set(f"Template Size: {template_list.get_active_size()}")
 
     #Label with search area
-    search_area_label = Label(right_frame, text=f"Search Area: {HoleSearchTopLeft}, {HoleSearchBottomRight}", font=("Arial", FontSize))
+    search_area_text = tk.StringVar()
+    search_area_label = Label(right_frame, textvariable=search_area_text, font=("Arial", FontSize))
     search_area_label.pack(pady=5, padx=10, anchor="center")
+    search_area_text.set(f"Search Area: {HoleSearchTopLeft}, {HoleSearchBottomRight})")
 
-    current_frame_label = Label(right_frame, text="Current:", width=45, font=("Arial", FontSize))
+    current_frame_text = tk.StringVar()
+    current_frame_label = Label(right_frame, textvariable=current_frame_text, width=45, font=("Arial", FontSize))
     current_frame_label.pack(pady=5, padx=10, anchor="center")
+    current_frame_text.set("Current:")
 
     close_button = Button(right_frame, text="Close", command=display_template_popup_closure, font=("Arial", FontSize))
     close_button.pack(pady=10, padx=10, anchor="center")
@@ -1793,9 +1808,9 @@ def debug_template_popup():
 
 
 def debug_template_display_info(frame_idx, top_left, move_x, move_y):
-    global current_frame_label
+    global current_frame_text
     if debug_template_match:
-        current_frame_label.config(text=f"Current Frm:{frame_idx}, Tmp.Pos.:{top_left}, ΔX:{move_x}, ΔY:{move_y}")
+        current_frame_text.set(f"Current Frm:{frame_idx}, Tmp.Pos.:{top_left}, ΔX:{move_x}, ΔY:{move_y}")
 
 
 def debug_template_display_frame_raw(img):
@@ -1819,15 +1834,21 @@ def debug_template_display_frame_stabilized(img):
 
 def debug_template_refresh_template():
     global template_canvas, template_list
+    global hole_pos_text, template_type_text, template_size_text, film_type_text
 
     if debug_template_match:
         hole_template_pos = template_list.get_active_position()
         ratio = 0.33  # Reduce template to one third
         aux = resize_image(template_list.get_active_template(), ratio)
+        template_canvas.config(width=int(template_list.get_active_size()[0]*ratio))
         template_canvas.delete('all')
         DisplayableImage = ImageTk.PhotoImage(Image.fromarray(aux))
         template_canvas.create_image(0, int(hole_template_pos[1] * 0.33), anchor=NW, image=DisplayableImage)
         template_canvas.image = DisplayableImage
+        hole_pos_text.set(f"Expected template pos: {hole_template_pos}")
+        template_type_text.set(f"Template type: {template_list.get_active_type()}")
+        template_size_text.set(f"Template Size: {template_list.get_active_size()}")
+        film_type_text.set(f"Film type: {film_type.get()}")
 
 def debug_template_display_frame(canvas, img):
     global debug_template_match, debug_template_width, debug_template_height
@@ -1945,9 +1966,11 @@ def detect_film_type():
     FramesToCheck = np.linspace(CurrentFrame, len(SourceDirFileList) - CurrentFrame - 1, num_frames).astype(int).tolist()
     for frame_to_check in FramesToCheck:
         img = cv2.imread(SourceDirFileList[frame_to_check], cv2.IMREAD_UNCHANGED)
+        #debug_display_image("img",img)
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        img_bw = cv2.threshold(img_gray, 240, 255, cv2.THRESH_BINARY)[1]
+        img_bw = cv2.threshold(img_gray, 220, 255, cv2.THRESH_BINARY)[1]
         search_img = get_image_left_stripe(img_bw)
+        #debug_display_image("tmp1",search_img)
         result = cv2.matchTemplate(search_img, template_1, cv2.TM_CCOEFF_NORMED)
         (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
         top_left_1 = (maxLoc[1], maxLoc[0])
@@ -1964,8 +1987,8 @@ def detect_film_type():
             f"Current project is defined to handle {project_config['FilmType']}"
             f" film type, however frames seem to be {other_film_type}.\r\n"
             "Do you want to change it now?"):
-            if not set_film_type():
-                return
+            film_type.set(other_film_type)
+            set_film_type()
 
         logging.debug(f"Changed film type to {other_film_type}")
 
@@ -2328,8 +2351,8 @@ def select_custom_template():
             cv2.imwrite(full_path_template_filename, img_final)
 
             # Add template to list
-            template_list.add(template_name, template_filename, 'custom', RectangleTopLeft)   # size and template automatically refreshed upon addition
-            logging.debug(f"Template top left-size: {template_list.get_active_position()} - {template_list.set_active_size()}")
+            template_list.add(template_name, full_path_template_filename, 'custom', RectangleTopLeft)   # size and template automatically refreshed upon addition
+            logging.debug(f"Template top left-size: {template_list.get_active_position()} - {template_list.get_active_size()}")
             widget_status_update(NORMAL, 0)
             custom_stabilization_btn.config(relief=SUNKEN)
 
@@ -2376,6 +2399,7 @@ def set_film_type():
 
     if template_list.set_active(film_type.get(), film_type.get()):
         project_config["FilmType"] = film_type.get()
+        debug_template_refresh_template()
         return True
     else:
         tk.messagebox.showerror(
@@ -2482,7 +2506,7 @@ def start_threads():
 
 
 def terminate_threads(user_terminated):
-    global win, num_threads, frames_to_read_queue, active_threads
+    global win, num_threads, active_threads
     global frame_encoding_thread_list, frame_encoding_event
     global last_displayed_image
 
@@ -3336,9 +3360,9 @@ def frame_update_ui(frame_idx, merged):
     fps = 18 if film_type.get() == 'S8' else 16
     time_str = f"Film time: {(frame_idx//fps) // 60:02}:{(frame_idx//fps) % 60:02}"
     frame_slider_time.config(text=time_str)
-    status_str = f"Status: Generating{' merged' if merged else ''} frames {((frame_idx - StartFrame) * 100 / frames_to_encode):.1f}%"
+    status_str = f"Status: Generating{' merged' if merged else ''} frames {((frame_idx - StartFrame+1) * 100 / frames_to_encode):.1f}%"
     if FPM_CalculatedValue != -1:  # FPM not calculated yet, display some indication
-        status_str = status_str + ' (FPM:%d)' % (FPM_CalculatedValue)
+        status_str = status_str + f' (FPM:{FPM_CalculatedValue})'
     app_status_label.config(text=status_str, fg='black')
 
 
@@ -4115,12 +4139,12 @@ def build_ui():
 
     # Radio buttons to select R8/S8. Required to select adequate pattern, and match position
     film_type = StringVar()
-    film_type_S8_rb = Radiobutton(postprocessing_frame, text="Super 8",
-                                  variable=film_type, width=11 if BigSize else 14, value='S8', font=("Arial", FontSize))
+    film_type_S8_rb = Radiobutton(postprocessing_frame, text="Super 8", variable=film_type, command=set_film_type,
+                                  width=11 if BigSize else 14, value='S8', font=("Arial", FontSize))
     film_type_S8_rb.grid(row=postprocessing_row, column=0, sticky=W)
     setup_tooltip(film_type_S8_rb, "Select for Super 8 film.")
-    film_type_R8_rb = Radiobutton(postprocessing_frame, text="Regular 8",
-                                  variable=film_type, width=11 if BigSize else 14, value='R8', font=("Arial", FontSize))
+    film_type_R8_rb = Radiobutton(postprocessing_frame, text="Regular 8", variable=film_type, command=set_film_type,
+                                  width=11 if BigSize else 14, value='R8', font=("Arial", FontSize))
     film_type_R8_rb.grid(row=postprocessing_row, column=1, sticky=W)
     setup_tooltip(film_type_R8_rb, "Select for 8mm (Regular 8) film.")
     film_type.set(project_config["FilmType"])
