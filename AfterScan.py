@@ -173,8 +173,8 @@ TargetDirFileList = []
 film_type = 'S8'
 frame_fill_type = 'fake'
 # Dimensions of frames in collection currently loaded: x, y (as it is needed often)
-frame_width = 0
-frame_height = 0
+frame_width = 2048
+frame_height = 1520
 
 # Flow control vars
 ConvertLoopExitRequested = False
@@ -305,18 +305,29 @@ class Template:
         self.name = name
         self.filename = filename
         self.type = type
+        self.scale = int(frame_width/2028)
         self.position = position
+        self.scaled_position = (int(self.position[0] * self.scale),
+                                int(self.position[1] * self.scale))
         self.size = (0,0)
         if os.path.isfile(filename):
             self.template = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+            self.scaled_template = resize_image(self.template, self.scale)
             self.size = (self.template.shape[1],self.template.shape[0])
+            self.scaled_size = (int(self.size[0] * self.scale),
+                                int(self.size[1] * self.scale))
         else:
             self.template = None
+            self.scaled_template = None
             self.size = (0,0)
+            self.scaled_size = (0,0)
 
     def refresh_template(self):
         self.template = cv2.imread(self.filename, cv2.IMREAD_GRAYSCALE)
+        self.scaled_template = resize_image(self.template, self.scale)
         self.size = (self.template.shape[1], self.template.shape[0])
+        self.scaled_size = (int(self.size[0] * self.scale),
+                            int(self.size[1] * self.scale))
 
 
 class TemplateList:
@@ -364,34 +375,20 @@ class TemplateList:
     def get_template(self, type, name):
         for t in self.templates:
             if t.type == type and t.name == name:
-                # If ratio is not 1:1 and using default template, resize
-                if frame_width!=2028 and (type == 'S8' or type == 'R8'):
-                    return resize_image(t.template, int(frame_width/2028))
-                else:
-                    return t.template
+                return t.scaled_template
         return None
 
     def get_active(self):
         return self.active_template
 
     def get_active_template(self):
-        # If ratio is not 1:1 and using default template, resize
-        if frame_width!=2028 and (self.active_template.type == 'S8' or self.active_template.type == 'R8'):
-            print("Get active default")
-            return resize_image(self.active_template.template, int(frame_width / 2028))
-        else:
-            print("Get active custom")
-            return self.active_template.template
+        return self.active_template.scaled_template
 
     def get_active_name(self):
         return self.active_template.name
 
     def get_active_position(self):
-        # If ratio is not 1:1 and using default template, scale
-        if frame_width!=2028 and (self.active_template.type == 'S8' or self.active_template.type == 'R8'):
-            return (int(self.active_template.position[0] * frame_width / 2028), int(self.active_template.position[1] * frame_width / 2028))
-        else:
-            return self.active_template.position
+        return self.active_template.scaled_position
 
     def set_active_position(self, position):
         self.active_template.position = position
@@ -404,7 +401,7 @@ class TemplateList:
 
     def get_scale(self):
         # Size reference 2028x1520
-        return int(frame_width/2028)   # Scale is dynamic, as it depends on the set of images currently loaded
+        return self.active_template.scale   # Scale is dynamic, as it depends on the set of images currently loaded
 
     def get_active_filename(self):
         return self.active_template.filename
