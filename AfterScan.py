@@ -19,7 +19,7 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.2"
+__version__ = "1.10.3"
 __data_version__ = "1.0"
 __date__ = "2024-02-01"
 __version_highlight__ = "Code cleanup: Factorize templates in class"
@@ -1842,8 +1842,7 @@ def debug_template_display_frame_stabilized(img):
     if debug_template_match:
         img = get_image_left_stripe(img)
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        img_bw = cv2.threshold(img_gray, 245, 255, cv2.THRESH_BINARY)[1]
-        debug_template_display_frame(left_stripe_stabilized_canvas, img_bw)
+        debug_template_display_frame(left_stripe_stabilized_canvas, img_gray)
 
 
 def debug_template_refresh_template():
@@ -1871,10 +1870,9 @@ def debug_template_display_frame(canvas, img):
     if debug_template_match:
         height, width = img.shape
         ratio = debug_template_height / height
-        ratio = 0.35
+        ratio = 0.33
         resized_image = cv2.resize(img, (int(width*ratio), int(height*ratio)))
-        cv2_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
-        pil_image = Image.fromarray(cv2_image)
+        pil_image = Image.fromarray(resized_image)
         photo_image = ImageTk.PhotoImage(image=pil_image)
         canvas.config(height=int(height*ratio))
         canvas.create_image(0, 0, anchor=NW, image=photo_image)
@@ -2451,7 +2449,7 @@ def match_template(frame_idx, template, img):
     best_thres = 0
     best_wb_proportion = 1
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    for thres in range(105, 255, 10):
+    for thres in range(155, 255, 10):
         img_bw = cv2.threshold(img_gray, thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
         white_pixel_count = cv2.countNonZero(img_bw)
         total_pixels = img_bw.size
@@ -3033,17 +3031,19 @@ def set_hole_search_area(img):
     # Adjust left stripe width (search area)
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_bw = cv2.threshold(img_gray, 240, 255, cv2.THRESH_BINARY)[1]
-    img_target = img_bw[:, :int(img_bw.shape[1]/3)]  # Search only in the third left of the image
+    img_target = img_bw[:, :int(img_bw.shape[1]/4)]  # Search only in the left 25% of the image
     # Detect corner in image, to adjust search area width
     film_corner_template = template_list.get_template('aux','Corner')
     result = cv2.matchTemplate(img_target, film_corner_template, cv2.TM_CCOEFF_NORMED)
     (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
     left_stripe_width = maxLoc[0] + template_list.get_active_size()[0]
-    left_stripe_width += 100 * int(img.shape[0]/1520)   # Increase width, proportional to the image size (100 pixels for default size 2028x1520)
+    left_stripe_width += 250 * int(img.shape[0]/1520)   # Increase width, proportional to the image size (250 pixels for default size 2028x1520)
     logging.debug(f"Calculated left stripe width: {left_stripe_width}")
     if extended_stabilization.get():
         logging.debug("Extended stabilization requested: Widening search area by 50 pixels")
         left_stripe_width += 50     # If precise stabilization, make search area wider (although not clear this will help instead of making it worse)
+    # limit search area with fo 25% of the image at most
+    left_stripe_width = min(left_stripe_width, int(img_bw.shape[1]/4))
     # Initialize default values for perforation search area,
     # as they are relative to image size
     # Get image dimensions first
