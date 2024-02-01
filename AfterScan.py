@@ -19,7 +19,7 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.4"
+__version__ = "1.10.5"
 __data_version__ = "1.0"
 __date__ = "2024-02-01"
 __version_highlight__ = "Code cleanup: Factorize templates in class"
@@ -2498,10 +2498,11 @@ def terminate_threads(user_terminated):
     # Terminate threads
     logging.debug("Signaling exit event for threads")
     frame_encoding_event.set()
-    if user_terminated:     # User terminated processing: Queue might be full, make space for End Token
-        empty_queue(frame_encoding_queue)
+    time.sleep(5)   # Wait 5 seconds for threads to exit
     while active_threads > 0:
-        frame_encoding_queue.put((END_TOKEN, 0))    # Threads might be stuck reading from queue, add item to allow them to exit
+        if frame_encoding_queue.qsize == 0:
+            logging.debug("Adding End token")
+            frame_encoding_queue.put((END_TOKEN, 0))    # Threads might be stuck reading from queue, add item to allow them to exit
         logging.debug(f"Waiting for threads to stop ({active_threads} remaining)")
         check_subprocess_event_queue(user_terminated)
         win.update()
