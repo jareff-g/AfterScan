@@ -19,7 +19,7 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.1"
+__version__ = "1.10.2"
 __data_version__ = "1.0"
 __date__ = "2024-02-01"
 __version_highlight__ = "Code cleanup: Factorize templates in class"
@@ -313,18 +313,26 @@ class Template:
         if os.path.isfile(filename):
             self.template = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
             self.scaled_template = resize_image(self.template, self.scale)
+            # Calculate the white on black proportion to help with detection
+            white_pixel_count = cv2.countNonZero(self.scaled_template)
+            total_pixels = self.scaled_template.size
+            self.wb_proportion = white_pixel_count / total_pixels
             self.size = (self.template.shape[1],self.template.shape[0])
             self.scaled_size = (int(self.size[0] * self.scale),
                                 int(self.size[1] * self.scale))
         else:
             self.template = None
             self.scaled_template = None
+            self.wb_proportion = 0.5
             self.size = (0,0)
             self.scaled_size = (0,0)
 
     def refresh_template(self):
         self.template = cv2.imread(self.filename, cv2.IMREAD_GRAYSCALE)
         self.scaled_template = resize_image(self.template, self.scale)
+        white_pixel_count = cv2.countNonZero(self.scaled_template)
+        total_pixels = self.scaled_template.size
+        self.wb_proportion = white_pixel_count / total_pixels
         self.size = (self.template.shape[1], self.template.shape[0])
         self.scaled_size = (int(self.size[0] * self.scale),
                             int(self.size[1] * self.scale))
@@ -408,6 +416,9 @@ class TemplateList:
 
     def get_active_type(self):
         return self.active_template.type
+
+    def get_active_wb_proportion(self):
+        return self.active_template.wb_proportion
 
 
 
@@ -1692,7 +1703,7 @@ def debug_template_popup():
     global CropTopLeft, CropBottomRight
     global debug_template_match, debug_template_width, debug_template_height
     global current_frame_text, crop_text, film_type_text
-    global search_area_text, template_type_text, hole_pos_text, template_size_text
+    global search_area_text, template_type_text, hole_pos_text, template_size_text, template_wb_proportion_text
     global left_stripe_canvas, left_stripe_stabilized_canvas, template_canvas
     global SourceDirFileList, CurrentFrame
 
@@ -1783,6 +1794,12 @@ def debug_template_popup():
     template_size_label.pack(pady=5, padx=10, anchor="center")
     template_size_text.set(f"Template Size: {template_list.get_active_size()}")
 
+    #Label with template white on black proportion
+    template_wb_proportion_text = tk.StringVar()
+    template_wb_proportion_label = Label(right_frame, textvariable=template_wb_proportion_text, font=("Arial", FontSize))
+    template_wb_proportion_label.pack(pady=5, padx=10, anchor="center")
+    template_wb_proportion_text.set(f"WoB proportion: {int(template_list.get_active_wb_proportion() * 100)}%")
+
     #Label with search area
     search_area_text = tk.StringVar()
     search_area_label = Label(right_frame, textvariable=search_area_text, font=("Arial", FontSize))
@@ -1825,13 +1842,13 @@ def debug_template_display_frame_stabilized(img):
     if debug_template_match:
         img = get_image_left_stripe(img)
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        img_bw = cv2.threshold(img_gray, 250, 255, cv2.THRESH_BINARY)[1]
+        img_bw = cv2.threshold(img_gray, 245, 255, cv2.THRESH_BINARY)[1]
         debug_template_display_frame(left_stripe_stabilized_canvas, img_bw)
 
 
 def debug_template_refresh_template():
     global template_canvas, template_list
-    global hole_pos_text, template_type_text, template_size_text, film_type_text
+    global hole_pos_text, template_type_text, template_size_text, template_wb_proportion_text, film_type_text
 
     if debug_template_match:
         hole_template_pos = template_list.get_active_position()
@@ -1845,6 +1862,7 @@ def debug_template_refresh_template():
         hole_pos_text.set(f"Expected template pos: {hole_template_pos}")
         template_type_text.set(f"Template type: {template_list.get_active_type()}")
         template_size_text.set(f"Template Size: {template_list.get_active_size()}")
+        template_wb_proportion_text.set(f"WoB proportion: {int(template_list.get_active_wb_proportion()*100)}%")
         film_type_text.set(f"Film type: {film_type.get()}")
 
 def debug_template_display_frame(canvas, img):
@@ -1963,11 +1981,9 @@ def detect_film_type():
     FramesToCheck = np.linspace(CurrentFrame, len(SourceDirFileList) - CurrentFrame - 1, num_frames).astype(int).tolist()
     for frame_to_check in FramesToCheck:
         img = cv2.imread(SourceDirFileList[frame_to_check], cv2.IMREAD_UNCHANGED)
-        #debug_display_image("img",img)
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img_bw = cv2.threshold(img_gray, 220, 255, cv2.THRESH_BINARY)[1]
         search_img = get_image_left_stripe(img_bw)
-        #debug_display_image("tmp1",search_img)
         result = cv2.matchTemplate(search_img, template_1, cv2.TM_CCOEFF_NORMED)
         (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
         top_left_1 = (maxLoc[1], maxLoc[0])
@@ -2421,10 +2437,7 @@ def match_level_color_bgr(t):
     return (0,255,0)
 
 
-def match_template(frame_idx, template, img, thres):
-    result = []
-    best_match = 0
-    best_match_idx = 0
+def match_template(frame_idx, template, img):
     tw = template.shape[1]
     th = template.shape[0]
     iw = img.shape[1]
@@ -2434,48 +2447,25 @@ def match_template(frame_idx, template, img, thres):
                       tw, th, iw, ih)
         return (0, 0, 0)
 
-    # convert img to grey
+    # convert img to grey, checking various thresholds
+    best_thres = 0
+    best_wb_proportion = 1
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_bw = cv2.threshold(img_gray, thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
+    for thres in range(105, 255, 10):
+        img_bw = cv2.threshold(img_gray, thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
+        white_pixel_count = cv2.countNonZero(img_bw)
+        total_pixels = img_bw.size
+        if abs((white_pixel_count/total_pixels)-template_list.get_active_wb_proportion()) < best_wb_proportion:
+            best_wb_proportion = abs((white_pixel_count/total_pixels)-template_list.get_active_wb_proportion())
+            best_thres = thres
+            img_final = img_bw
+
     #img_edges = cv2.Canny(image=img_bw, threshold1=100, threshold2=1)  # Canny Edge Detection
-    img_final = img_bw
-
-    # In order to deal with extremely misaligned frames, where part of thw template is off-frame, we make 3 attempts:
-    #   - Match full template
-    #   - Match upper half
-    #   - Match lower half
-    for i in range(0, 1):   # Go up to 3 to use two half templates (temporarily removed since it is not helping at all)
-        if i == 0:
-            aux_template = template
-        elif i == 1:
-            aux_template = template[0:int(th/2), :]
-        elif i == 2:
-            aux_template = template[int(th/2):th, :]
-        aux = cv2.matchTemplate(img_final, aux_template, cv2.TM_CCOEFF_NORMED)
-        result.append(aux)
-        (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(aux)
-        # Best match
-        if maxVal > best_match:
-            best_match_idx = i
-            best_match = maxVal
-    (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result[best_match_idx])
+    aux = cv2.matchTemplate(img_final, template, cv2.TM_CCOEFF_NORMED)
+    (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(aux)
     top_left = maxLoc
-    if best_match_idx == 1 and top_left[1] > int(ih / 2):   # Discard it, top half of template in lower half of  frame
-        minVal0, maxVal0, minLoc0, maxLoc0 = cv2.minMaxLoc(result[0])
-        minVal2, maxVal2, minLoc2, maxLoc2 = cv2.minMaxLoc(result[2])
-        if maxVal0 > maxVal2:
-            best_match_idx = 0
-            top_left = maxLoc0
-            maxVal = maxVal0
-        else:
-            best_match_idx = 2
-            top_left = maxLoc2
-            maxVal = maxVal2
 
-    if best_match_idx == 2:
-        top_left = (top_left[0],top_left[1]-int(th/2))  # if using lower half of template, adjust coordinates accordingly
-
-    logging.debug(f"Trying Frame {frame_idx} with template {best_match_idx}, top left is {top_left}")
+    logging.debug(f"Trying Frame {frame_idx} with threshold {best_thres}, top left is {top_left}")
 
     return top_left, round(maxVal,2), img_final
 
@@ -2684,7 +2674,7 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None):
     #WorkStabilizationThreshold = np.percentile(left_stripe_image, 90)
     img_ref_alt_used = False
     while True:
-        top_left, match_level, img_matched = match_template(frame_idx, film_hole_template, left_stripe_image, 250)
+        top_left, match_level, img_matched = match_template(frame_idx, film_hole_template, left_stripe_image)
         if match_level >= 0.85:
             break
         else:
