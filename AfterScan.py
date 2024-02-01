@@ -19,7 +19,7 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.3"
+__version__ = "1.10.4"
 __data_version__ = "1.0"
 __date__ = "2024-02-01"
 __version_highlight__ = "Code cleanup: Factorize templates in class"
@@ -276,7 +276,7 @@ IsMac = False
 is_demo = False
 ForceSmallSize = False
 ForceBigSize = False
-debug_enabled = True
+debug_enabled = False
 debug_template_match = False
 developer_debug = False
 developer_debug_file_flag = os.path.join(script_dir, "developer.txt")
@@ -2580,8 +2580,6 @@ def display_image(img):
 
     draw_capture_canvas.create_image(padding_x, padding_y, anchor=NW, image=DisplayableImage)
     draw_capture_canvas.image = DisplayableImage
-
-    win.update()
 
 # Display frames while video encoding is ongoing
 # No need to care about sequencing since video encoding process in AfterScan is single threaded
