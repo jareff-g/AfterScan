@@ -19,10 +19,10 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.8"
+__version__ = "1.10.9"
 __data_version__ = "1.0"
 __date__ = "2024-02-02"
-__version_highlight__ = "Code cleanup: Factorize templates in class"
+__version_highlight__ = "Bugfixes after template factorization"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -2652,7 +2652,7 @@ def rotate_image(img):
     rotated = cv2.warpAffine(img, M, (w, h))
     return rotated
 
-def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None):
+def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None, id = -1):
     global SourceDirFileList
     global first_absolute_frame, StartFrame
     global HoleSearchTopLeft, HoleSearchBottomRight
@@ -2712,7 +2712,8 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None):
         logging.warning(f"Template match not good ({match_level}, ignoring it.")
         move_x = 0
         move_y = 0
-    logging.debug(f"Frame {frame_idx}: threshold: {thres}, top left: {top_left}, move_y:{move_y}, move_x:{move_x}")
+    log_line = f"T{id} - " if id != -1 else ""
+    logging.debug(log_line+f"Frame {frame_idx:5d}: threshold: {thres:3d}, top left: ({top_left[0]:4d},{top_left[0]:4d}), move_x:{move_x:4d}, move_y:{move_y:4d}")
     debug_template_display_info(frame_idx, top_left, move_x, move_y)
     # Try to figure out if there will be a part missing
     # at the bottom, or the top
@@ -3326,7 +3327,7 @@ def frame_encode(frame_idx, id):
         if perform_rotation.get():
             img = rotate_image(img)
         if perform_stabilization.get() or debug_template_match:
-            img = stabilize_image(frame_idx, img, img_ref, img_ref_aux)
+            img = stabilize_image(frame_idx, img, img_ref, img_ref_aux, id)
         if perform_cropping.get():
             img = crop_image(img, CropTopLeft, CropBottomRight)
         else:
