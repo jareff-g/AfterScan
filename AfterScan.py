@@ -19,7 +19,7 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.7"
+__version__ = "1.10.8"
 __data_version__ = "1.0"
 __date__ = "2024-02-02"
 __version_highlight__ = "Code cleanup: Factorize templates in class"
@@ -1498,6 +1498,7 @@ def widget_status_update(widget_state=0, button_action=0):
         add_job_btn.config(state=widget_state)
         delete_job_btn.config(state=widget_state)
         rerun_job_btn.config(state=widget_state)
+        job_list_listbox.config(state=widget_state)
     # Handle a few specific widgets having extra conditions
     if len(SourceDirFileList) == 0:
         perform_stabilization_checkbox.config(state=DISABLED)
@@ -2466,7 +2467,7 @@ def match_template(frame_idx, template, img):
     best_thres = 0
     best_wb_proportion = 1
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    for thres in range(155, 255, 10):
+    for thres in range(55, 255, 10):
         img_bw = cv2.threshold(img_gray, thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
         white_pixel_count = cv2.countNonZero(img_bw)
         total_pixels = img_bw.size
@@ -2480,9 +2481,7 @@ def match_template(frame_idx, template, img):
     (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(aux)
     top_left = maxLoc
 
-    logging.debug(f"Trying Frame {frame_idx} with threshold {best_thres}, top left is {top_left}")
-
-    return top_left, round(maxVal,2), img_final
+    return best_thres, top_left, round(maxVal,2), img_final
 
 
 """
@@ -2684,7 +2683,7 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None):
     #WorkStabilizationThreshold = np.percentile(left_stripe_image, 90)
     img_ref_alt_used = False
     while True:
-        top_left, match_level, img_matched = match_template(frame_idx, film_hole_template, left_stripe_image)
+        thres, top_left, match_level, img_matched = match_template(frame_idx, film_hole_template, left_stripe_image)
         if match_level >= 0.85:
             break
         else:
@@ -2713,7 +2712,7 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None):
         logging.warning(f"Template match not good ({match_level}, ignoring it.")
         move_x = 0
         move_y = 0
-    logging.debug(f"Frame {frame_idx}: top left {top_left}, move_y:{move_y}, move_x:{move_x}")
+    logging.debug(f"Frame {frame_idx}: threshold: {thres}, top left: {top_left}, move_y:{move_y}, move_x:{move_x}")
     debug_template_display_info(frame_idx, top_left, move_x, move_y)
     # Try to figure out if there will be a part missing
     # at the bottom, or the top
