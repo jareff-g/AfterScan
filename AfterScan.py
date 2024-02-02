@@ -314,9 +314,9 @@ class Template:
             self.template = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
             self.scaled_template = resize_image(self.template, self.scale)
             # Calculate the white on black proportion to help with detection
-            white_pixel_count = cv2.countNonZero(self.scaled_template)
+            self.white_pixel_count = cv2.countNonZero(self.scaled_template)
             total_pixels = self.scaled_template.size
-            self.wb_proportion = white_pixel_count / total_pixels
+            self.wb_proportion = self.white_pixel_count / total_pixels
             self.size = (self.template.shape[1],self.template.shape[0])
             self.scaled_size = (int(self.size[0] * self.scale),
                                 int(self.size[1] * self.scale))
@@ -330,9 +330,9 @@ class Template:
     def refresh(self):
         self.template = cv2.imread(self.filename, cv2.IMREAD_GRAYSCALE)
         self.scaled_template = resize_image(self.template, self.scale)
-        white_pixel_count = cv2.countNonZero(self.scaled_template)
+        self.white_pixel_count = cv2.countNonZero(self.scaled_template)
         total_pixels = self.scaled_template.size
-        self.wb_proportion = white_pixel_count / total_pixels
+        self.wb_proportion = self.white_pixel_count / total_pixels
         self.size = (self.template.shape[1], self.template.shape[0])
         self.scaled_size = (int(self.size[0] * self.scale),
                             int(self.size[1] * self.scale))
@@ -417,8 +417,14 @@ class TemplateList:
     def get_active_type(self):
         return self.active_template.type
 
+    def get_active_white_pixel_count(self):
+        return self.active_template.white_pixel_count
+
     def get_active_wb_proportion(self):
         return self.active_template.wb_proportion
+
+    def set_active_wb_proportion(self, proportion):
+        self.active_template.wb_proportion = proportion
 
 
 
@@ -933,10 +939,15 @@ Job list support functions
 ##########################
 """
 
+
 def job_list_process_selection(evt):
     global job_list
     global job_list_listbox
     global rerun_job_btn
+    global job_list_listbox_disabled
+
+    if job_list_listbox_disabled:
+        return
 
     # Note here that Tkinter passes an event object to onselect()
     # w = evt.widget - We already know the widget
@@ -959,7 +970,10 @@ def job_list_add_current():
     global encode_all_frames, SourceDirFileList
     global frame_from_str, frame_to_str
     global resolution_dropdown_selected
+    global job_list_listbox_disabled
 
+    if job_list_listbox_disabled:
+        return
     entry_name = video_filename_name.get()
     if entry_name == "":
         entry_name = os.path.split(SourceDir)[1]
@@ -1033,7 +1047,10 @@ def job_list_load_selected():
     global encode_all_frames, SourceDirFileList
     global frame_from_str, frame_to_str
     global resolution_dropdown_selected
+    global job_list_listbox_disabled
 
+    if job_list_listbox_disabled:
+        return
     selected = job_list_listbox.curselection()
     if selected != ():
         entry_name = job_list_listbox.get(selected[0])  # we pick fist item as curselection returns a list
@@ -1057,6 +1074,10 @@ def job_list_load_selected():
 def job_list_delete_selected():
     global job_list
     global job_list_listbox
+    global job_list_listbox_disabled
+
+    if job_list_listbox_disabled:
+        return
     selected = job_list_listbox.curselection()
     if selected != ():
         job_list.pop(job_list_listbox.get(selected))
@@ -1070,6 +1091,10 @@ def job_list_delete_selected():
 def job_list_rerun_selected():
     global job_list
     global job_list_listbox
+    global job_list_listbox_disabled
+
+    if job_list_listbox_disabled:
+        return
 
     selected_indices = job_list_listbox.curselection()
     if selected_indices != ():
@@ -1165,15 +1190,27 @@ def job_processing_loop():
 
 
 def job_list_delete_current(event):
+    global job_list_listbox_disabled
+
+    if job_list_listbox_disabled:
+        return
     job_list_delete_selected()
 
 
 def job_list_load_current(event):
+    global job_list_listbox_disabled
+
+    if job_list_listbox_disabled:
+        return
     job_list_load_selected()
 
 
 def job_list_rerun_current(event):
     global job_list, job_list_listbox
+    global job_list_listbox_disabled
+
+    if job_list_listbox_disabled:
+        return
     job_list_rerun_selected()
     selected_index = job_list_listbox.curselection()
     if selected_index:
@@ -1204,6 +1241,10 @@ def sync_job_list_with_listbox():
 
 def job_list_move_up(event):
     global job_list_listbox, job_list
+    global job_list_listbox_disabled
+
+    if job_list_listbox_disabled:
+        return
     selected_index = job_list_listbox.curselection()
     if selected_index:
         idx = selected_index[0]
@@ -1224,6 +1265,10 @@ def job_list_move_up(event):
 
 def job_list_move_down(event):
     global job_list_listbox, job_list
+    global job_list_listbox_disabled
+
+    if job_list_listbox_disabled:
+        return
     selected_index = job_list_listbox.curselection()
     if selected_index:
         idx = selected_index[0]
@@ -1444,6 +1489,7 @@ def widget_status_update(widget_state=0, button_action=0):
     global extended_stabilization_checkbox
     global SourceDirFileList
     global template_list
+    global job_list_listbox_disabled
 
     if widget_state != 0:
         CropAreaDefined = CropTopLeft != (0, 0) and CropBottomRight != (0, 0)
@@ -1494,11 +1540,16 @@ def widget_status_update(widget_state=0, button_action=0):
         ffmpeg_preset_rb1.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         ffmpeg_preset_rb2.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         ffmpeg_preset_rb3.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
+        custom_ffmpeg_path.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         start_batch_btn.config(state=widget_state if button_action != start_batch_btn else NORMAL)
         add_job_btn.config(state=widget_state)
         delete_job_btn.config(state=widget_state)
         rerun_job_btn.config(state=widget_state)
-        job_list_listbox.config(state=widget_state)
+        #job_list_listbox.config(state=widget_state)
+        if widget_state == DISABLED:
+            job_list_listbox_disabled = True
+        else:
+            job_list_listbox_disabled = False
     # Handle a few specific widgets having extra conditions
     if len(SourceDirFileList) == 0:
         perform_stabilization_checkbox.config(state=DISABLED)
@@ -1764,7 +1815,7 @@ def debug_template_popup():
     left_stripe_stabilized_canvas = Canvas(center_frame, bg='dark grey',
                                  width=debug_template_width, height=debug_template_height)
     left_stripe_stabilized_canvas.pack(side=LEFT, anchor=N)
-    setup_tooltip(left_stripe_stabilized_canvas, "Current frame after stabilization, with detected template highlighted in green")
+    setup_tooltip(left_stripe_stabilized_canvas, "Current frame after stabilization, with detected template highlighted in green, orange or red depending on the quality of the match")
 
     # Create Canvas to display image left stripe (non stabilized)
     left_stripe_canvas = Canvas(center_frame, bg='dark grey',
@@ -1871,7 +1922,7 @@ def debug_template_refresh_template():
         hole_pos_text.set(f"Expected template pos: {hole_template_pos}")
         template_type_text.set(f"Template type: {template_list.get_active_type()}")
         template_size_text.set(f"Template Size: {template_list.get_active_size()}")
-        template_wb_proportion_text.set(f"WoB proportion: {int(template_list.get_active_wb_proportion()*100)}%")
+        template_wb_proportion_text.set(f"WoB proportion: {template_list.get_active_wb_proportion()*100:2.1f}%")
         film_type_text.set(f"Film type: {film_type.get()}")
 
 def debug_template_display_frame(canvas, img):
@@ -2453,7 +2504,9 @@ def match_level_color_bgr(t):
     return (0,255,0)
 
 
+# img is directly the left stripe (search area)
 def match_template(frame_idx, template, img):
+    global min_thres
     tw = template.shape[1]
     th = template.shape[0]
     iw = img.shape[1]
@@ -2466,15 +2519,20 @@ def match_template(frame_idx, template, img):
     # convert img to grey, checking various thresholds
     best_thres = 0
     best_wb_proportion = 1
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    for thres in range(55, 255, 10):
+    # in order to calculate the white on black proportion correctly, we saved the number of white pixels in the
+    # template, but we divide it by the number of pixels in the search area, as it is wider
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)    # reduced left stripe to calculate white on black proportion
+    total_pixels = img_gray.size
+    for thres in range(200, 255, 1):
         img_bw = cv2.threshold(img_gray, thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
         white_pixel_count = cv2.countNonZero(img_bw)
-        total_pixels = img_bw.size
         if abs((white_pixel_count/total_pixels)-template_list.get_active_wb_proportion()) < best_wb_proportion:
             best_wb_proportion = abs((white_pixel_count/total_pixels)-template_list.get_active_wb_proportion())
             best_thres = thres
-            img_final = img_bw
+
+    # Apply best threshold on full left stripe
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_final = cv2.threshold(img_gray, best_thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
 
     #img_edges = cv2.Canny(image=img_bw, threshold1=100, threshold2=1)  # Canny Edge Detection
     aux = cv2.matchTemplate(img_final, template, cv2.TM_CCOEFF_NORMED)
@@ -2515,6 +2573,9 @@ def terminate_threads(user_terminated):
     logging.debug("Signaling exit event for threads")
     frame_encoding_event.set()
     while active_threads > 0:
+        if frame_encoding_queue.qsize() <= 4:
+            frame_encoding_queue.put((END_TOKEN, 0))
+            logging.debug("Inserting end token to encoding queue")
         logging.debug(f"Waiting for threads to stop ({active_threads} remaining)")
         check_subprocess_event_queue(user_terminated)
         win.update()
@@ -2977,9 +3038,13 @@ def get_source_dir_file_list():
     frame_height = work_image.shape[0]
     # Next 3 statements were done only if batch mode was not active, but they are needed in all cases
     if BatchJobRunning:
-        logging.debug("Skipping hole template adjustment in batch mode")
+        # why skipping it?
+        # logging.debug("Skipping hole template adjustment in batch mode")
+        logging.debug("Adjusting hole template in batch mode...")
+        set_hole_search_area(work_image)
+        detect_film_type()
     else:
-        logging.debug("Adjusting hole template...")
+        logging.debug("Adjusting hole template in standard mode...")
         set_hole_search_area(work_image)
         detect_film_type()
     # Select area window should be proportional to screen height
@@ -3045,7 +3110,8 @@ def valid_generated_frame_range():
 
 def set_hole_search_area(img):
     global HoleSearchTopLeft, HoleSearchBottomRight
-    global TemplateTopLeft
+    global TemplateTopLeft, template_list
+    global template_wb_proportion_text
     global extended_stabilization
 
     # Adjust left stripe width (search area)
@@ -3072,6 +3138,10 @@ def set_hole_search_area(img):
     # has been defined, therefore we initialized them here
     HoleSearchTopLeft = (0, 0)
     HoleSearchBottomRight = (left_stripe_width, height)   # Before, search area width was 20% of image width
+    # Now that we know the size of search area for the current project, we can calculate the WoB proportion
+    template_list.set_active_wb_proportion(template_list.get_active_white_pixel_count() / (left_stripe_width * height))
+    if debug_template_match:
+        template_wb_proportion_text.set(f"WoB proportion: {template_list.get_active_wb_proportion() * 100:2.1f}%")
 
 
 """
@@ -4011,7 +4081,7 @@ def build_ui():
     global skip_frame_regeneration
     global frame_slider, frame_slider_time, CurrentFrame, frame_selected
     global film_type
-    global job_list_listbox
+    global job_list_listbox, job_list_listbox_disabled
     global app_status_label
     global PreviewWidth, PreviewHeight
     global left_area_frame
@@ -4585,6 +4655,7 @@ def build_ui():
     job_list_listbox.bind('<<ListboxSelect>>', job_list_process_selection)
     job_list_listbox.bind("u", job_list_move_up)
     job_list_listbox.bind("d", job_list_move_down)
+    job_list_listbox_disabled = False   # to prevent processing clicks on listbox, as disabling it will prevent checkign status of each job
 
     # job listbox scrollbars
     job_list_listbox_scrollbar_y = Scrollbar(job_list_frame, orient="vertical")
