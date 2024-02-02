@@ -2183,7 +2183,6 @@ def select_rectangle_area(is_cropping=False):
         if window_visible <= 0:
             break;
         if rectangle_refresh:
-            print("***** Refresing rectangle")
             copy = work_image.copy()
             cv2.rectangle(copy, (ix, iy), (x_, y_), (0, 255, 0), line_thickness)
             cv2.imshow(RectangleWindowTitle, copy)
@@ -2255,7 +2254,6 @@ def select_rectangle_area(is_cropping=False):
             elif k == 46 or k == 120 or k == 32:     # Space, X or Supr (inNum keypad) delete selection
                 break
             if inc_x != 0 or inc_ix != 0 or inc_y != 0 or inc_iy != 0:
-                print("***** Rectangle position modified")
                 ix += inc_ix
                 x_ += inc_x
                 iy += inc_iy
