@@ -19,9 +19,9 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.6"
+__version__ = "1.10.7"
 __data_version__ = "1.0"
-__date__ = "2024-02-01"
+__date__ = "2024-02-02"
 __version_highlight__ = "Code cleanup: Factorize templates in class"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
@@ -276,7 +276,7 @@ IsMac = False
 is_demo = False
 ForceSmallSize = False
 ForceBigSize = False
-debug_enabled = False
+dev_debug_enabled = False
 debug_template_match = False
 developer_debug = False
 developer_debug_file_flag = os.path.join(script_dir, "developer.txt")
@@ -327,7 +327,7 @@ class Template:
             self.size = (0,0)
             self.scaled_size = (0,0)
 
-    def refresh_template(self):
+    def refresh(self):
         self.template = cv2.imread(self.filename, cv2.IMREAD_GRAYSCALE)
         self.scaled_template = resize_image(self.template, self.scale)
         white_pixel_count = cv2.countNonZero(self.scaled_template)
@@ -353,7 +353,7 @@ class TemplateList:
         if exists:
             t.filename = filename
             t.position = position
-            t.refresh_template()
+            t.refresh()
             target = t
         else:
             target = Template(name, filename, type, position)
@@ -595,7 +595,7 @@ def load_project_settings():
                 tk.messagebox.showerror(
                     "Invalid project file",
                     f"The project file {project_settings_filename} saved in disk is invalid."
-                    "Project defaults will be loaded and existing file will be overwritten upon exit"
+                    "Project defaults will be loaded and existing file will be overwritten upon exit "
                     "(and a backup file generated in case you want to recover information from it)")
             else:
                 # New version is a list
@@ -823,8 +823,13 @@ def decode_project_config():
                 f"The custom template saved for project {template_name} is invalid."
                 "Please redefine custom template for this project.")
             del project_config['CustomTemplateFilename']
-        template_list.add(template_name, full_path_template_filename, "custom", expected_hole_template_pos_custom)
-        debug_template_refresh_template()
+            # Invalid custom template defined, set default one
+            set_film_type()
+            project_config["CustomTemplateDefined"] = False
+        else:
+            logging.debug(f"Adding custom template {template_name} from configuration to template list (filename {full_path_template_filename})")
+            template_list.add(template_name, full_path_template_filename, "custom", expected_hole_template_pos_custom)
+            debug_template_refresh_template()
     else:
         # No custom template defined, set default one
         set_film_type()
@@ -1411,7 +1416,7 @@ UI support commands & functions
 
 
 def widget_status_update(widget_state=0, button_action=0):
-    global CropTopLeft, CropBottomRight
+    global CropTopLeft, CropBottomRight, CropAreaDefined
     global frame_slider, Go_btn, Exit_btn
     global frames_source_dir, source_folder_btn
     global frames_target_dir, target_folder_btn
@@ -1748,23 +1753,23 @@ def debug_template_popup():
     template_canvas = Canvas(left_frame, bg='dark grey',
                                  width=debug_template_width, height=template_canvas_height)
     template_canvas.pack(side=TOP, anchor=N)
-    setup_tooltip(template_canvas, "This is the active template")
+    setup_tooltip(template_canvas, "Active template used to locate sprocket hole(s)")
 
     DisplayableImage = ImageTk.PhotoImage(Image.fromarray(aux))
     template_canvas.create_image(0, int(hole_template_pos[1]*0.33), anchor=NW, image=DisplayableImage)
     template_canvas.image = DisplayableImage
 
-    # Create Canvas to display image left stripe (non stabilized)
-    left_stripe_canvas = Canvas(center_frame, bg='dark grey',
-                                 width=debug_template_width, height=debug_template_height)
-    left_stripe_canvas.pack(side=LEFT, anchor=N)
-    setup_tooltip(left_stripe_canvas, "This is the template search area of current frame")
-
     # Create Canvas to display image left stripe (stabilized)
     left_stripe_stabilized_canvas = Canvas(center_frame, bg='dark grey',
                                  width=debug_template_width, height=debug_template_height)
     left_stripe_stabilized_canvas.pack(side=LEFT, anchor=N)
-    setup_tooltip(left_stripe_stabilized_canvas, "This is the current frame, stabilized")
+    setup_tooltip(left_stripe_stabilized_canvas, "Current frame after stabilization, with detected template highlighted in green")
+
+    # Create Canvas to display image left stripe (non stabilized)
+    left_stripe_canvas = Canvas(center_frame, bg='dark grey',
+                                 width=debug_template_width, height=debug_template_height)
+    left_stripe_canvas.pack(side=LEFT, anchor=N)
+    setup_tooltip(left_stripe_canvas, "Template search area for current frame, as used to spot template")
 
     # Add a label with the film type
     film_type_text = tk.StringVar()
@@ -1845,9 +1850,8 @@ def debug_template_display_frame_stabilized(img):
     global left_stripe_stabilized_canvas
 
     if debug_template_match:
-        img = get_image_left_stripe(img)
-        img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        debug_template_display_frame(left_stripe_stabilized_canvas, img_gray)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        debug_template_display_frame(left_stripe_stabilized_canvas, img)
 
 
 def debug_template_refresh_template():
@@ -1874,7 +1878,7 @@ def debug_template_display_frame(canvas, img):
 
     if debug_template_match:
         try:
-            height, width = img.shape
+            height, width = img.shape[:2]
             ratio = debug_template_height / height
             ratio = 0.33
             resized_image = cv2.resize(img, (int(width*ratio), int(height*ratio)))
@@ -2161,8 +2165,10 @@ def select_rectangle_area(is_cropping=False):
     window_visible = 1
     cv2.namedWindow(RectangleWindowTitle, cv2.WINDOW_GUI_NORMAL)
     # Force the window to have focus (otherwise it won't take any keys)
-    #cv2.setWindowProperty(RectangleWindowTitle, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-    cv2.setWindowProperty(RectangleWindowTitle, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
+    # No valid method has been found so far to force the opencv to hav efocus. Apparently it is not simple
+    cv2.setWindowProperty(RectangleWindowTitle,cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+    cv2.setWindowProperty(RectangleWindowTitle,cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_NORMAL)
+
     # Capture mouse events
     cv2.setMouseCallback(RectangleWindowTitle, draw_rectangle)
     # rectangle_refresh = False
@@ -2177,9 +2183,11 @@ def select_rectangle_area(is_cropping=False):
         if window_visible <= 0:
             break;
         if rectangle_refresh:
+            print("***** Refresing rectangle")
             copy = work_image.copy()
             cv2.rectangle(copy, (ix, iy), (x_, y_), (0, 255, 0), line_thickness)
             cv2.imshow(RectangleWindowTitle, copy)
+            rectangle_refresh = False
         k = cv2.waitKeyEx(1) & 0xFF
         inc_ix = 0
         inc_x = 0
@@ -2247,6 +2255,7 @@ def select_rectangle_area(is_cropping=False):
             elif k == 46 or k == 120 or k == 32:     # Space, X or Supr (inNum keypad) delete selection
                 break
             if inc_x != 0 or inc_ix != 0 or inc_y != 0 or inc_iy != 0:
+                print("***** Rectangle position modified")
                 ix += inc_ix
                 x_ += inc_x
                 iy += inc_iy
@@ -2287,6 +2296,7 @@ def select_cropping_area():
 
     RectangleWindowTitle = CropWindowTitle
 
+
     if select_rectangle_area(is_cropping=True):
         CropAreaDefined = True
         widget_status_update(NORMAL, 0)
@@ -2304,7 +2314,7 @@ def select_cropping_area():
         CropTopLeft = (0, 0)
         CropBottomRight = (0, 0)
 
-    project_config["CropRectangle"] = CropTopLeft, CropBottomRight
+    project_config["CropRectangle"] = (CropTopLeft, CropBottomRight)
     perform_cropping_checkbox.config(state=NORMAL if CropAreaDefined
                                      else DISABLED)
 
@@ -2419,6 +2429,7 @@ def set_film_type():
     if template_list.set_active(film_type.get(), film_type.get()):
         project_config["FilmType"] = film_type.get()
         debug_template_refresh_template()
+        logging.debug(f"Setting {film_type.get()} template as active")
         return True
     else:
         tk.messagebox.showerror(
@@ -2550,7 +2561,7 @@ Support functions for core business
 
 
 def debug_display_image(window_name, img):
-    if debug_enabled:
+    if dev_debug_enabled:
         cv2.namedWindow(window_name)
         if img.shape[0] >= 2 and img.shape[1] >= 2:
             img_s = resize_image(img, 0.5)
@@ -2630,7 +2641,7 @@ def get_image_left_stripe(img):
         logging.debug(f"Making left stripe wider: {HoleSearchBottomRight[0] - HoleSearchTopLeft[0]}")
     horizontal_range = (HoleSearchTopLeft[0], HoleSearchBottomRight[0])
     vertical_range = (HoleSearchTopLeft[1], HoleSearchBottomRight[1])
-    return img[vertical_range[0]:vertical_range[1], horizontal_range[0]:horizontal_range[1]]
+    return np.copy(img[vertical_range[0]:vertical_range[1], horizontal_range[0]:horizontal_range[1]])
 
 
 def rotate_image(img):
@@ -2693,9 +2704,6 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None):
             break
     debug_template_display_frame_raw(img_matched)
 
-    if debug_template_match and top_left[1] != -1 :
-        cv2.rectangle(img, (top_left[0], top_left[1]), (top_left[0] + template_list.get_active_size()[0], top_left[1] + template_list.get_active_size()[1]), match_level_color_bgr(match_level), 2)
-        cv2.rectangle(img, (HoleSearchTopLeft[0], HoleSearchTopLeft[1]), (HoleSearchBottomRight[0], HoleSearchBottomRight[1]), (255, 255, 255), 2)
     if top_left[1] != -1 and match_level > 0.1:
         move_x = hole_template_pos[0] - top_left[0]
         move_y = hole_template_pos[1] - top_left[1]
@@ -2741,23 +2749,24 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None):
         CsvFramesOffPercent = stabilization_bounds_alert_counter * 100 / (frame_idx-StartFrame)
     stabilization_bounds_alert_checkbox.config(text='Alert when image out of bounds (%i, %.1f%%)' % (
             stabilization_bounds_alert_counter, CsvFramesOffPercent))
-    # Check if frame fill is enabled, and required: Extract missing fragment
-    if frame_fill_type.get() == 'fake' and ConvertLoopRunning and missing_rows > 0:
-        # Perform temporary horizontal stabilization only first, to extract missing fragment
-        translation_matrix = np.array([
-            [1, 0, move_x],
-            [0, 1, 0]
-        ], dtype=np.float32)
-        # Apply the translation to the image
-        translated_image = cv2.warpAffine(src=img, M=translation_matrix,
-                                          dsize=(width, height))
-        if missing_top < 0:
-            missing_fragment = translated_image[CropBottomRight[1]-missing_rows:CropBottomRight[1],0:width]
-        elif missing_bottom < 0:
-            missing_fragment = translated_image[CropTopLeft[1]:CropTopLeft[1]+missing_rows, 0:width]
     # Create the translation matrix using move_x and move_y (NumPy array): This is the actual stabilization
     # We double-check the check box since this function might be called just to debug template detection
     if perform_stabilization.get():
+        # Check if frame fill is enabled, and required: Extract missing fragment
+        if frame_fill_type.get() == 'fake' and ConvertLoopRunning and missing_rows > 0:
+            # Perform temporary horizontal stabilization only first, to extract missing fragment
+            translation_matrix = np.array([
+                [1, 0, move_x],
+                [0, 1, 0]
+            ], dtype=np.float32)
+            # Apply the translation to the image
+            translated_image = cv2.warpAffine(src=img, M=translation_matrix,
+                                              dsize=(width, height))
+            if missing_top < 0:
+                missing_fragment = translated_image[CropBottomRight[1]-missing_rows:CropBottomRight[1],0:width]
+            elif missing_bottom < 0:
+                missing_fragment = translated_image[CropTopLeft[1]:CropTopLeft[1]+missing_rows, 0:width]
+
         translation_matrix = np.array([
             [1, 0, move_x],
             [0, 1, move_y]
@@ -2782,9 +2791,19 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None):
                     translated_image = translated_image[0:CropBottomRight[1]-missing_rows, 0:width]
                     translated_image = cv2.copyMakeBorder(src=translated_image, top=0, bottom=CropBottomRight[1]-missing_rows, left=0, right=0,
                                                           borderType=cv2.BORDER_REPLICATE)
-        debug_template_display_frame_stabilized(translated_image)
     else:
         translated_image = img
+    # Drew stabilization rectangles only for image in popup debug window to allow having it activated while encoding
+    if debug_template_match and top_left[1] != -1 :
+        if not perform_stabilization.get():
+            move_x = 0
+            move_y = 0
+        left_stripe_img = get_image_left_stripe(translated_image)
+        cv2.rectangle(left_stripe_img, (top_left[0] + move_x, top_left[1] + move_y),
+                      (top_left[0] + template_list.get_active_size()[0] + move_x, top_left[1] + template_list.get_active_size()[1] + move_y), match_level_color_bgr(match_level), 2)
+        # No need for a search area rectangle, since the image in the debug popup is already that rectangle
+        # cv2.rectangle(left_stripe_img, (HoleSearchTopLeft[0] + move_x, HoleSearchTopLeft[1] + move_y), (HoleSearchBottomRight[0] + move_x, HoleSearchBottomRight[1] + move_y), (255, 255, 255), 2)
+        debug_template_display_frame_stabilized(left_stripe_img)
 
     return translated_image
 
@@ -3250,7 +3269,8 @@ def frame_encode(frame_idx, id):
     images_to_merge = []
     img_ref_aux = None
 
-    logging.debug(f"Thread {id}, starting to encode Frame {frame_idx}")
+    if dev_debug_enabled:
+        logging.debug(f"Thread {id}, starting to encode Frame {frame_idx}")
 
     # Get current file(s)
     if HdrFilesOnly:    # Legacy HDR (before 2 Dec 2023): Dedicated filename
@@ -3338,7 +3358,8 @@ def frame_encode(frame_idx, id):
         if os.path.isdir(TargetDir):
             target_file = os.path.join(TargetDir, FrameOutputFilenamePattern % (first_absolute_frame + frame_idx, file_type_out))
             cv2.imwrite(target_file, img)
-    logging.debug(f"Thread {id}, finalized to encode Frame {frame_idx}")
+    if dev_debug_enabled:
+        logging.debug(f"Thread {id}, finalized to encode Frame {frame_idx}")
 
     return len(images_to_merge) != 0
 
