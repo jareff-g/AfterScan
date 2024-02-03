@@ -19,9 +19,9 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.9"
+__version__ = "1.10.10"
 __data_version__ = "1.0"
-__date__ = "2024-02-02"
+__date__ = "2024-02-03"
 __version_highlight__ = "Bugfixes after template factorization"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
@@ -473,10 +473,12 @@ def set_project_defaults():
 
     project_config["PerformCropping"] = False
     perform_cropping.set(project_config["PerformCropping"])
-    project_config["PerformSharpness"] = False
-    perform_sharpness.set(project_config["PerformSharpness"])
     project_config["PerformDenoise"] = False
     perform_denoise.set(project_config["PerformDenoise"])
+    project_config["PerformSharpness"] = False
+    perform_sharpness.set(project_config["PerformSharpness"])
+    project_config["PerformGammaCorrection"] = False
+    perform_gamma_correction.set(project_config["PerformGammaCorrection"])
     project_config["FrameFillType"] = 'none'
     frame_fill_type.set(project_config["FrameFillType"])
     project_config["GenerateVideo"] = False
@@ -639,7 +641,7 @@ def save_project_config():
     global CurrentFrame
     global video_filename_name, video_title_name
     global frame_from_str, frame_to_str
-    global perform_denoise, perform_sharpness
+    global perform_denoise, perform_sharpness, perform_gamma_correction
 
     # Do not save if current project comes from batch job
     if not project_config_from_file or IgnoreConfig:
@@ -652,8 +654,10 @@ def save_project_config():
     project_config["FFmpegPreset"] = ffmpeg_preset.get()
     project_config["ProjectConfigDate"] = str(datetime.now())
     project_config["PerformCropping"] = perform_cropping.get()
-    project_config["PerformSharpness"] = perform_sharpness.get()
     project_config["PerformDenoise"] = perform_denoise.get()
+    project_config["PerformSharpness"] = perform_sharpness.get()
+    project_config["PerformGammaCorrection"] = perform_gamma_correction.get()
+    project_config["GammaCorrectionValue"] = float(gamma_correction_str.get())
     project_config["FrameFillType"] = frame_fill_type.get()
     project_config["ExtendedStabilization"] = extended_stabilization.get()
     project_config["VideoFilename"] = video_filename_name.get()
@@ -731,7 +735,7 @@ def decode_project_config():
     global frame_fill_type
     global extended_stabilization
     global Force43, Force169
-    global perform_denoise, perform_sharpness
+    global perform_denoise, perform_sharpness, perform_gamma_correction, gamma_correction_str
 
     if 'SourceDir' in project_config:
         SourceDir = project_config["SourceDir"]
@@ -844,14 +848,22 @@ def decode_project_config():
         perform_cropping.set(project_config["PerformCropping"])
     else:
         perform_cropping.set(False)
-    if 'PerformSharpness' in project_config:
-        perform_sharpness.set(project_config["PerformSharpness"])
-    else:
-        perform_sharpness.set(False)
     if 'PerformDenoise' in project_config:
         perform_denoise.set(project_config["PerformDenoise"])
     else:
         perform_denoise.set(False)
+    if 'PerformSharpness' in project_config:
+        perform_sharpness.set(project_config["PerformSharpness"])
+    else:
+        perform_sharpness.set(False)
+    if 'PerformGammaCorrection' in project_config:
+        perform_gamma_correction.set(project_config["PerformGammaCorrection"])
+    else:
+        perform_gamma_correction.set(False)
+    if 'GammaCorrectionValue' in project_config:
+        gamma_correction_str.set(project_config["GammaCorrectionValue"])
+    else:
+        gamma_correction_str.set("2.2")
     if 'CropRectangle' in project_config:
         CropBottomRight = tuple(project_config["CropRectangle"][1])
         CropTopLeft = tuple(project_config["CropRectangle"][0])
@@ -1473,6 +1485,7 @@ def widget_status_update(widget_state=0, button_action=0):
     global perform_stabilization
     global perform_stabilization_checkbox, stabilization_threshold_spinbox
     global perform_cropping_checkbox, perform_denoise_checkbox, perform_sharpness_checkbox
+    global perform_gamma_correction_checkbox, gamma_correction_spinbox
     global force_4_3_crop_checkbox, force_16_9_crop_checkbox
     global custom_stabilization_btn
     global generate_video_checkbox, skip_frame_regeneration_cb
@@ -1525,6 +1538,8 @@ def widget_status_update(widget_state=0, button_action=0):
         force_16_9_crop_checkbox.config(state=widget_state if perform_stabilization.get() else DISABLED)
         perform_denoise_checkbox.config(state=widget_state)
         perform_sharpness_checkbox.config(state=widget_state)
+        perform_gamma_correction_checkbox.config(state=widget_state)
+        gamma_correction_spinbox.config(state=widget_state)
         film_type_S8_rb.config(state=DISABLED if template_list.get_active_type() == 'custom' else widget_state)
         film_type_R8_rb.config(state=DISABLED if template_list.get_active_type() == 'custom' else widget_state)
         generate_video_checkbox.config(state=widget_state if ffmpeg_installed else DISABLED)
@@ -1559,6 +1574,8 @@ def widget_status_update(widget_state=0, button_action=0):
         force_16_9_crop_checkbox.config(state=DISABLED)
         perform_denoise_checkbox.config(state=DISABLED)
         perform_sharpness_checkbox.config(state=DISABLED)
+        perform_gamma_correction_checkbox.config(state=DISABLED)
+        gamma_correction_spinbox.config(state=DISABLED)
     if ExpertMode:
         custom_stabilization_btn.config(relief=SUNKEN if template_list.get_active_type() == 'custom' else RAISED)
 
@@ -1611,7 +1628,7 @@ def perform_rotation_selection():
     win.after(5, scale_display_update)
 
 
-def rotation_angle_selection(updown):
+def rotation_angle_selection():
     global rotation_angle_spinbox, rotation_angle_str
     global RotationAngle
     RotationAngle = rotation_angle_spinbox.get()
@@ -1762,7 +1779,7 @@ def debug_template_popup():
     global CropTopLeft, CropBottomRight
     global debug_template_match, debug_template_width, debug_template_height
     global current_frame_text, crop_text, film_type_text
-    global search_area_text, template_type_text, hole_pos_text, template_size_text, template_wb_proportion_text
+    global search_area_text, template_type_text, hole_pos_text, template_size_text, template_wb_proportion_text, template_threshold_text
     global left_stripe_canvas, left_stripe_stabilized_canvas, template_canvas
     global SourceDirFileList, CurrentFrame
 
@@ -1853,11 +1870,19 @@ def debug_template_popup():
     template_size_label.pack(pady=5, padx=10, anchor="center")
     template_size_text.set(f"Template Size: {template_list.get_active_size()}")
 
+    '''
     #Label with template white on black proportion
     template_wb_proportion_text = tk.StringVar()
     template_wb_proportion_label = Label(right_frame, textvariable=template_wb_proportion_text, font=("Arial", FontSize))
     template_wb_proportion_label.pack(pady=5, padx=10, anchor="center")
     template_wb_proportion_text.set(f"WoB proportion: {int(template_list.get_active_wb_proportion() * 100)}%")
+    '''
+
+    #Label with template white on black proportion
+    template_threshold_text = tk.StringVar()
+    template_threshold_label = Label(right_frame, textvariable=template_threshold_text, font=("Arial", FontSize))
+    template_threshold_label.pack(pady=5, padx=10, anchor="center")
+    template_threshold_text.set(f"Threshold: 0")
 
     #Label with search area
     search_area_text = tk.StringVar()
@@ -1880,10 +1905,12 @@ def debug_template_popup():
     debug_template_match = False
 
 
-def debug_template_display_info(frame_idx, top_left, move_x, move_y):
-    global current_frame_text
+def debug_template_display_info(frame_idx, threshold, top_left, move_x, move_y):
+    global current_frame_text, template_threshold_text
+
     if debug_template_match:
         current_frame_text.set(f"Current Frm:{frame_idx}, Tmp.Pos.:{top_left}, ΔX:{move_x}, ΔY:{move_y}")
+        template_threshold_text.set(f"Threshold: {threshold}")
 
 
 def debug_template_display_frame_raw(img):
@@ -1922,7 +1949,7 @@ def debug_template_refresh_template():
         hole_pos_text.set(f"Expected template pos: {hole_template_pos}")
         template_type_text.set(f"Template type: {template_list.get_active_type()}")
         template_size_text.set(f"Template Size: {template_list.get_active_size()}")
-        template_wb_proportion_text.set(f"WoB proportion: {template_list.get_active_wb_proportion()*100:2.1f}%")
+        # template_wb_proportion_text.set(f"WoB proportion: {template_list.get_active_wb_proportion()*100:2.1f}%")
         film_type_text.set(f"Film type: {film_type.get()}")
 
 def debug_template_display_frame(canvas, img):
@@ -2522,24 +2549,30 @@ def match_template(frame_idx, template, img):
     # in order to calculate the white on black proportion correctly, we saved the number of white pixels in the
     # template, but we divide it by the number of pixels in the search area, as it is wider
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)    # reduced left stripe to calculate white on black proportion
+    '''
     total_pixels = img_gray.size
     for thres in range(200, 255, 1):
         img_bw = cv2.threshold(img_gray, thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
         white_pixel_count = cv2.countNonZero(img_bw)
-        if abs((white_pixel_count/total_pixels)-template_list.get_active_wb_proportion()) < best_wb_proportion:
-            best_wb_proportion = abs((white_pixel_count/total_pixels)-template_list.get_active_wb_proportion())
+        diff_proportion = abs(template_list.get_active_wb_proportion() - white_pixel_count/total_pixels)
+        print(f"diff_proportion: {diff_proportion:1.3f}")
+        if diff_proportion > 0 and diff_proportion < best_wb_proportion:
+            best_wb_proportion = diff_proportion
             best_thres = thres
-
+            print(f"best_thres: {best_thres}, best_wb_proportion: {best_wb_proportion:1.3f}")
+    '''
     # Apply best threshold on full left stripe
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_final = cv2.threshold(img_gray, best_thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
+    #img_final = cv2.threshold(img_gray, best_thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
+    # Apply Otsu's thresholding
+    best_thres, img_final = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     #img_edges = cv2.Canny(image=img_bw, threshold1=100, threshold2=1)  # Canny Edge Detection
     aux = cv2.matchTemplate(img_final, template, cv2.TM_CCOEFF_NORMED)
     (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(aux)
     top_left = maxLoc
 
-    return best_thres, top_left, round(maxVal,2), img_final
+    return int(best_thres), top_left, round(maxVal,2), img_final
 
 
 """
@@ -2702,6 +2735,15 @@ def get_image_left_stripe(img):
     return np.copy(img[vertical_range[0]:vertical_range[1], horizontal_range[0]:horizontal_range[1]])
 
 
+def gamma_correct_image(src, gamma):
+    invGamma = 1 / gamma
+
+    table = [((i / 255) ** invGamma) * 255 for i in range(256)]
+    table = np.array(table, np.uint8)
+
+    return cv2.LUT(src, table)
+
+
 def rotate_image(img):
     global RotationAngle
     # grab the dimensions of the image and calculate the center of the
@@ -2775,7 +2817,7 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None, id = -1):
         move_y = 0
     log_line = f"T{id} - " if id != -1 else ""
     logging.debug(log_line+f"Frame {frame_idx:5d}: threshold: {thres:3d}, top left: ({top_left[0]:4d},{top_left[0]:4d}), move_x:{move_x:4d}, move_y:{move_y:4d}")
-    debug_template_display_info(frame_idx, top_left, move_x, move_y)
+    debug_template_display_info(frame_idx, thres, top_left, move_x, move_y)
     # Try to figure out if there will be a part missing
     # at the bottom, or the top
     missing_rows = 0
@@ -3138,11 +3180,13 @@ def set_hole_search_area(img):
     # has been defined, therefore we initialized them here
     HoleSearchTopLeft = (0, 0)
     HoleSearchBottomRight = (left_stripe_width, height)   # Before, search area width was 20% of image width
+    '''
     # Now that we know the size of search area for the current project, we can calculate the WoB proportion
-    template_list.set_active_wb_proportion(template_list.get_active_white_pixel_count() / (left_stripe_width * height))
+    # Width of search area as it is wider, and height of template as it is shorter
+    template_list.set_active_wb_proportion(template_list.get_active_white_pixel_count() / (left_stripe_width * template_list.get_active_size()[1]))
     if debug_template_match:
         template_wb_proportion_text.set(f"WoB proportion: {template_list.get_active_wb_proportion() * 100:2.1f}%")
-
+    '''
 
 """
 ########################
@@ -3411,6 +3455,8 @@ def frame_encode(frame_idx, id):
                                        [-1, -1, -1]])
             # applying kernels to the input image to get the sharpened image
             img = cv2.filter2D(img, -1, sharpen_filter)
+        if perform_gamma_correction.get():
+            img = gamma_correct_image(img, float(gamma_correction_str.get()))
 
         # Before we used to display every other frame, but just discovered that it makes no difference to performance
         # Instead of displaying image, we add it to a queue to be processed in main loop
@@ -4054,6 +4100,7 @@ def build_ui():
     global perform_cropping, cropping_btn
     global perform_denoise, perform_denoise_checkbox
     global perform_sharpness, perform_sharpness_checkbox
+    global perform_gamma_correction_checkbox, gamma_correction_spinbox
     global generate_video, generate_video_checkbox
     global encode_all_frames, encode_all_frames_checkbox
     global frames_to_encode_str, frames_to_encode, frames_to_encode_label
@@ -4067,6 +4114,7 @@ def build_ui():
     global rotation_angle_spinbox, rotation_angle_str
     global custom_stabilization_btn, stabilization_threshold_label
     global perform_cropping_checkbox, Crop_btn
+    global perform_gamma_correction, gamma_correction_str
     global force_4_3_crop_checkbox, force_4_3_crop
     global force_16_9_crop_checkbox, force_16_9_crop
     global Go_btn
@@ -4280,17 +4328,16 @@ def build_ui():
 
     # Spinbox to select rotation angle
     rotation_angle_str = tk.StringVar(value=str(0))
-    rotation_angle_selection_aux = postprocessing_frame.register(
-        rotation_angle_selection)
+    #rotation_angle_selection_aux = postprocessing_frame.register(rotation_angle_selection)
     rotation_angle_spinbox = tk.Spinbox(
         postprocessing_frame,
-        command=(rotation_angle_selection_aux, '%d'), width=5,
+        command=rotation_angle_selection, width=5,
         textvariable=rotation_angle_str, from_=-5, to=5,
         format="%.1f", increment=0.1, font=("Arial", FontSize))
     rotation_angle_spinbox.grid(row=postprocessing_row, column=1, sticky=W)
     rotation_angle_spinbox.bind("<FocusOut>", rotation_angle_spinbox_focus_out)
     setup_tooltip(rotation_angle_spinbox, "Enter the frame rotation angle.")
-    rotation_angle_selection('down')
+    #rotation_angle_selection('down')
     rotation_angle_label = tk.Label(postprocessing_frame,
                                       text='°',
                                       width=1, font=("Arial", FontSize))
@@ -4367,23 +4414,40 @@ def build_ui():
 
     postprocessing_row += 1
 
-    # Check box to perform sharpness
-    perform_sharpness = tk.BooleanVar(value=False)
-    perform_sharpness_checkbox = tk.Checkbutton(
-        postprocessing_frame, text='Sharpen', variable=perform_sharpness,
-        onvalue=True, offvalue=False, command=perform_sharpness_selection,
-        width=7, font=("Arial", FontSize))
-    perform_sharpness_checkbox.grid(row=postprocessing_row, column=0, sticky=W)
-    setup_tooltip(perform_sharpness_checkbox, "Check to apply sharpen algorithm (using 'filter2D' in OpenCV) to the generated frames")
-
     # Check box to perform denoise
     perform_denoise = tk.BooleanVar(value=False)
     perform_denoise_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Denoise', variable=perform_denoise,
         onvalue=True, offvalue=False, command=perform_denoise_selection,
-        width=7, font=("Arial", FontSize))
-    perform_denoise_checkbox.grid(row=postprocessing_row, column=1, sticky=W)
+        font=("Arial", FontSize))
+    perform_denoise_checkbox.grid(row=postprocessing_row, column=0, sticky=W)
     setup_tooltip(perform_denoise_checkbox, "Check to apply denoise algorithm (using 'fastNlMeansDenoisingColored(' in OpenCV) to the generated frames")
+
+    # Check box to perform sharpness
+    perform_sharpness = tk.BooleanVar(value=False)
+    perform_sharpness_checkbox = tk.Checkbutton(
+        postprocessing_frame, text='Sharpen', variable=perform_sharpness,
+        onvalue=True, offvalue=False, command=perform_sharpness_selection,
+        font=("Arial", FontSize))
+    perform_sharpness_checkbox.grid(row=postprocessing_row, column=1, sticky=W)
+    setup_tooltip(perform_sharpness_checkbox, "Check to apply sharpen algorithm (using 'filter2D' in OpenCV) to the generated frames")
+
+    # Check box to do gamma correction
+    perform_gamma_correction = tk.BooleanVar(value=False)
+    perform_gamma_correction_checkbox = tk.Checkbutton(
+        postprocessing_frame, text='GC:', variable=perform_gamma_correction,
+        onvalue=True, offvalue=False, font=("Arial", FontSize))
+    perform_gamma_correction_checkbox.grid(row=postprocessing_row, column=2, sticky=W)
+    perform_gamma_correction_checkbox.config(state=NORMAL)
+    setup_tooltip(perform_gamma_correction_checkbox, "Check to apply gamma correction")
+
+    # Spinbox for gamma correction
+    gamma_correction_str = tk.StringVar(value="2.2")
+    gamma_correction_spinbox = tk.Spinbox(postprocessing_frame, width=3,
+        textvariable=gamma_correction_str, from_=-4, to=4, format="%.1f", increment=0.1, font=("Arial", FontSize))
+    gamma_correction_spinbox.grid(row=postprocessing_row, column=2, sticky=E)
+    setup_tooltip(gamma_correction_spinbox, "Enter gamma correction value")
+
     postprocessing_row += 1
 
     # This checkbox enables 'fake' frame completion when, due to stabilization process, part of the frame is lost at the
