@@ -19,7 +19,7 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.11"
+__version__ = "1.10.12"
 __data_version__ = "1.0"
 __date__ = "2024-02-04"
 __version_highlight__ = "Bugfixes after template factorization"
@@ -147,7 +147,6 @@ TargetVideoFilename = ""
 TargetVideoTitle = ""
 SourceDir = ""
 TargetDir = ""
-VideoTargetDir = ""
 file_type = 'jpg'
 file_type_out = file_type
 FrameInputFilenamePatternList_jpg = "picture-?????.jpg"
@@ -555,7 +554,6 @@ def load_general_config():
     if 'FfmpegBinName' in general_config:
         FfmpegBinName = general_config["FfmpegBinName"]
     if 'WindowPos' in general_config:
-        print(f"+{general_config['WindowPos']}")
         win.geometry(f"+{general_config['WindowPos'].split('+', 1)[1]}")
 
 
@@ -719,7 +717,7 @@ def load_project_config():
     widget_status_update(NORMAL)
 
 def decode_project_config():        
-    global SourceDir, TargetDir, VideoTargetDir
+    global SourceDir, TargetDir
     global project_config
     global template_list
     global project_config_basename, project_config_filename
@@ -1437,11 +1435,10 @@ def set_frames_target_folder():
 
 
 def set_video_target_folder():
-    global VideoTargetDir
     global video_target_dir
 
     VideoTargetDir = filedialog.askdirectory(
-        initialdir=VideoTargetDir,
+        initialdir=video_target_dir_str.get(),
         title="Select folder where to store generated video")
 
     if not VideoTargetDir:
@@ -2991,13 +2988,14 @@ def get_source_dir_file_list():
     SourceDirFileList_jpg = list(glob(os.path.join(
         SourceDir,
         FrameInputFilenamePatternList_jpg)))
-    SourceDirFileList_png = list(glob(os.path.join(
-        SourceDir,
-        FrameInputFilenamePatternList_png)))
-    SourceDirFileList = sorted(SourceDirFileList_jpg + SourceDirFileList_png)
-    if len(SourceDirFileList_png) != 0:
-        file_type_out = 'png'   # If we have png files in the input, we default to png for the output
+    if len(SourceDirFileList_jpg) == 0:     # Only try to read if there are no JPG at all
+        SourceDirFileList_png = list(glob(os.path.join(
+            SourceDir,
+            FrameInputFilenamePatternList_png)))
+        SourceDirFileList = sorted(SourceDirFileList_png)
+        file_type_out = 'png'  # If we have png files in the input, we default to png for the output
     else:
+        SourceDirFileList = sorted(SourceDirFileList_jpg)
         file_type_out = 'jpg'
 
     SourceDirHdrFileList_jpg = list(glob(os.path.join(
@@ -3264,7 +3262,7 @@ def start_convert():
             elif ext not in ['.mp4', '.MP4', '.mkv', '.MKV']:     # ext == "" does not work if filename contains dots ('Av. Manzanares')
                 TargetVideoFilename += ".mp4"
                 video_filename_str.set(TargetVideoFilename)
-            elif os.path.isfile(os.path.join(VideoTargetDir, TargetVideoFilename)):
+            elif os.path.isfile(os.path.join(video_target_dir_str.get(), TargetVideoFilename)):
                 if not BatchJobRunning:
                     error_msg = (TargetVideoFilename + " already exist in target "
                                  "folder. Overwrite?")
@@ -3812,7 +3810,7 @@ def call_ffmpeg():
          '-crf', '18',
          '-pix_fmt', 'yuv420p',
          '-map', '[v]',
-         os.path.join(VideoTargetDir,
+         os.path.join(video_target_dir_str.get(),
                       TargetVideoFilename)])
 
     logging.debug("Generated ffmpeg command: %s", cmd_ffmpeg)
@@ -3880,7 +3878,7 @@ def video_generation_loop():
         if ConvertLoopExitRequested:
             ffmpeg_process.terminate()
             logging.warning("Video generation terminated by user for %s",
-                         os.path.join(VideoTargetDir, TargetVideoFilename))
+                         os.path.join(video_target_dir_str.get(), TargetVideoFilename))
             status_str = "Status: Cancelled by user"
             app_status_label.config(text=status_str, fg='red')
             tk.messagebox.showinfo(
@@ -3888,7 +3886,7 @@ def video_generation_loop():
                 "\r\nVideo generation by FFMPEG has been stopped by user "
                 "action.")
             generation_exit(success = False)  # Restore all settings to normal
-            os.remove(os.path.join(VideoTargetDir, TargetVideoFilename))
+            os.remove(os.path.join(video_target_dir_str.get(), TargetVideoFilename))
         else:
             line = ffmpeg_process.stdout.readline().strip()
             logging.debug(line)
@@ -3919,7 +3917,7 @@ def video_generation_loop():
         last_displayed_image = 0
         # And display results
         if ffmpeg_success:
-            logging.debug("Video generated OK: %s", os.path.join(VideoTargetDir, TargetVideoFilename))
+            logging.debug("Video generated OK: %s", os.path.join(video_target_dir_str.get(), TargetVideoFilename))
             status_str = "Status: Video generated OK"
             app_status_label.config(text=status_str, fg='green')
             if not BatchJobRunning:
@@ -3928,9 +3926,9 @@ def video_generation_loop():
                     "\r\nVideo encoding has finalized successfully. "
                     "You can find your video in the target folder, "
                     "as stated below\r\n" +
-                    os.path.join(VideoTargetDir, TargetVideoFilename))
+                    os.path.join(video_target_dir_str.get(), TargetVideoFilename))
         else:
-            logging.error("Video generation failed for %s", os.path.join(VideoTargetDir, TargetVideoFilename))
+            logging.error("Video generation failed for %s", os.path.join(video_target_dir_str.get(), TargetVideoFilename))
             status_str = "Status: Video generation failed"
             app_status_label.config(text=status_str, fg='red')
             if not BatchJobRunning:
