@@ -613,8 +613,6 @@ def load_project_settings():
                     "(and a backup file generated in case you want to recover information from it)")
             else:
                 # New version is a list
-                global_info = {'data_version': __data_version__, 'code_version': __version__,
-                               'save_date': str(datetime.now())}
                 logging.info(f"Loading project file: {saved_list[0]['data_version']},  {saved_list[0]['code_version']},  {saved_list[0]['save_date']}")
                 project_settings = saved_list[1]
                 projects_loaded = True
@@ -1882,7 +1880,7 @@ def debug_template_popup():
     template_threshold_text = tk.StringVar()
     template_threshold_label = Label(right_frame, textvariable=template_threshold_text, font=("Arial", FontSize))
     template_threshold_label.pack(pady=5, padx=10, anchor="center")
-    template_threshold_text.set(f"Threshold: 0")
+    template_threshold_text.set("Threshold: 0")
 
     #Label with search area
     search_area_text = tk.StringVar()
@@ -2060,7 +2058,7 @@ def detect_film_type():
         other_film_type = 'R8'
 
     if template_1 is None or template_2 is None:
-        logging.debug(f"Invalid detection templated, cannot determine film type.")
+        logging.debug("Invalid detection templated, cannot determine film type.")
         tk.messagebox.showerror("Film detection failed",
             "Templates to detect film type are missing, please set film type manually.")
         return
@@ -2544,23 +2542,9 @@ def match_template(frame_idx, template, img):
         return (0, 0, 0)
 
     # convert img to grey, checking various thresholds
-    best_thres = 0
-    best_wb_proportion = 1
     # in order to calculate the white on black proportion correctly, we saved the number of white pixels in the
     # template, but we divide it by the number of pixels in the search area, as it is wider
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)    # reduced left stripe to calculate white on black proportion
-    '''
-    total_pixels = img_gray.size
-    for thres in range(200, 255, 1):
-        img_bw = cv2.threshold(img_gray, thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
-        white_pixel_count = cv2.countNonZero(img_bw)
-        diff_proportion = abs(template_list.get_active_wb_proportion() - white_pixel_count/total_pixels)
-        print(f"diff_proportion: {diff_proportion:1.3f}")
-        if diff_proportion > 0 and diff_proportion < best_wb_proportion:
-            best_wb_proportion = diff_proportion
-            best_thres = thres
-            print(f"best_thres: {best_thres}, best_wb_proportion: {best_wb_proportion:1.3f}")
-    '''
     # Apply best threshold on full left stripe
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     #img_final = cv2.threshold(img_gray, best_thres, 255, cv2.THRESH_BINARY)[1]  #THRESH_TRUNC, THRESH_BINARY
