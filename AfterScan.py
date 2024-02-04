@@ -19,9 +19,9 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.10"
+__version__ = "1.10.11"
 __data_version__ = "1.0"
-__date__ = "2024-02-03"
+__date__ = "2024-02-04"
 __version_highlight__ = "Bugfixes after template factorization"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
@@ -281,11 +281,13 @@ debug_template_match = False
 developer_debug = False
 developer_debug_file_flag = os.path.join(script_dir, "developer.txt")
 
-GenerateCsv = True
+GenerateCsv = False
 CsvFilename = ""
 CsvPathName = ""
 CsvFile = 0
 CsvFramesOffPercent = 0
+match_level_average = 0
+match_level_average_counter = 0
 
 # Token to be inserted in each queue on program closure, to allow threads to shut down cleanly
 END_TOKEN = "TERMINATE_PROCESS"
@@ -336,6 +338,8 @@ class Template:
         self.size = (self.template.shape[1], self.template.shape[0])
         self.scaled_size = (int(self.size[0] * self.scale),
                             int(self.size[1] * self.scale))
+        self.scaled_position = (int(self.position[0] * self.scale),
+                                int(self.position[1] * self.scale))
 
 
 class TemplateList:
@@ -466,7 +470,7 @@ def set_project_defaults():
     global perform_cropping, generate_video, resolution_dropdown_selected
     global frame_slider, encode_all_frames, frames_to_encode_str
     global perform_stabilization, skip_frame_regeneration, ffmpeg_preset
-    global video_filename_name, video_title_name
+    global video_filename_str, video_title_str
     global frame_from_str, frame_to_str
     global frame_fill_type, extended_stabilization
     global perform_denoise, perform_sharpness
@@ -502,17 +506,16 @@ def set_project_defaults():
     project_config["FFmpegPreset"] = "veryslow"
     ffmpeg_preset.set(project_config["FFmpegPreset"])
     project_config["VideoFilename"] = ""
-    video_filename_name.delete(0, 'end')
-    video_filename_name.insert('end', project_config["VideoFilename"])
+    video_filename_str.set(project_config["VideoFilename"])
     project_config["VideoTitle"] = ""
-    video_title_name.delete(0, 'end')
-    video_title_name.insert('end', project_config["VideoTitle"])
+    video_title_str.set(project_config["VideoTitle"])
     project_config["FillBorders"] = False
 
 
 def save_general_config():
     # Write config data upon exit
     general_config["GeneralConfigDate"] = str(datetime.now())
+    general_config["WindowPos"] = win.geometry()
     if not IgnoreConfig:
         with open(general_config_filename, 'w+') as f:
             json.dump(general_config, f)
@@ -551,6 +554,9 @@ def load_general_config():
 
     if 'FfmpegBinName' in general_config:
         FfmpegBinName = general_config["FfmpegBinName"]
+    if 'WindowPos' in general_config:
+        print(f"+{general_config['WindowPos']}")
+        win.geometry(f"+{general_config['WindowPos'].split('+', 1)[1]}")
 
 
 def update_project_settings():
@@ -639,7 +645,7 @@ def save_project_config():
     global ffmpeg_preset
     global StabilizeAreaDefined
     global CurrentFrame
-    global video_filename_name, video_title_name
+    global video_filename_str, video_title_str
     global frame_from_str, frame_to_str
     global perform_denoise, perform_sharpness, perform_gamma_correction
 
@@ -660,8 +666,8 @@ def save_project_config():
     project_config["GammaCorrectionValue"] = float(gamma_correction_str.get())
     project_config["FrameFillType"] = frame_fill_type.get()
     project_config["ExtendedStabilization"] = extended_stabilization.get()
-    project_config["VideoFilename"] = video_filename_name.get()
-    project_config["VideoTitle"] = video_title_name.get()
+    project_config["VideoTitle"] = video_title_str.get()
+    project_config["VideoFilename"] = video_filename_str.get()
     project_config["FrameFrom"] = frame_from_str.get()
     project_config["FrameTo"] = frame_to_str.get()
     if StabilizeAreaDefined:
@@ -724,7 +730,7 @@ def decode_project_config():
     global resolution_dropdown, resolution_dropdown_selected
     global encode_all_frames, frames_to_encode
     global skip_frame_regeneration
-    global generate_video, video_filename_name, video_title_name
+    global generate_video, video_filename_name
     global CropTopLeft, CropBottomRight, perform_cropping
     global StabilizeAreaDefined, film_type
     global StabilizationThreshold
@@ -758,12 +764,10 @@ def decode_project_config():
         frames_target_dir.insert('end', TargetDir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
     if 'VideoTargetDir' in project_config:
-        VideoTargetDir = project_config["VideoTargetDir"]
+        video_target_dir_str.set(project_config["VideoTargetDir"])
         # If directory in configuration does not exist, set current working dir
-        if not os.path.isdir(VideoTargetDir):
-            VideoTargetDir = TargetDir  # use frames target dir as fallback option
-        video_target_dir.delete(0, 'end')
-        video_target_dir.insert('end', VideoTargetDir)
+        if not os.path.isdir(video_target_dir_str.get()):
+            video_target_dir_str.set(TargetDir)  # use frames target dir as fallback option
         video_target_dir.after(100, video_target_dir.xview_moveto, 1)
     if 'CurrentFrame' in project_config and not BatchJobRunning: # only if project loaded by user, otherwise it alters start encoding frame in batch mode
         CurrentFrame = project_config["CurrentFrame"]
@@ -897,17 +901,9 @@ def decode_project_config():
         generate_video.set(False)
     generate_video_selection()
     if 'VideoFilename' in project_config:
-        TargetVideoFilename = project_config["VideoFilename"]
-        video_filename_name.delete(0, 'end')
-        video_filename_name.insert('end', TargetVideoFilename)
-    else:
-        video_filename_name.delete(0, 'end')
+        video_filename_str.set(project_config["VideoFilename"])
     if 'VideoTitle' in project_config:
-        TargetVideoTitle = project_config["VideoTitle"]
-        video_title_name.delete(0, 'end')
-        video_title_name.insert('end', TargetVideoTitle)
-    else:
-        video_title_name.delete(0, 'end')
+        video_title_str.set(project_config["VideoTitle"])
     if 'skip_frame_regeneration' in project_config:
         skip_frame_regeneration.set(project_config["skip_frame_regeneration"])
     else:
@@ -977,7 +973,7 @@ def job_list_process_selection(evt):
 def job_list_add_current():
     global job_list, template_list
     global CurrentFrame, StartFrame, frames_to_encode
-    global project_config, video_filename_name
+    global project_config, video_filename_str
     global job_list_listbox
     global encode_all_frames, SourceDirFileList
     global frame_from_str, frame_to_str
@@ -986,7 +982,7 @@ def job_list_add_current():
 
     if job_list_listbox_disabled:
         return
-    entry_name = video_filename_name.get()
+    entry_name = video_filename_str.get()
     if entry_name == "":
         entry_name = os.path.split(SourceDir)[1]
     if project_config["FilmType"] == 'R8':
@@ -1054,7 +1050,7 @@ def job_list_add_current():
 def job_list_load_selected():
     global job_list
     global CurrentFrame, StartFrame, frames_to_encode
-    global project_config, video_filename_name
+    global project_config
     global job_list_listbox
     global encode_all_frames, SourceDirFileList
     global frame_from_str, frame_to_str
@@ -1458,11 +1454,10 @@ def set_video_target_folder():
             "Video target folder cannot be the same as source folder.")
         return
     else:
-        video_target_dir.delete(0, 'end')
-        video_target_dir.insert('end', VideoTargetDir)
+        video_target_dir_str.set(VideoTargetDir)
         video_target_dir.after(100, video_target_dir.xview_moveto, 1)
 
-    project_config["VideoTargetDir"] = VideoTargetDir
+    project_config["VideoTargetDir"] = video_target_dir_str.get()
 
 
 """
@@ -1768,6 +1763,8 @@ def display_template_popup_closure():
 
     display_template_popup.set(False)
 
+    general_config["TemplatePopupWindowPos"] = template_popup_window.geometry()
+
     template_popup_window.destroy()
 
 
@@ -1797,6 +1794,9 @@ def debug_template_popup():
     template_popup_window.title("Hole Template match debug info")
 
     template_popup_window.minsize(width=300, height=template_popup_window.winfo_height())
+
+    if 'TemplatePopupWindowPos' in general_config:
+        template_popup_window.geometry(f"+{general_config['TemplatePopupWindowPos'].split('+', 1)[1]}")
 
     # Create three vertical frames in the bottom horizontal frame
     left_frame = Frame(template_popup_window, width=60, height=8)
@@ -1838,7 +1838,7 @@ def debug_template_popup():
     left_stripe_canvas = Canvas(center_frame, bg='dark grey',
                                  width=debug_template_width, height=debug_template_height)
     left_stripe_canvas.pack(side=LEFT, anchor=N)
-    setup_tooltip(left_stripe_canvas, "Template search area for current frame, as used to spot template")
+    setup_tooltip(left_stripe_canvas, "Template search area for current frame before stabilization, used to find template")
 
     # Add a label with the film type
     film_type_text = tk.StringVar()
@@ -2764,11 +2764,12 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None, id = -1):
     global stabilization_bounds_alert_checkbox
     global project_name
     global frame_fill_type, extended_stabilization
-    global CsvFile, GenerateCsv, CsvFramesOffPercent
+    global CsvFramesOffPercent
     global stabilization_threshold_match_label
     global debug_template_match
     global perform_stabilization
     global template_list
+    global match_level_average, match_level_average_counter
 
     # Get image dimensions to perform image shift later
     width = img_ref.shape[1]
@@ -2787,6 +2788,7 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None, id = -1):
     img_ref_alt_used = False
     while True:
         thres, top_left, match_level, img_matched = match_template(frame_idx, film_hole_template, left_stripe_image)
+        match_level = max(0, match_level)   # in some cases, not sure why, match level is negative
         if match_level >= 0.85:
             break
         else:
@@ -2840,10 +2842,14 @@ def stabilize_image(frame_idx, img, img_ref, img_ref_alt = None, id = -1):
     stabilization_threshold_match_label.config(fg='white', bg=match_level_color(match_level),
                                                text=str(int(match_level * 100)))
     if ConvertLoopRunning:
-        if missing_bottom < 0 or missing_top < 0:
-            stabilization_bounds_alert_counter += 1
-            if stabilization_bounds_alert.get():
-                win.bell()
+        # Calculate rolling average of match level
+        match_level_average_counter += 1
+        match_level_average = (match_level_average * match_level_average_counter + match_level) / (match_level_average_counter + 1)
+        if missing_rows > 0 or match_level < 0.9:
+            if missing_rows > 0:
+                stabilization_bounds_alert_counter += 1
+                if stabilization_bounds_alert.get():
+                    win.bell()
             if GenerateCsv:
                 CsvFile.write('%i, %i, %i\n' % (first_absolute_frame+frame_idx, missing_rows, int(match_level*100)))
     if frame_idx-StartFrame > 0:
@@ -3165,7 +3171,7 @@ def set_hole_search_area(img):
     result = cv2.matchTemplate(img_target, film_corner_template, cv2.TM_CCOEFF_NORMED)
     (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
     left_stripe_width = maxLoc[0] + template_list.get_active_size()[0]
-    left_stripe_width += 250 * int(img.shape[0]/1520)   # Increase width, proportional to the image size (250 pixels for default size 2028x1520)
+    left_stripe_width += 80 * int(img.shape[0]/1520)   # Increase width, proportional to the image size (250 pixels for default size 2028x1520)
     logging.debug(f"Calculated left stripe width: {left_stripe_width}")
     if extended_stabilization.get():
         logging.debug("Extended stabilization requested: Widening search area by 50 pixels")
@@ -3219,7 +3225,7 @@ def start_convert():
     global BatchJobRunning
     global job_list, CurrentJobEntry
     global stabilization_bounds_alert_counter
-    global CsvFilename, CsvPathName, GenerateCsv, CsvFile
+    global CsvFilename, CsvPathName, CsvFile, match_level_average, match_level_average_counter
     global FPM_LastMinuteFrameTimes
 
     if ConvertLoopRunning:
@@ -3264,18 +3270,16 @@ def start_convert():
         win.update()
 
         if project_config["GenerateVideo"]:
-            TargetVideoFilename = video_filename_name.get()
+            TargetVideoFilename = video_filename_str.get()
             name, ext = os.path.splitext(TargetVideoFilename)
             if TargetVideoFilename == "":   # Assign default if no filename
                 TargetVideoFilename = (
                     "AfterScan-" +
                     datetime.now().strftime("%Y_%m_%d-%H-%M-%S") + ".mp4")
-                video_filename_name.delete(0, 'end')
-                video_filename_name.insert('end', TargetVideoFilename)
+                video_filename_str.set(TargetVideoFilename)
             elif ext not in ['.mp4', '.MP4', '.mkv', '.MKV']:     # ext == "" does not work if filename contains dots ('Av. Manzanares')
                 TargetVideoFilename += ".mp4"
-                video_filename_name.delete(0, 'end')
-                video_filename_name.insert('end', TargetVideoFilename)
+                video_filename_str.set(TargetVideoFilename)
             elif os.path.isfile(os.path.join(VideoTargetDir, TargetVideoFilename)):
                 if not BatchJobRunning:
                     error_msg = (TargetVideoFilename + " already exist in target "
@@ -3289,7 +3293,7 @@ def start_convert():
         if not generate_video.get() or not skip_frame_regeneration.get():
             # Check if CSV option selected
             if GenerateCsv:
-                CsvFilename = video_filename_name.get()
+                CsvFilename = video_filename_str.get()
                 name, ext = os.path.splitext(CsvFilename)
                 if name == "":  # Assign default if no filename
                     name = "AfterScan-"
@@ -3300,6 +3304,8 @@ def start_convert():
                 CsvPathName = os.path.join(CsvPathName, CsvFilename)
                 CsvFile = open(CsvPathName, "w")
             clear_image()
+            match_level_average = 0
+            match_level_average_counter = 0
             # Multiprocessing: Start all threads before encoding
             start_threads()
             win.after(1, frame_generation_loop)
@@ -3529,7 +3535,6 @@ def check_subprocess_event_queue(user_terminated):
     global subprocess_event_queue
     global last_displayed_image, active_threads
     global stabilization_bounds_alert_checkbox, stabilization_bounds_alert_counter
-    global CsvFramesOffPercent
     global ConvertLoopRunning
     global file_type_out
 
@@ -3570,7 +3575,6 @@ def frame_generation_loop():
     global BatchJobRunning
     global ffmpeg_success, ffmpeg_encoding_status
     global TargetDirFileList
-    global GenerateCsv, CsvFile
     global frame_slider
     global MergeMertens
     global FPM_CalculatedValue
@@ -3589,10 +3593,13 @@ def frame_generation_loop():
 
     if CurrentFrame >= StartFrame + frames_to_encode and last_displayed_image+1 >= StartFrame + frames_to_encode:
         FPM_CalculatedValue = -1
-        status_str = "Status: Frame generation OK"
+        # write average match quality in the status line, and in the widget
+        status_str = f"Status: Frame generation OK - AvgQ: {int(match_level_average*100)}"
         app_status_label.config(text=status_str, fg='green')
-        # Clear display queue
-        #subprocess_event_queue.queue.clear()
+        stabilization_threshold_match_label.config(fg='white', bg=match_level_color(match_level_average),
+                                                   text=str(int(match_level_average * 100)))
+        # Clear display queue (does not seem to work as expected, leave commented for now)
+        # subprocess_event_queue.queue.clear()
         last_displayed_image = 0
         win.update()
         # Refresh Target dir file list
@@ -3601,7 +3608,7 @@ def frame_generation_loop():
         if GenerateCsv:
             CsvFile.close()
             name, ext = os.path.splitext(CsvPathName)
-            name = name + ' (%d frames, %.1f%% KO)' % (frames_to_encode, CsvFramesOffPercent) + '.csv'
+            name = f"{name} ({frames_to_encode} frames, {CsvFramesOffPercent:.1f}% KO, Avg match level {int(match_level_average*100)}).csv"
             os.rename(CsvPathName, name)
         # Stop threads
         terminate_threads(False)
@@ -3613,7 +3620,6 @@ def frame_generation_loop():
         else:
             generation_exit()
         CurrentFrame -= 1  # Prevent being out of range
-        stabilization_threshold_match_label.config(fg='lightgray', bg='lightgray', text='')
         win.update()
         return
 
@@ -3713,20 +3719,19 @@ def draw_multiple_line_text(image, text, font, text_color, num_lines):
 
 
 def video_create_title():
-    global video_title_name, TargetVideoTitle
+    global video_title_str
     global VideoFps
     global StartFrame, first_absolute_frame, title_num_frames, frames_to_encode
     global file_type_out
 
-    if len(video_title_name.get()):   # if title defined --> kiki
-        TargetVideoTitle = video_title_name.get()
-        title_duration = round(len(video_title_name.get())*50/1000) # 50 ms per char
+    if len(video_title_str.get()):   # if title defined --> kiki
+        title_duration = round(len(video_title_str.get())*50/1000) # 50 ms per char
         title_duration = min(title_duration, 10)    # no more than 10 sec
         title_duration = max(title_duration, 3)    # no less than 3 sec
         title_num_frames = min(title_duration * VideoFps, frames_to_encode-1)
         # Custom font style and font size
         img = Image.open(os.path.join(TargetDir, FrameOutputFilenamePattern % (StartFrame + first_absolute_frame, file_type_out)))
-        myFont, num_lines = get_adjusted_font(img, TargetVideoTitle)
+        myFont, num_lines = get_adjusted_font(img, video_title_str.get())
         if myFont == 0:
             return
         title_frame_idx = StartFrame + first_absolute_frame
@@ -3740,8 +3745,7 @@ def video_create_title():
             # Call draw Method to add 2D graphics in an image
             #I1 = ImageDraw.Draw(img)
             # Add Text to an image
-            #I1.multiline_text((28, 36), TargetVideoTitle, font=myFont, fill=(255, 0, 0))
-            draw_multiple_line_text(img, TargetVideoTitle, myFont, (255,255,255), num_lines)
+            draw_multiple_line_text(img, video_title_str.get(), myFont, (255,255,255), num_lines)
             # Display edited image
             #img.show()
 
@@ -4096,7 +4100,7 @@ def afterscan_init():
 def build_ui():
     global win
     global SourceDir
-    global frames_source_dir, frames_target_dir, video_target_dir
+    global frames_source_dir, frames_target_dir, video_target_dir, video_target_dir_str
     global perform_cropping, cropping_btn
     global perform_denoise, perform_denoise_checkbox
     global perform_sharpness, perform_sharpness_checkbox
@@ -4120,9 +4124,9 @@ def build_ui():
     global Go_btn
     global Exit_btn
     global video_fps_dropdown_selected, skip_frame_regeneration_cb
-    global video_fps_dropdown, video_fps_label, video_filename_name, video_title_name
+    global video_fps_dropdown, video_fps_label, video_filename_name, video_filename_str, video_title_name, video_title_str
     global resolution_dropdown, resolution_label, resolution_dropdown_selected
-    global video_target_dir, video_target_folder_btn, video_filename_label, video_title_label
+    global video_target_folder_btn, video_filename_label, video_title_label
     global ffmpeg_preset
     global ffmpeg_preset_rb1, ffmpeg_preset_rb2, ffmpeg_preset_rb3
     global FfmpegBinName
@@ -4521,11 +4525,10 @@ def build_ui():
     video_row += 1
 
     # Video target folder
-    video_target_dir = Entry(video_frame, width=36, borderwidth=1, font=("Arial", FontSize))
+    video_target_dir_str = StringVar()
+    video_target_dir = Entry(video_frame, textvariable=video_target_dir_str, width=36, borderwidth=1, font=("Arial", FontSize))
     video_target_dir.grid(row=video_row, column=0, columnspan=2,
                              sticky=W)
-    video_target_dir.delete(0, 'end')
-    video_target_dir.insert('end', '')
     video_target_dir.bind('<<Paste>>', lambda event, entry=video_target_dir: on_paste_all_entries(event, entry))
     setup_tooltip(video_target_dir, "Enter the directory where the generated video will be stored.")
 
@@ -4538,26 +4541,24 @@ def build_ui():
     video_row += 1
 
     # Video filename
+    video_filename_str = StringVar()
     video_filename_label = Label(video_frame, text='Video filename:', font=("Arial", FontSize))
     video_filename_label.grid(row=video_row, column=0, sticky=W)
-    video_filename_name = Entry(video_frame, width=26 if BigSize else 33, borderwidth=1, font=("Arial", FontSize))
+    video_filename_name = Entry(video_frame, textvariable=video_filename_str, width=26 if BigSize else 33, borderwidth=1, font=("Arial", FontSize))
     video_filename_name.grid(row=video_row, column=1, columnspan=2,
                              sticky=W)
-    video_filename_name.delete(0, 'end')
-    video_filename_name.insert('end', TargetVideoFilename)
     video_filename_name.bind('<<Paste>>', lambda event, entry=video_filename_name: on_paste_all_entries(event, entry))
     setup_tooltip(video_filename_name, "Enter the filename of the video to be created.")
 
     video_row += 1
 
     # Video title (add title at the start of the video)
+    video_title_str = StringVar()
     video_title_label = Label(video_frame, text='Video title:', font=("Arial", FontSize))
     video_title_label.grid(row=video_row, column=0, sticky=W)
-    video_title_name = Entry(video_frame, width=26 if BigSize else 33, borderwidth=1, font=("Arial", FontSize))
+    video_title_name = Entry(video_frame, textvariable=video_title_str, width=26 if BigSize else 33, borderwidth=1, font=("Arial", FontSize))
     video_title_name.grid(row=video_row, column=1, columnspan=2,
                              sticky=W)
-    video_title_name.delete(0, 'end')
-    video_title_name.insert('end', TargetVideoTitle)
     video_title_name.bind('<<Paste>>', lambda event, entry=video_title_name: on_paste_all_entries(event, entry))
     setup_tooltip(video_title_name, "Video title. If entered, a simple title sequence will be generated at the start of the video, using a sequence randomly selected from the same video, running at half speed.")
 
@@ -4853,7 +4854,7 @@ def main(argv):
 
     template_list = TemplateList()
     template_list.add("S8", hole_template_filename_s8, "S8", (44, 400))
-    template_list.add("R8", hole_template_filename_r8, "R8", (44, 44))
+    template_list.add("R8", hole_template_filename_r8, "R8", (44, 134))
     template_list.add("BW", hole_template_filename_bw, "aux", (0, 0))
     template_list.add("WB", hole_template_filename_wb, "aux", (0, 0))
     template_list.add("Corner", hole_template_filename_corner, "aux", (0, 0))
