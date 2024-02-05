@@ -19,7 +19,7 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__version__ = "1.10.13"
+__version__ = "1.10.14"
 __data_version__ = "1.0"
 __date__ = "2024-02-05"
 __version_highlight__ = "Bugfixes after template factorization"
@@ -528,10 +528,6 @@ def save_general_config():
 def load_general_config():
     global general_config
     global general_config_filename
-    global LastSessionDate
-    global SourceDir, TargetDir
-    global project_name
-    global FfmpegBinName
 
     # Check if persisted data file exist: If it does, load it
     if not IgnoreConfig and os.path.isfile(general_config_filename):
@@ -544,6 +540,13 @@ def load_general_config():
     logging.debug("Reading general config")
     for item in general_config:
         logging.debug("%s=%s", item, str(general_config[item]))
+
+
+def decode_general_config():
+    global SourceDir
+    global project_name
+    global FfmpegBinName
+    global general_config
 
     if 'SourceDir' in general_config:
         SourceDir = general_config["SourceDir"]
@@ -558,8 +561,6 @@ def load_general_config():
 
     if 'FfmpegBinName' in general_config:
         FfmpegBinName = general_config["FfmpegBinName"]
-    if 'WindowPos' in general_config:
-        win.geometry(f"+{general_config['WindowPos'].split('+', 1)[1]}")
 
 
 def update_project_settings():
@@ -4004,18 +4005,8 @@ def init_display():
     win.after(5, scale_display_update)
 
 
-def afterscan_init():
-    global win
-    global TopWinX
-    global TopWinY
-    global WinInitDone
-    global SourceDir
+def init_logging():
     global LogLevel
-    global PreviewWidth, PreviewHeight
-    global screen_height
-    global BigSize, FontSize
-    global MergeMertens, AlignMtb
-
     # Initialize logging
     log_path = aux_dir
     if log_path == "":
@@ -4032,6 +4023,18 @@ def afterscan_init():
 
     logging.info("AfterScann %s (%s)", __version__, __date__)
     logging.info("Log file: %s", log_file_fullpath)
+
+
+def afterscan_init():
+    global win
+    global TopWinX
+    global TopWinY
+    global WinInitDone
+    global SourceDir
+    global PreviewWidth, PreviewHeight
+    global screen_height
+    global BigSize, FontSize
+    global MergeMertens, AlignMtb
 
     win = Tk()  # Create main window, store it in 'win'
 
@@ -4056,6 +4059,8 @@ def afterscan_init():
     win.title('AfterScan ' + __version__)  # setting title of the window
     win.geometry('1080x700')  # setting the size of the window
     win.geometry('+50+50')  # setting the position of the window
+    if 'WindowPos' in general_config:
+         win.geometry(f"+{general_config['WindowPos'].split('+', 1)[1]}")
     # Prevent window resize
     win.minsize(app_width, app_height)
     win.maxsize(app_width, app_height)
@@ -4885,12 +4890,17 @@ def main(argv):
     LogLevel = getattr(logging, LoggingMode.upper(), None)
     if not isinstance(LogLevel, int):
         raise ValueError('Invalid log level: %s' % LogLevel)
+    else:
+        init_logging()
+
+    load_general_config()
 
     afterscan_init()
+
     if go_disable_tooptips:
         disable_tooltips()
 
-    load_general_config()
+    decode_general_config()
 
     multiprocessing_init()
 
