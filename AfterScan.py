@@ -20,7 +20,7 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.15"
+__version__ = "1.30.16"
 __data_version__ = "1.0"
 __date__ = "2025-11-10"
 __version_highlight__ = "Add option to allow a wider custom template and/wider template search area (for R8 film with image intersproke space)"
@@ -271,6 +271,7 @@ CropBottomRight = (0, 0)
 max_loop_count = 0
 StabilizationShiftY = 0
 StabilizationShiftX = 0
+LeftStripeWidth = 0.25
 
 Force43 = False
 Force169 = False
@@ -666,6 +667,7 @@ def decode_general_config():
     global UserConsent, AnonymousUuid, LastConsentDate
     global SavedWithVersion, JobListFilename
     global precise_template_match, high_sensitive_bad_frame_detection
+    global LeftStripeWidth
     if 'SourceDir' in general_config:
         SourceDir = general_config["SourceDir"]
         # If directory in configuration does not exist, set current working dir
@@ -898,6 +900,7 @@ def decode_project_config():
     global high_sensitive_bad_frame_detection, current_bad_frame_index
     global precise_template_match
     global StabilizationShiftX, StabilizationShiftY
+    global LeftStripeWidth
 
     if 'SourceDir' in project_config:
         SourceDir = project_config["SourceDir"]
@@ -1109,6 +1112,11 @@ def decode_project_config():
 
     if 'CurrentBadFrameIndex' in project_config:
         current_bad_frame_index = project_config["CurrentBadFrameIndex"]
+
+    if 'LeftStripeWidth' in project_config:
+        LeftStripeWidth = project_config["LeftStripeWidth"]
+    else:
+        LeftStripeWidth = 0.25
 
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
@@ -2201,7 +2209,7 @@ def cmd_settings_popup_dismiss():
 
 def cmd_settings_popup_accept():
     global options_dlg, FfmpegBinName, enable_rectangle_popup, FFmpeg_denoise_param
-    global enable_soundtrack
+    global enable_soundtrack, LeftStripeWidth
 
     general_config["PopupPos"] = options_dlg.geometry()
 
@@ -2223,6 +2231,8 @@ def cmd_settings_popup_accept():
     if sound_file_available:
         enable_soundtrack = enable_soundtrack_value.get()
         general_config["EnableSoundtrack"] = enable_soundtrack
+    LeftStripeWidth = left_stripe_width_value.get() / 100
+    project_config["LeftStripeWidth"] = LeftStripeWidth
 
     options_dlg.grab_release()
     options_dlg.destroy()
@@ -2233,6 +2243,7 @@ def cmd_settings_popup():
     global custom_ffmpeg_path
     global FFmpeg_denoise_param, FfmpegBinName
     global ffmpeg_denoise_value, enable_rectangle_popup_value, enable_soundtrack_value
+    global left_stripe_width_value
 
     options_row = 0
 
@@ -2293,6 +2304,18 @@ def cmd_settings_popup():
     as_tooltips.add(enable_rectangle_popup_checkbox, "Display popup window to define custom template and cropping rectangle (vs definition in main window)")
     options_row += 1
 
+    # Left stripe width value
+    left_stripe_width_value = tk.IntVar(value=int(LeftStripeWidth*100))
+    left_stripe_width_label = Label(options_dlg, text='Left stripe width %:', font=("Arial", FontSize))
+    left_stripe_width_label.grid(row=options_row, column=0, sticky=W, padx=5, pady=(10,5))
+    left_stripe_width_spinbox = tk.Spinbox(options_dlg, width=3,
+        textvariable=left_stripe_width_value, from_=5, to=95, increment=5, font=("Arial", FontSize))
+    left_stripe_width_spinbox.grid(row=options_row, column=1, sticky=W, padx=5)
+    as_tooltips.add(left_stripe_width_spinbox, "Left stripe width as percentage of frame width")
+
+    options_row += 1
+
+    # OK / Cancel buttons
     options_cancel_btn = tk.Button(options_dlg, text="Cancel", command=cmd_settings_popup_dismiss, width=8,
                                    font=("Arial", FontSize))
     options_cancel_btn.grid(row=options_row, column=0, padx=5, pady=(5,10), sticky='w')
@@ -4383,13 +4406,7 @@ def get_image_left_stripe(img):
     global HoleSearchTopLeft, HoleSearchBottomRight
     global template_list
 
-    ##return np.copy(img[0:img.shape[1], 0:int(img.shape[0] * factor)])
-    # Alternate left stripe width based on user provided %
-    # Leave last commented line, comment next three
-    left_stripe_width = template_list.get_active_position()[0]+template_list.get_active_size()[0]
-    left_stripe_width += int(left_stripe_width/2)
-    return np.copy(img[0:img.shape[1], 0:left_stripe_width])
-    #return np.copy(img[0:img.shape[1], 0:int(img.shape[1]*0.61)])
+    return np.copy(img[0:img.shape[1], 0:int(img.shape[1]*LeftStripeWidth)])
 
 
 def gamma_correct_image_old(src, gamma):
@@ -4465,9 +4482,7 @@ def get_target_position(frame_idx, img, orientation='v', threshold=10, slice_wid
                 raise ValueError("Slice width exceeds image width")
             sliced_image = img[:, pos:pos+slice_width]
         else:
-            # Alternate left stripe width based on user provided %
-            # Replace 0.25 with user provided value
-            sliced_image = img[pos:pos+slice_width, :int(width*0.25)]    # Don't need a full horizontal slice, holes must be in the leftmost 25%
+            sliced_image = img[pos:pos+slice_width, :int(width*LeftStripeWidth)]    # Don't need a full horizontal slice, holes must be in the leftmost 25%
 
         # Convert to pure black and white (binary image)
         _, binary_img = cv2.threshold(sliced_image, get_stabilization_threshold(), 255, cv2.THRESH_BINARY)
@@ -5014,9 +5029,7 @@ def set_hole_search_area(img):
     # Adjust left stripe width (search area)
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_bw = cv2.threshold(img_gray, 240, 255, cv2.THRESH_BINARY)[1]
-    # Alternate left stripe width based on user provided %
-    # Replace /4 with user provided value
-    img_target = img_bw[:, :int(img_bw.shape[1]/4)]  # Search only in the left 25% of the image
+    img_target = img_bw[:, :int(img_bw.shape[1]*LeftStripeWidth)]  # Search only in the left area of the image (user defined %)
     # Detect corner in image, to adjust search area width
     film_corner_template = template_list.get_template('aux','Corner')
     result = cv2.matchTemplate(img_target, film_corner_template, cv2.TM_CCOEFF_NORMED)
@@ -5027,10 +5040,7 @@ def set_hole_search_area(img):
     if extended_stabilization.get():
         logging.debug("Extended stabilization requested: Widening search area by 50 pixels")
         left_stripe_width += 50     # If precise stabilization, make search area wider (although not clear this will help instead of making it worse)
-    # limit search area with fo 25% of the image at most
-    # Alternate left stripe width based on user provided %
-    # Replace /4 with user provided value
-    left_stripe_width = min(left_stripe_width, int(img_bw.shape[1]/4))
+    left_stripe_width = min(left_stripe_width, int(img_bw.shape[1]*LeftStripeWidth))  # Search only in the left area of the image (user defined %)
     # Initialize default values for perforation search area,
     # as they are relative to image size
     # Get image dimensions first
