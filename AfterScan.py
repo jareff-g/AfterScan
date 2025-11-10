@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.14"
+__version__ = "1.30.16"
 __data_version__ = "1.0"
-__date__ = "2025-04-07"
-__version_highlight__ = "Adjust cufoff values for new combined criteria (template match + position) + adjust threshold step to aviid slowness"
+__date__ = "2025-11-10"
+__version_highlight__ = "Add option to allow a wider custom template and/wider template search area (for R8 film with image intersproke space)"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -271,6 +271,7 @@ CropBottomRight = (0, 0)
 max_loop_count = 0
 StabilizationShiftY = 0
 StabilizationShiftX = 0
+LeftStripeWidth = 0.25
 
 Force43 = False
 Force169 = False
@@ -383,14 +384,16 @@ class Template:
         self.name = name
         self.filename = filename
         self.type = type
-        self.scale = frame_width/2028
+        if self.type == 'custom':
+            self.scale = 1.0
+        else:
+            self.scale = frame_width/2028
         self.position = position
         self.scaled_position = (int(self.position[0] * self.scale),
                                 int(self.position[1] * self.scale))
         self.size = (0,0)
         if os.path.isfile(filename):
             self.template = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-
             self.scaled_template = resize_image(self.template, self.scale)
             # Calculate the white on black proportion to help with detection
             self.white_pixel_count = cv2.countNonZero(self.scaled_template)
@@ -399,6 +402,7 @@ class Template:
             self.size = (self.template.shape[1],self.template.shape[0])
             self.scaled_size = (int(self.size[0] * self.scale),
                                 int(self.size[1] * self.scale))
+            logging.debug(f"Init Template {self.type}, size: {self.size}, scaled size: {self.scaled_size}")
         else:
             self.template = None
             self.scaled_template = None
@@ -407,6 +411,10 @@ class Template:
             self.scaled_size = (0,0)
 
     def refresh(self):
+        if self.type == 'custom':
+            self.scale = 1.0
+        else:
+            self.scale = frame_width/2028
         self.template = cv2.imread(self.filename, cv2.IMREAD_GRAYSCALE)
         self.scaled_template = resize_image(self.template, self.scale)
         self.white_pixel_count = cv2.countNonZero(self.scaled_template)
@@ -417,6 +425,7 @@ class Template:
                             int(self.size[1] * self.scale))
         self.scaled_position = (int(self.position[0] * self.scale),
                                 int(self.position[1] * self.scale))
+        logging.debug(f"Init Template {self.type}, size: {self.size}, scaled size: {self.scaled_size}")
 
 
 class TemplateList:
@@ -481,15 +490,15 @@ class TemplateList:
 
     def set_active_position(self, position):
         self.active_template.scaled_position = position
-        self.active_template.position =  (int(t.scaled_position[0] / new_scale),
-                                    int(t.scaled_position[1] / new_scale))
+        self.active_template.position =  (int(t.scaled_position[0] / self.active_template.scale),
+                                    int(t.scaled_position[1] / self.active_template.scale))
     def get_active_size(self):
         return self.active_template.scaled_size
 
     def set_active_size(self, size):
         self.active_template.scaled_size = size
-        self.active_template.size = (int(t.scaled_size[0] / new_scale),
-                                int(t.scaled_size[1] / new_scale))
+        self.active_template.size = (int(size[0] / self.active_template.scale),
+                                int(size[1] / self.active_template.scale))
     def get_scale(self):
         # Size reference 2028x1520
         return self.active_template.scale   # Scale is dynamic, as it depends on the set of images currently loaded
@@ -499,7 +508,7 @@ class TemplateList:
         # Size reference 2028x1520
         new_scale = new_width/2028
         for t in self.templates:
-            if new_scale != t.scale:
+            if t.type != 'custom' and new_scale != t.scale:
                 t.scale = new_scale
                 t.scaled_position = (int(t.position[0] * new_scale),
                                     int(t.position[1] * new_scale))
@@ -658,6 +667,7 @@ def decode_general_config():
     global UserConsent, AnonymousUuid, LastConsentDate
     global SavedWithVersion, JobListFilename
     global precise_template_match, high_sensitive_bad_frame_detection
+    global LeftStripeWidth
     if 'SourceDir' in general_config:
         SourceDir = general_config["SourceDir"]
         # If directory in configuration does not exist, set current working dir
@@ -890,6 +900,7 @@ def decode_project_config():
     global high_sensitive_bad_frame_detection, current_bad_frame_index
     global precise_template_match
     global StabilizationShiftX, StabilizationShiftY
+    global LeftStripeWidth
 
     if 'SourceDir' in project_config:
         SourceDir = project_config["SourceDir"]
@@ -1101,6 +1112,11 @@ def decode_project_config():
 
     if 'CurrentBadFrameIndex' in project_config:
         current_bad_frame_index = project_config["CurrentBadFrameIndex"]
+
+    if 'LeftStripeWidth' in project_config:
+        LeftStripeWidth = project_config["LeftStripeWidth"]
+    else:
+        LeftStripeWidth = 0.25
 
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
@@ -2193,7 +2209,7 @@ def cmd_settings_popup_dismiss():
 
 def cmd_settings_popup_accept():
     global options_dlg, FfmpegBinName, enable_rectangle_popup, FFmpeg_denoise_param
-    global enable_soundtrack
+    global enable_soundtrack, LeftStripeWidth
 
     general_config["PopupPos"] = options_dlg.geometry()
 
@@ -2215,6 +2231,8 @@ def cmd_settings_popup_accept():
     if sound_file_available:
         enable_soundtrack = enable_soundtrack_value.get()
         general_config["EnableSoundtrack"] = enable_soundtrack
+    LeftStripeWidth = left_stripe_width_value.get() / 100
+    project_config["LeftStripeWidth"] = LeftStripeWidth
 
     options_dlg.grab_release()
     options_dlg.destroy()
@@ -2225,6 +2243,7 @@ def cmd_settings_popup():
     global custom_ffmpeg_path
     global FFmpeg_denoise_param, FfmpegBinName
     global ffmpeg_denoise_value, enable_rectangle_popup_value, enable_soundtrack_value
+    global left_stripe_width_value
 
     options_row = 0
 
@@ -2285,6 +2304,18 @@ def cmd_settings_popup():
     as_tooltips.add(enable_rectangle_popup_checkbox, "Display popup window to define custom template and cropping rectangle (vs definition in main window)")
     options_row += 1
 
+    # Left stripe width value
+    left_stripe_width_value = tk.IntVar(value=int(LeftStripeWidth*100))
+    left_stripe_width_label = Label(options_dlg, text='Left stripe width %:', font=("Arial", FontSize))
+    left_stripe_width_label.grid(row=options_row, column=0, sticky=W, padx=5, pady=(10,5))
+    left_stripe_width_spinbox = tk.Spinbox(options_dlg, width=3,
+        textvariable=left_stripe_width_value, from_=5, to=95, increment=5, font=("Arial", FontSize))
+    left_stripe_width_spinbox.grid(row=options_row, column=1, sticky=W, padx=5)
+    as_tooltips.add(left_stripe_width_spinbox, "Left stripe width as percentage of frame width")
+
+    options_row += 1
+
+    # OK / Cancel buttons
     options_cancel_btn = tk.Button(options_dlg, text="Cancel", command=cmd_settings_popup_dismiss, width=8,
                                    font=("Arial", FontSize))
     options_cancel_btn.grid(row=options_row, column=0, padx=5, pady=(5,10), sticky='w')
@@ -4071,8 +4102,8 @@ def match_level_color_bgr(t):
 
 
 def is_valid_template_size():
-    tw = template_list.get_active_size()[0]
-    th = template_list.get_active_size()[1]
+    tw = template_list.get_active_size()[0]/template_list.get_scale()
+    th = template_list.get_active_size()[1]/template_list.get_scale()
 
     file = SourceDirFileList[CurrentFrame]
     img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
@@ -4081,7 +4112,7 @@ def is_valid_template_size():
     ih = img.shape[0]
 
     if (tw >= iw or th >= ih):
-        logging.error("Template (%ix%i) bigger than search area (%ix%i)",tw, th, iw, ih)
+        logging.error("Template size (%ix%i) bigger than search area (%ix%i)",tw, th, iw, ih)
         return False
     else:
         return True
@@ -4117,7 +4148,7 @@ def match_template(frame_idx, img):
     if (tw >= iw or th >= ih):
         logging.error("Template (%ix%i) bigger than search area (%ix%i)",
                       tw, th, iw, ih)
-        return 0, (0, 0), 0, 0
+        return 0, (0, 0), 0, 0, 0
 
     Done = False
     retry_with_padding = False
@@ -4163,7 +4194,7 @@ def match_template(frame_idx, img):
             if retry_with_padding:
                 logging.debug(f"Frame {frame_idx+1} stabilized with padding (Top left: {best_top_left})")
                 maxVal, top_left = cv2_matchTemplate_with_padding(img_final, template, cv2.TM_CCOEFF_NORMED)
-                # Done = True
+                Done = True
             else:
                 aux = cv2.matchTemplate(img_final, template, cv2.TM_CCOEFF_NORMED)
                 (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(aux)
@@ -4194,7 +4225,7 @@ def match_template(frame_idx, img):
             best_maxVal = None
             best_img_final = None
             Done = False
-        elif (abs(template_list.get_active_position()[1]-best_top_left[1]) > ih//2):
+        elif (best_top_left is not None and abs(template_list.get_active_position()[1]-best_top_left[1]) > ih//2):
             logging.error(f"Shift too big: frame_idx {frame_idx+first_absolute_frame}, best_thres: {best_thres}, best_top_left: {best_top_left}, "
                             f"best_maxVal: {best_maxVal}, step_threshold: {step_threshold}, local_threshold: {local_threshold}, limit_threshold: {limit_threshold}")
             best_maxVal = 0.0
@@ -4375,10 +4406,7 @@ def get_image_left_stripe(img):
     global HoleSearchTopLeft, HoleSearchBottomRight
     global template_list
 
-    #return np.copy(img[0:img.shape[1], 0:int(img.shape[0] * factor)])
-    left_stripe_width = template_list.get_active_position()[0]+template_list.get_active_size()[0]
-    left_stripe_width += int(left_stripe_width/2)
-    return np.copy(img[0:img.shape[1], 0:left_stripe_width])
+    return np.copy(img[0:img.shape[1], 0:int(img.shape[1]*LeftStripeWidth)])
 
 
 def gamma_correct_image_old(src, gamma):
@@ -4454,7 +4482,7 @@ def get_target_position(frame_idx, img, orientation='v', threshold=10, slice_wid
                 raise ValueError("Slice width exceeds image width")
             sliced_image = img[:, pos:pos+slice_width]
         else:
-            sliced_image = img[pos:pos+slice_width, :int(width*0.25)]    # Don't need a full horizontal slice, holes must be in the leftmost 25%
+            sliced_image = img[pos:pos+slice_width, :int(width*LeftStripeWidth)]    # Don't need a full horizontal slice, holes must be in the leftmost 25%
 
         # Convert to pure black and white (binary image)
         _, binary_img = cv2.threshold(sliced_image, get_stabilization_threshold(), 255, cv2.THRESH_BINARY)
@@ -4558,7 +4586,7 @@ def calculate_frame_displacement_with_templates(frame_idx, img_ref, img_ref_alt 
             img_matched = best_img_matched
             break
 
-    if top_left[1] != -1 and match_level > 0.1:
+    if top_left is not None and top_left[1] != -1 and match_level > 0.1:
         move_x = hole_template_pos[0] - top_left[0]
         move_y = hole_template_pos[1] - top_left[1]
         """
@@ -4572,9 +4600,11 @@ def calculate_frame_displacement_with_templates(frame_idx, img_ref, img_ref_alt 
         move_x = 0
         move_y = 0
     log_line = f"T{id} - " if id != -1 else ""
-    logging.debug(log_line+f"Frame_idx: {frame_idx:5d}, Frame: {frame_idx+first_absolute_frame:5d}, threshold: {frame_treshold:3d}, template: ({hole_template_pos[0]:4d},{hole_template_pos[1]:4d}), top left: ({top_left[0]:4d},{top_left[1]:4d}), move_x:{move_x:4d}, move_y:{move_y:4d}")
-    debug_template_display_frame_raw(img_matched, top_left[0] - stabilization_shift_x_value.get(), top_left[1] - stabilization_shift_y_value.get(), film_hole_template.shape[1], film_hole_template.shape[0], match_level_color_bgr(match_level))
-    debug_template_display_info(frame_idx, frame_treshold, top_left, move_x, move_y)
+
+    if top_left is not None:
+        logging.debug(log_line+f"Frame_idx: {frame_idx:5d}, Frame: {frame_idx+first_absolute_frame:5d}, threshold: {frame_treshold:3d}, template: ({hole_template_pos[0]:4d},{hole_template_pos[1]:4d}), top left: ({top_left[0]:4d},{top_left[1]:4d}), move_x:{move_x:4d}, move_y:{move_y:4d}")
+        debug_template_display_frame_raw(img_matched, top_left[0] - stabilization_shift_x_value.get(), top_left[1] - stabilization_shift_y_value.get(), film_hole_template.shape[1], film_hole_template.shape[0], match_level_color_bgr(match_level))
+        debug_template_display_info(frame_idx, frame_treshold, top_left, move_x, move_y)
     return move_x, move_y, top_left, match_level, frame_treshold, num_loops
 
 
@@ -4999,7 +5029,7 @@ def set_hole_search_area(img):
     # Adjust left stripe width (search area)
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_bw = cv2.threshold(img_gray, 240, 255, cv2.THRESH_BINARY)[1]
-    img_target = img_bw[:, :int(img_bw.shape[1]/4)]  # Search only in the left 25% of the image
+    img_target = img_bw[:, :int(img_bw.shape[1]*LeftStripeWidth)]  # Search only in the left area of the image (user defined %)
     # Detect corner in image, to adjust search area width
     film_corner_template = template_list.get_template('aux','Corner')
     result = cv2.matchTemplate(img_target, film_corner_template, cv2.TM_CCOEFF_NORMED)
@@ -5010,8 +5040,7 @@ def set_hole_search_area(img):
     if extended_stabilization.get():
         logging.debug("Extended stabilization requested: Widening search area by 50 pixels")
         left_stripe_width += 50     # If precise stabilization, make search area wider (although not clear this will help instead of making it worse)
-    # limit search area with fo 25% of the image at most
-    left_stripe_width = min(left_stripe_width, int(img_bw.shape[1]/4))
+    left_stripe_width = min(left_stripe_width, int(img_bw.shape[1]*LeftStripeWidth))  # Search only in the left area of the image (user defined %)
     # Initialize default values for perforation search area,
     # as they are relative to image size
     # Get image dimensions first
@@ -7034,13 +7063,6 @@ def main(argv):
     # Create project settings dictionary
     project_settings = default_project_config.copy()
 
-    template_list = TemplateList()
-    template_list.add("S8", hole_template_filename_s8, "S8", (66, 838))     # New, smaller
-    template_list.add("R8", hole_template_filename_r8, "R8", (65, 1080)) # Default R8 (bottom hole)
-    template_list.add("BW", hole_template_filename_bw, "aux", (0, 0))
-    template_list.add("WB", hole_template_filename_wb, "aux", (0, 0))
-    template_list.add("Corner", hole_template_filename_corner, "aux", (0, 0))
-
     opts, args = getopt.getopt(argv, "hiel:dcst:12nab", ["goanyway"])
 
     for opt, arg in opts:
@@ -7098,6 +7120,14 @@ def main(argv):
         raise ValueError('Invalid log level: %s' % LogLevel)
     else:
         init_logging()
+
+    # Add default templates to template list
+    template_list = TemplateList()
+    template_list.add("S8", hole_template_filename_s8, "S8", (66, 838))     # New, smaller
+    template_list.add("R8", hole_template_filename_r8, "R8", (65, 1080)) # Default R8 (bottom hole)
+    template_list.add("BW", hole_template_filename_bw, "aux", (0, 0))
+    template_list.add("WB", hole_template_filename_wb, "aux", (0, 0))
+    template_list.add("Corner", hole_template_filename_corner, "aux", (0, 0))
 
     templates_ok, error_msg = verify_templates()
     if not templates_ok:
