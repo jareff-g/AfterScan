@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.16"
+__version__ = "1.30.17"
 __data_version__ = "1.0"
-__date__ = "2025-11-10"
-__version_highlight__ = "Add option to allow a wider custom template and/wider template search area (for R8 film with image intersproke space)"
+__date__ = "2025-11-11"
+__version_highlight__ = "Fix a few bugs, see commit comment for details"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -355,6 +355,8 @@ CsvPathName = ""
 CsvFramesOffPercent = 0
 match_level_average = None
 horizontal_offset_average = None
+move_x_average = None
+move_y_average = None
 
 SavedWithVersion = None # Used to retrieve version from config file (with wich version was this config last saved)
 
@@ -1743,6 +1745,7 @@ def set_source_folder():
     global first_absolute_frame
     global project_name
     global current_bad_frame_index
+    global ui_init_done
 
     # Write project data before switching project
     save_project_config()
@@ -1759,6 +1762,8 @@ def set_source_folder():
             "Source folder cannot be the same as target folder.")
         return
     else:
+        win.config(cursor="watch")  # Set cursor to hourglass
+        ui_init_done = False
         SourceDir = aux_dir
         frames_source_dir.delete(0, 'end')
         frames_source_dir.insert('end', SourceDir)
@@ -1796,6 +1801,8 @@ def set_source_folder():
     init_display()
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
+    ui_init_done = True
+    win.config(cursor="")  # Reset cursor to standard arrow
 
 
 
@@ -1977,7 +1984,8 @@ def update_frame_from(event):
     if len(frame_from_str.get()) == 0 or frame_from_str.get() == '0' or event.num == 2:
         frame_from_str.set(CurrentFrame)
     else:
-        select_scale_frame(frame_from_str.get())
+        if ui_init_done:
+            select_scale_frame(frame_from_str.get())
         frame_slider.set(frame_from_str.get())
 
 
@@ -1987,7 +1995,8 @@ def update_frame_to(event):
     if len(frame_to_str.get()) == 0 or frame_to_str.get() == '0' or event.num == 2:
         frame_to_str.set(CurrentFrame)
     else:
-        select_scale_frame(frame_to_str.get())
+        if ui_init_done:
+            select_scale_frame(frame_to_str.get())
         frame_slider.set(frame_to_str.get())
 
 def on_paste_all_entries(event, entry):
@@ -3515,10 +3524,20 @@ def select_scale_frame(selected_frame):
         if frame_scale_refresh_done:
             frame_scale_refresh_done = False
             frame_scale_refresh_pending = False
-            win.after(5, scale_display_update, False)
+            if ui_init_done:
+                win.after(5, scale_display_update, False)
         else:
             frame_scale_refresh_pending = True
 
+
+def process_scale_value(event):
+    """
+    This function is called ONLY when the left mouse button (Button 1)
+    is released on the Scale widget.
+    """
+    # Get the current value from the scale widget
+    select_scale_frame(frame_slider.get())
+    
 
 ################################
 # Second level support functions
@@ -3947,7 +3966,8 @@ def select_cropping_area():
     widget_status_update(NORMAL, 0)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
-    win.after(5, scale_display_update, False)
+    if ui_init_done:
+        win.after(5, scale_display_update, False)
     win.update()
 
 
@@ -4533,7 +4553,8 @@ def get_target_position(frame_idx, img, orientation='v', threshold=10, slice_wid
             offset = int(width*0.08) - result   # Return offset of the hole vertical edge with respect to the expected position
             horizontal_offset_average.add_value(offset)
             # Difference between actual horizontal offset and average one should be smaller than 30 pixels (not much horizontal movement expected)
-            if horizontal_offset_average.get_average() is not None and abs(horizontal_offset_average.get_average()-offset) > 30:
+            # Make original gap of 30 pizels relative to width of the image (1.5% of width)
+            if horizontal_offset_average.get_average() is not None and abs(horizontal_offset_average.get_average()-offset) > int(width*0.015):
                 logging.warning(f"Frame {frame_idx}: Too much deviation of horizontal offset {offset}, respect to average {int(horizontal_offset_average.get_average())}.")
                 offset = horizontal_offset_average.get_average()
     else:
@@ -4718,10 +4739,19 @@ def stabilize_image(frame_idx, img, img_ref, offset_x = 0, offset_y = 0, img_ref
     stabilization_threshold_match_label.config(fg='white', bg=match_level_color(match_level),
                                                text=str(int(match_level * 100)))
     if ConvertLoopRunning:
+        move_too_big = False
         # Calculate rolling average of match level
         match_level_average.add_value(match_level)
-        if missing_rows > 0 or match_level < 0.9:
-            if match_level < 0.7 if not high_sensitive_bad_frame_detection else 0.9:   # Only add really bad matches
+        if len(move_x_average.window) > 10 and move_x_average.get_average() is not None and abs(move_x - move_x_average.get_average()) > width*0.05:
+            move_too_big = True
+        else:
+            move_x_average.add_value(move_x)
+        if len(move_y_average.window) > 10 and move_y_average.get_average() is not None and abs(move_y - move_y_average.get_average()) > height*0.15:
+            move_too_big = True
+        else:
+            move_y_average.add_value(move_y)
+        if missing_rows > 0 or match_level < 0.9 or move_too_big:
+            if match_level < (0.7 if not high_sensitive_bad_frame_detection else 0.9) or move_too_big:   # Only add really bad matches
                 ### Record bad frames always
                 if True or FrameSync_Viewer_opened:  # Generate bad frame list only if popup opened
                     insert_or_replace_sorted(bad_frame_list, {'frame_idx': frame_idx, 'x': 0, 'y': 0, 
@@ -5184,6 +5214,8 @@ def start_convert():
                     csv_file.write("Frame, Missing rows, Threshold, Num loops, Match level, move_x, move_y\n")
             match_level_average.clear()
             horizontal_offset_average.clear()
+            move_x_average.clear()
+            move_y_average.clear()
             # Disable manual stabilize popup widgets
             FrameSync_Viewer_popup_update_widgets(DISABLED)
             # Multiprocessing: Start all threads before encoding
@@ -5966,7 +5998,10 @@ def init_display():
     else:
         PreviewRatio = PreviewHeight/image_height
 
-    win.after(5, scale_display_update)
+    if ui_init_done:
+        frame_slider.set(CurrentFrame)
+        select_scale_frame(CurrentFrame)
+        win.after(5, scale_display_update)
 
 
 def init_logging():
@@ -6027,7 +6062,7 @@ def afterscan_init():
     global screen_height
     global BigSize, FontSize
     global MergeMertens, AlignMtb
-    global match_level_average, horizontal_offset_average
+    global match_level_average, horizontal_offset_average, move_x_average, move_y_average
 
     win = Tk()  # Create main window, store it in 'win'
 
@@ -6065,6 +6100,8 @@ def afterscan_init():
     # Init rolling Averages
     match_level_average = RollingAverage(50)
     horizontal_offset_average = RollingAverage(50)
+    move_x_average = RollingAverage(50)
+    move_y_average = RollingAverage(50)
 
     # Get Top window coordinates
     TopWinX = win.winfo_x()
@@ -6210,8 +6247,10 @@ def build_ui():
     # New scale under canvas 
     frame_selected = IntVar()
     frame_slider = Scale(border_frame, orient=HORIZONTAL, from_=0, to=0, showvalue=False,
-                         variable=frame_selected, command=select_scale_frame, highlightthickness=1,
+                         variable=frame_selected, highlightthickness=1,
                          length=PreviewWidth, takefocus=1, font=("Arial", FontSize))
+    frame_slider.bind("<ButtonRelease-1>", process_scale_value)
+    frame_slider.bind("<KeyRelease>", process_scale_value)
     frame_slider.pack(side=BOTTOM, pady=4)
     frame_slider.set(CurrentFrame)
     as_tooltips.add(frame_slider, "Browse around frames to be processed")
@@ -6474,7 +6513,7 @@ def build_ui():
 
     # Stabilization shift: Since film might not be centered around hole(s) this gives the option to move it up/down
     # Spinbox for gamma correction
-    stabilization_shift_label = tk.Label(postprocessing_frame, text='Compensation:',
+    stabilization_shift_label = tk.Label(postprocessing_frame, text='Offset X/Y:',
                                         width=14, font=("Arial", FontSize))
     stabilization_shift_label.grid(row=postprocessing_row, column=1, columnspan=1, sticky=E)
 
@@ -6482,7 +6521,7 @@ def build_ui():
     stabilization_shift_x_spinbox = tk.Spinbox(postprocessing_frame, width=3, command=select_stabilization_shift_x,
         textvariable=stabilization_shift_x_value, from_=-150, to=150, increment=-5, font=("Arial", FontSize))
     stabilization_shift_x_spinbox.grid(row=postprocessing_row, column=2, sticky=W)
-    as_tooltips.add(stabilization_shift_x_spinbox, "Allows to move the frame up or down after stabilization "
+    as_tooltips.add(stabilization_shift_x_spinbox, "Allows to shift the frame left or right after stabilization "
                                 "(to compensate for films where the frame is not centered around the hole/holes)")
     stabilization_shift_x_spinbox.bind("<FocusOut>", select_stabilization_shift_x)
 
@@ -6490,7 +6529,7 @@ def build_ui():
     stabilization_shift_y_spinbox = tk.Spinbox(postprocessing_frame, width=3, command=select_stabilization_shift_y,
         textvariable=stabilization_shift_y_value, from_=-150, to=150, increment=-5, font=("Arial", FontSize))
     stabilization_shift_y_spinbox.grid(row=postprocessing_row, column=2, sticky=E)
-    as_tooltips.add(stabilization_shift_y_spinbox, "Allows to move the frame up or down after stabilization "
+    as_tooltips.add(stabilization_shift_y_spinbox, "Allows to shift the frame up or down after stabilization "
                                 "(to compensate for films where the frame is not centered around the hole/holes)")
     stabilization_shift_y_spinbox.bind("<FocusOut>", select_stabilization_shift_y)
 
