@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.17"
+__version__ = "1.30.18"
 __data_version__ = "1.0"
 __date__ = "2025-11-11"
-__version_highlight__ = "Fix a few bugs, see commit comment for details"
+__version_highlight__ = "Fix match_template function: When High-accuracy alignment was not selected, match was too loose, causing misalignments in some cases."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -4226,8 +4226,12 @@ def match_template(frame_idx, img):
                 best_top_left = top_left
                 best_maxVal = maxVal
                 best_img_final = img_final
-            if not precise_template_match or best_match_level >= 0.85 or (best_match_level >= 0.7 and maxVal * pos_criteria < best_match_level):
-                Done = True # If threshold if really good, or much worse than best so far (means match level started decreasing in this loop), then end
+            if precise_template_match:
+                if best_match_level >= 0.85 or (best_match_level >= 0.7 and maxVal * pos_criteria < best_match_level):
+                    Done = True # If threshold if really good, or much worse than best so far (means match level started decreasing in this loop), then end
+            else:
+                if best_match_level >= 0.50 or (best_match_level >= 0.4 and maxVal * pos_criteria < best_match_level):
+                    Done = True # If threshold if really good, or much worse than best so far (means match level started decreasing in this loop), then end
             if not Done: # Quality not good enough, try another threshold
                 local_threshold += step_threshold
                 if (step_threshold < 0 and local_threshold <= limit_threshold) or (step_threshold > 0 and local_threshold >= limit_threshold) :
