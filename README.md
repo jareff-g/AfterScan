@@ -6,7 +6,7 @@ Feel free to join our Discord server to discuss and get support!
 
 You can also visit the [wiki](https://github.com/jareff-g/AfterScan/wiki), where you can find a [description of the AfterScan UI](https://github.com/jareff-g/AfterScan/wiki/AfterScan-user-interface-description), and a [FAQ](https://github.com/jareff-g/AfterScan/wiki/Frequently-Asked-Questions) with answers to the most common questions
 
-# AfterScan - R8/S8 film post-scan utility 
+# AfterScan - R8/S8 film post-processing utility for T-Scann8 (or any similar film scanner)
 
 AfterScan can handle several post-processing tasks once film scanning is completed in ALT-Scann8.
 
