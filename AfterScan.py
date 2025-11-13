@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.18"
+__version__ = "1.30.19"
 __data_version__ = "1.0"
-__date__ = "2025-11-11"
-__version_highlight__ = "Fix match_template function: When High-accuracy alignment was not selected, match was too loose, causing misalignments in some cases."
+__date__ = "2025-11-13"
+__version_highlight__ = "Bug fix: Frame was not updated when switching source folder"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -6002,10 +6002,9 @@ def init_display():
     else:
         PreviewRatio = PreviewHeight/image_height
 
-    if ui_init_done:
-        frame_slider.set(CurrentFrame)
-        select_scale_frame(CurrentFrame)
-        win.after(5, scale_display_update)
+    frame_slider.set(CurrentFrame)
+    select_scale_frame(CurrentFrame)
+    win.after(5, scale_display_update)
 
 
 def init_logging():
