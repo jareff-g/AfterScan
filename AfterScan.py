@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.19"
+__version__ = "1.30.20"
 __data_version__ = "1.0"
-__date__ = "2025-11-13"
-__version_highlight__ = "Bug fix: Frame was not updated when switching source folder"
+__date__ = "2025-11-14"
+__version_highlight__ = "Set hourglass cursor on startup while display is arranged"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -911,12 +911,13 @@ def decode_project_config():
         if not os.path.isdir(SourceDir):
             SourceDir = ""
             project_name = "No Project"
+        else:
+            get_source_dir_file_list()
         frames_source_dir.delete(0, 'end')
         frames_source_dir.insert('end', SourceDir)
         frames_source_dir.after(100, frames_source_dir.xview_moveto, 1)
         # Need to retrieve source file list at this point, since win.update at the end of thi sfunction will force a refresh of the preview
         # If we don't do it here, an oimage from the previou ssource folder will be displayed instead
-        get_source_dir_file_list()
     if 'TargetDir' in project_config:
         TargetDir = project_config["TargetDir"]
         # If directory in configuration does not exist, set current working dir
@@ -7231,6 +7232,7 @@ def main(argv):
             "video generation will not")
 
     build_ui()
+    win.config(cursor="watch")  # Set cursor to hourglass
     widget_status_update()
 
     if SourceDir is not None:
@@ -7275,6 +7277,8 @@ def main(argv):
     if BatchAutostart:
         suspend_on_joblist_end.set(True)
         win.after(2000, start_processing_job_list) # Wait 2 sec. to allow main loop to start
+
+    win.config(cursor="")  # Set cursor to hourglass
 
     # Main Loop
     win.mainloop()  # running the loop that works as a trigger
