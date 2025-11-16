@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.20"
+__version__ = "1.30.21"
 __data_version__ = "1.0"
-__date__ = "2025-11-14"
-__version_highlight__ = "Set hourglass cursor on startup while display is arranged"
+__date__ = "2025-11-16"
+__version_highlight__ = "Bug fixes and template handling improvements"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -271,7 +271,8 @@ CropBottomRight = (0, 0)
 max_loop_count = 0
 StabilizationShiftY = 0
 StabilizationShiftX = 0
-LeftStripeWidth = 0.25
+UserDefinedLeftStripeWidthProportion = 0.25
+CalculatedLeftStripeWidth = 0
 
 Force43 = False
 Force169 = False
@@ -669,7 +670,7 @@ def decode_general_config():
     global UserConsent, AnonymousUuid, LastConsentDate
     global SavedWithVersion, JobListFilename
     global precise_template_match, high_sensitive_bad_frame_detection
-    global LeftStripeWidth
+    global UserDefinedLeftStripeWidthProportion
     if 'SourceDir' in general_config:
         SourceDir = general_config["SourceDir"]
         # If directory in configuration does not exist, set current working dir
@@ -902,7 +903,7 @@ def decode_project_config():
     global high_sensitive_bad_frame_detection, current_bad_frame_index
     global precise_template_match
     global StabilizationShiftX, StabilizationShiftY
-    global LeftStripeWidth
+    global UserDefinedLeftStripeWidthProportion
 
     if 'SourceDir' in project_config:
         SourceDir = project_config["SourceDir"]
@@ -1116,10 +1117,12 @@ def decode_project_config():
     if 'CurrentBadFrameIndex' in project_config:
         current_bad_frame_index = project_config["CurrentBadFrameIndex"]
 
-    if 'LeftStripeWidth' in project_config:
-        LeftStripeWidth = project_config["LeftStripeWidth"]
+    if 'UserDefinedLeftStripeWidthProportion' in project_config:
+        UserDefinedLeftStripeWidthProportion = project_config["UserDefinedLeftStripeWidthProportion"]
     else:
-        LeftStripeWidth = 0.25
+        UserDefinedLeftStripeWidthProportion = 0.25
+
+    adjust_dimensions_based_on_frame()
 
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
@@ -2219,7 +2222,7 @@ def cmd_settings_popup_dismiss():
 
 def cmd_settings_popup_accept():
     global options_dlg, FfmpegBinName, enable_rectangle_popup, FFmpeg_denoise_param
-    global enable_soundtrack, LeftStripeWidth
+    global enable_soundtrack, UserDefinedLeftStripeWidthProportion
 
     general_config["PopupPos"] = options_dlg.geometry()
 
@@ -2241,8 +2244,8 @@ def cmd_settings_popup_accept():
     if sound_file_available:
         enable_soundtrack = enable_soundtrack_value.get()
         general_config["EnableSoundtrack"] = enable_soundtrack
-    LeftStripeWidth = left_stripe_width_value.get() / 100
-    project_config["LeftStripeWidth"] = LeftStripeWidth
+    UserDefinedLeftStripeWidthProportion = left_stripe_width_value.get() / 100
+    project_config["UserDefinedLeftStripeWidthProportion"] = UserDefinedLeftStripeWidthProportion
 
     options_dlg.grab_release()
     options_dlg.destroy()
@@ -2315,7 +2318,7 @@ def cmd_settings_popup():
     options_row += 1
 
     # Left stripe width value
-    left_stripe_width_value = tk.IntVar(value=int(LeftStripeWidth*100))
+    left_stripe_width_value = tk.IntVar(value=int(UserDefinedLeftStripeWidthProportion*100))
     left_stripe_width_label = Label(options_dlg, text='Left stripe width %:', font=("Arial", FontSize))
     left_stripe_width_label.grid(row=options_row, column=0, sticky=W, padx=5, pady=(10,5))
     left_stripe_width_spinbox = tk.Spinbox(options_dlg, width=3,
@@ -2533,7 +2536,7 @@ def delete_detected_bad_frames():
     return retvalue
 
 
-def delete_current_bad_frame_info(event):
+def delete_current_bad_frame_info():
     global current_bad_frame_index, StabilizationThreshold
     # bad_frame_list elements = Frame index, x offset, y offset, stabilization threshold, is frame saved)
     if current_bad_frame_index != -1:
@@ -2644,6 +2647,9 @@ def FrameSync_Viewer_popup_refresh():
     else:
         bad_frames_on_right_value.set(0)
         threshold_value.set(0)
+
+    debug_template_refresh_template()
+
 
 def display_bad_frame_previous(count, skip_minor = False):
     global current_bad_frame_index, StabilizationThreshold
@@ -3396,14 +3402,14 @@ def debug_template_refresh_template():
         # Resize factor calculated when settign source folder
         aux = resize_image(template_list.get_active_template(), FrameSync_Images_Factor)
         _, top, bottom = get_target_position(0, aux, 'v')  # get positions to draw template limits
-        template_canvas.config(width=int(template_list.get_active_size()[0]*FrameSync_Images_Factor))
+        template_canvas.config(width=int(template_list.get_active_size()[0]*FrameSync_Images_Factor), height=int(frame_height*FrameSync_Images_Factor))
         DisplayableImage = ImageTk.PhotoImage(Image.fromarray(aux))
         template_canvas.image = DisplayableImage #keep reference
         template_canvas.itemconfig(template_canvas.image_id, image=template_canvas.image)
         hole_template_pos = template_list.get_active_position()
         template_canvas.coords(template_canvas.image_id, 0, int((hole_template_pos[1] + stabilization_shift_y_value.get()) *FrameSync_Images_Factor))
 
-        # Delete previou slines before drawing new ones
+        # Delete previous lines before drawing new ones
         for id in template_canvas.item_ids:
             template_canvas.delete(id)
         # Draw a line (start x1, y1, end x2, y2)
@@ -3474,7 +3480,7 @@ def scale_display_update(update_filters=True, offset_x = 0, offset_y = 0):
     else:
         if hole_search_area_adjustment_pending:
             hole_search_area_adjustment_pending = False
-            set_hole_search_area(img)
+            define_template_search_area(img)
         if not frame_scale_refresh_pending:
             if perform_rotation.get():
                 img = rotate_image(img)
@@ -3579,7 +3585,7 @@ def detect_film_type():
         img = cv2.imread(SourceDirFileList[frame_to_check], cv2.IMREAD_UNCHANGED)
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img_bw = cv2.threshold(img_gray, StabilizationThreshold_default, 255, cv2.THRESH_BINARY)[1]
-        search_img = get_image_left_stripe(img_bw)
+        search_img = get_image_left_stripe(img_bw, calculated=False)
         result = cv2.matchTemplate(search_img, template_1, cv2.TM_CCOEFF_NORMED)
         (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
         top_left_1 = (maxLoc[1], maxLoc[0])
@@ -3602,12 +3608,12 @@ def detect_film_type():
         logging.debug(f"Changed film type to {other_film_type}")
 
 
-def load_image(file, is_cropping):
+def load_image_for_rectangle_definition(file, is_cropping):
     # load the image, clone it, and setup the mouse callback function
     ### img = Image.open(file)  # Store original image
     img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
     if not is_cropping:   # only take left stripe if not for cropping
-        img = get_image_left_stripe(img)
+        img = get_image_left_stripe(img, calculated=False)
     # Rotate image if required
     if perform_rotation.get():
         img = rotate_image(img)
@@ -3893,7 +3899,7 @@ def select_rectangle_area(is_cropping=False):
     if os.path.isfile(file3):  # If hdr frames exist, add them
         file = file3
 
-    image = load_image(file, is_cropping)
+    image = load_image_for_rectangle_definition(file, is_cropping)
     if enable_rectangle_popup:
         retvalue = interactive_rectangle_definition_cv2(image, is_cropping)
     else:
@@ -4011,12 +4017,12 @@ def select_custom_template():
             file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (CurrentFrame + 1, 2, file_type))
             if os.path.isfile(file3):  # If hdr frames exist, add them
                 file = file3
-            img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
+            full_img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
             # test to stabilize custom template itself using simple algorithm (commented as it affects custom template definition)
             #move_x, move_y = calculate_frame_displacement_simple(CurrentFrame, img)
             #img = shift_image(img, img.shape[1], img.shape[0], move_x, move_y)
 
-            img = crop_image(img, RectangleTopLeft, RectangleBottomRight)
+            img = crop_image(full_img, RectangleTopLeft, RectangleBottomRight)
             img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
             # Apply Otsu's thresholding if requested (for low contrast frames)
@@ -4041,6 +4047,8 @@ def select_custom_template():
 
             project_config['CustomTemplateExpectedPos'] = template_list.get_active_position()
             project_config['CustomTemplateName'] = template_list.get_active_name()
+
+            define_template_search_area(full_img)  # Adjust hole search area to new template
 
             if enable_rectangle_popup:
                 # Display saved template for information
@@ -4427,11 +4435,12 @@ def get_image_left_stripe_old(img):
     vertical_range = (HoleSearchTopLeft[1], HoleSearchBottomRight[1])
     return np.copy(img[vertical_range[0]:vertical_range[1], horizontal_range[0]:horizontal_range[1]])
 
-def get_image_left_stripe(img):
+def get_image_left_stripe(img, calculated=True):
     global HoleSearchTopLeft, HoleSearchBottomRight
     global template_list
 
-    return np.copy(img[0:img.shape[1], 0:int(img.shape[1]*LeftStripeWidth)])
+    width = CalculatedLeftStripeWidth if calculated else int(UserDefinedLeftStripeWidthProportion*img.shape[1])
+    return np.copy(img[0:img.shape[1], 0:width])
 
 
 def gamma_correct_image_old(src, gamma):
@@ -4507,7 +4516,7 @@ def get_target_position(frame_idx, img, orientation='v', threshold=10, slice_wid
                 raise ValueError("Slice width exceeds image width")
             sliced_image = img[:, pos:pos+slice_width]
         else:
-            sliced_image = img[pos:pos+slice_width, :int(width*LeftStripeWidth)]    # Don't need a full horizontal slice, holes must be in the leftmost 25%
+            sliced_image = img[pos:pos+slice_width, :CalculatedLeftStripeWidth]    # Don't need a full horizontal slice, holes must be in the leftmost 25%
 
         # Convert to pure black and white (binary image)
         _, binary_img = cv2.threshold(sliced_image, get_stabilization_threshold(), 255, cv2.THRESH_BINARY)
@@ -4716,7 +4725,6 @@ def stabilize_image(frame_idx, img, img_ref, offset_x = 0, offset_y = 0, img_ref
     """
     global SourceDirFileList
     global first_absolute_frame, StartFrame
-    global HoleSearchTopLeft, HoleSearchBottomRight
     global CropTopLeft, CropBottomRight, win
     global project_name
     global frame_fill_type, extended_stabilization
@@ -4895,6 +4903,7 @@ def get_source_dir_file_list():
     global CropBottomRight
     global file_type, file_type_out
     global FrameSync_Images_Factor
+    global frame_height, frame_width
 
     if not os.path.isdir(SourceDir):
         return
@@ -4973,13 +4982,27 @@ def get_source_dir_file_list():
     frame_slider.config(from_=0, to=len(SourceDirFileList)-1)
     refresh_current_frame_ui_info(CurrentFrame, first_absolute_frame)
 
-    # In order to determine hole height, no not take the first frame, as often
+    # In order to determine template dimensons, no not take the first frame, as often
     # it is not so good. Take a frame 10% ahead in the set
-    sample_frame = CurrentFrame + int((len(SourceDirFileList) - CurrentFrame) * 0.1)
-    work_image = cv2.imread(SourceDirFileList[sample_frame], cv2.IMREAD_UNCHANGED)
-    # Set frame dimensions in globañl variable, for use everywhere
-    frame_width = work_image.shape[1]
-    frame_height = work_image.shape[0]
+    sample_frame = int(len(SourceDirFileList) * 0.1)
+    aux_image = cv2.imread(SourceDirFileList[sample_frame], cv2.IMREAD_UNCHANGED)
+    # Set frame dimensions in global variable, for use everywhere
+    frame_width = aux_image.shape[1]
+    frame_height = aux_image.shape[0]
+    template_list.set_scale(frame_width)    # frame_width set by get_source_dir_file_list
+
+    return len(SourceDirFileList)
+
+
+def adjust_dimensions_based_on_frame():
+    global CropBottomRight, frame_height, frame_width, FrameSync_Images_Factor
+
+    # In order to determine template dimensons, no not take the first frame, as often
+    # it is not so good. Take a frame 10% ahead in the set
+    sample_frame = int(len(SourceDirFileList) * 0.1)
+    aux_image = cv2.imread(SourceDirFileList[sample_frame], cv2.IMREAD_UNCHANGED)
+    # Frame dimensions, and template scale, are established as soon as new frame set is loaded
+    
     # Set reduction factor for frameview images
     FrameSync_Images_Factor = 670 / frame_width
     # Next 3 statements were done only if batch mode was not active, but they are needed in all cases
@@ -4987,11 +5010,11 @@ def get_source_dir_file_list():
         # why skipping it?
         # logging.debug("Skipping hole template adjustment in batch mode")
         logging.debug("Adjusting hole template in batch mode...")
-        set_hole_search_area(work_image)
+        define_template_search_area(aux_image)
         detect_film_type()
     else:
         logging.debug("Adjusting hole template in standard mode...")
-        set_hole_search_area(work_image)
+        define_template_search_area(aux_image)
         detect_film_type()
     # Select area window should be proportional to screen height
     # Deduct 120 pixels (approximately) for taskbar + window title
@@ -5004,7 +5027,6 @@ def get_source_dir_file_list():
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
     
-    return len(SourceDirFileList)
 
 
 def get_target_dir_file_list():
@@ -5055,42 +5077,33 @@ def valid_generated_frame_range():
     return file_count == frames_to_encode
 
 
-def set_hole_search_area(img):
+# Determine width of template search area based on the template used
+def define_template_search_area(img):
     global HoleSearchTopLeft, HoleSearchBottomRight
     global TemplateTopLeft, template_list
     global template_wb_proportion_text
     global extended_stabilization
+    global CalculatedLeftStripeWidth
 
+    # Sproket hole corner to be detected in image, to adjust search area width
+    aux_template = template_list.get_active_template()
+    if aux_template.shape[1] > int(img.shape[1]*UserDefinedLeftStripeWidthProportion):
+        TemplateSearchAreaWidth = aux_template.shape[1]
+    else:
+        TemplateSearchAreaWidth = int(img.shape[1]*UserDefinedLeftStripeWidthProportion)
     # Adjust left stripe width (search area)
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_bw = cv2.threshold(img_gray, 240, 255, cv2.THRESH_BINARY)[1]
-    img_target = img_bw[:, :int(img_bw.shape[1]*LeftStripeWidth)]  # Search only in the left area of the image (user defined %)
-    # Detect corner in image, to adjust search area width
-    film_corner_template = template_list.get_template('aux','Corner')
-    result = cv2.matchTemplate(img_target, film_corner_template, cv2.TM_CCOEFF_NORMED)
+    img_target = img_bw[:, :TemplateSearchAreaWidth]  # Search only in the left area of the image (user defined %)
+
+    result = cv2.matchTemplate(img_target, aux_template, cv2.TM_CCOEFF_NORMED)
     (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
-    left_stripe_width = maxLoc[0] + template_list.get_active_size()[0]
-    left_stripe_width += int(80 * img.shape[0]/1520)   # Increase width, proportional to the image size (250 pixels for default size 2028x1520)
-    logging.debug(f"Calculated left stripe width: {left_stripe_width}")
+    CalculatedLeftStripeWidth = maxLoc[0] + template_list.get_active_size()[0]
+    CalculatedLeftStripeWidth += int(80 * img.shape[0]/1520)   # Increase width, proportional to the image size (250 pixels for default size 2028x1520)
+    logging.debug(f"Calculated left stripe width: {CalculatedLeftStripeWidth}")
     if extended_stabilization.get():
         logging.debug("Extended stabilization requested: Widening search area by 50 pixels")
-        left_stripe_width += 50     # If precise stabilization, make search area wider (although not clear this will help instead of making it worse)
-    left_stripe_width = min(left_stripe_width, int(img_bw.shape[1]*LeftStripeWidth))  # Search only in the left area of the image (user defined %)
-    # Initialize default values for perforation search area,
-    # as they are relative to image size
-    # Get image dimensions first
-    height = img.shape[0]
-    # Default values are needed before the stabilization search area
-    # has been defined, therefore we initialized them here
-    HoleSearchTopLeft = (0, 0)
-    HoleSearchBottomRight = (left_stripe_width, height)   # Before, search area width was 20% of image width
-    '''
-    # Now that we know the size of search area for the current project, we can calculate the WoB proportion
-    # Width of search area as it is wider, and height of template as it is shorter
-    template_list.set_active_wb_proportion(template_list.get_active_white_pixel_count() / (left_stripe_width * template_list.get_active_size()[1]))
-    if FrameSync_Viewer_opened:
-        template_wb_proportion_text.set(f"WoB proportion: {template_list.get_active_wb_proportion() * 100:2.1f}%")
-    '''
+        CalculatedLeftStripeWidth += 50     # If precise stabilization, make search area wider (although not clear this will help instead of making it worse)
 
 """
 ########################
@@ -5991,6 +6004,8 @@ def init_display():
     if len(SourceDirFileList) == 0:
         return
 
+    if CurrentFrame >= len(SourceDirFileList):
+        CurrentFrame = len(SourceDirFileList) - 1
     file = SourceDirFileList[CurrentFrame]
 
     img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
