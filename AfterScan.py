@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.21"
+__version__ = "1.30.22"
 __data_version__ = "1.0"
 __date__ = "2025-11-16"
-__version_highlight__ = "Bug fixes and template handling improvements"
+__version_highlight__ = "Fix some mem leaks when updating canvases + improve stabilization in extreme cases"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -2963,6 +2963,9 @@ def FrameSync_Viewer_popup():
         FrameSync_Viewer_opened = False # Set to false first, to avoid interactions with deleted elements
         StabilizationThreshold = StabilizationThreshold_default   # Restore original value
         general_config["TemplatePopupWindowPos"] = template_popup_window.geometry()
+        template_canvas.destroy()
+        left_stripe_canvas.destroy()
+        left_stripe_stabilized_canvas.destroy()
         template_popup_window.destroy()
         # Release button
         display_template_popup_btn.config(relief=RAISED)
@@ -3404,7 +3407,13 @@ def debug_template_refresh_template():
         _, top, bottom = get_target_position(0, aux, 'v')  # get positions to draw template limits
         template_canvas.config(width=int(template_list.get_active_size()[0]*FrameSync_Images_Factor), height=int(frame_height*FrameSync_Images_Factor))
         DisplayableImage = ImageTk.PhotoImage(Image.fromarray(aux))
+        # Delete reference to previous image, if any
+        aux_image = None
+        if hasattr(template_canvas, 'image'):
+            aux_image = template_canvas.image
         template_canvas.image = DisplayableImage #keep reference
+        if aux_image is not None:
+            del aux_image
         template_canvas.itemconfig(template_canvas.image_id, image=template_canvas.image)
         hole_template_pos = template_list.get_active_position()
         template_canvas.coords(template_canvas.image_id, 0, int((hole_template_pos[1] + stabilization_shift_y_value.get()) *FrameSync_Images_Factor))
@@ -3446,7 +3455,13 @@ def debug_template_display_frame(canvas, canvas_image_id, img, x, y, width, heig
             pil_image = Image.fromarray(resized_image)
             photo_image = ImageTk.PhotoImage(image=pil_image)
             canvas.config(height=int(img_height*FrameSync_Images_Factor), width=int(img_width*FrameSync_Images_Factor))
+            # Delete reference to previous image, if any
+            aux_image = None
+            if hasattr(canvas, 'image'):
+                aux_image = canvas.image
             canvas.image = photo_image
+            if aux_image is not None:
+                del aux_image
             canvas.itemconfig(canvas_image_id, image=canvas.image)
         except Exception as e:
             logging.error(f"Exception {e} when updating canvas")
@@ -4386,7 +4401,13 @@ def display_image(img):
         if PreviewHeight > image_height:
             padding_y = round((PreviewHeight - image_height) / 2)
 
+    # Delete reference to previous image, if any
+    aux_image = None
+    if hasattr(draw_capture_canvas, 'image'):
+        aux_image = draw_capture_canvas.image
     draw_capture_canvas.image = DisplayableImage
+    if aux_image is not None:
+        del aux_image
     draw_capture_canvas.itemconfig(draw_capture_canvas.image_id, image=draw_capture_canvas.image)
     draw_capture_canvas.coords(draw_capture_canvas.image_id, padding_x, padding_y)
 
@@ -6341,7 +6362,14 @@ def build_ui():
         logo_image = ImageTk.PhotoImage(resized_logo)
         if logo_image:
             logo_label = tk.Label(regular_top_section_frame, image=logo_image)
+
+            # Delete reference to previous image, if any
+            aux_image = None
+            if hasattr(logo_label, 'image'):
+                aux_image = logo_label.image
             logo_label.image = logo_image  # Keep a reference!
+            if aux_image:
+                del aux_image
             logo_label.grid(row=0, column=0, sticky='nsew')
 
     # Create frame to select source and target folders *******************************
