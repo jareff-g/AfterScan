@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.22"
+__version__ = "1.30.23"
 __data_version__ = "1.0"
-__date__ = "2025-11-16"
-__version_highlight__ = "Fix some mem leaks when updating canvases + improve stabilization in extreme cases"
+__date__ = "2025-11-21"
+__version_highlight__ = "Improve stabilization process, specially in extreme cases"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -254,7 +254,7 @@ bad_frame_list = []     # List of tuples (5 elements each: Frame index, x offset
 # To migrate content of bad_frame_list to dictionaries (instead of smaller lists)
 # bad_frame_list elements = Frame index, x offset, y offset, stabilization threshold, is frame saved)
 bad_frame_info = {}
-current_bad_frame_index = -1    # Curretn bad frame being displayed/edited
+current_bad_frame_index = -1    # Current bad frame being displayed/edited
 process_bad_frame_index = -1    # Bad frame index for re-generation
 stop_bad_frame_save = False     # Flag to force stop the save bad frame loop
 high_sensitive_bad_frame_detection = False
@@ -4139,9 +4139,9 @@ def match_level_color(t):
 
 def match_level_color_bgr(t):
     if t < 0.7:
-        return (0,0,255)
+        return (255,0,0)
     if t < 0.9:
-        return (0,165,255)
+        return (255,255,0)
     return (0,255,0)
 
 
@@ -4202,8 +4202,9 @@ def match_template(frame_idx, img):
     if ConvertLoopRunning:
         local_threshold = 254
         limit_threshold = 120
-        step_threshold = -20
+        step_threshold = -5
     else:
+        # Threshold needs to be hardcoded for FrameSync dynamic correction to work
         local_threshold = StabilizationThreshold
         limit_threshold = StabilizationThreshold
         step_threshold = -1
@@ -4251,10 +4252,10 @@ def match_template(frame_idx, img):
                 best_maxVal = maxVal
                 best_img_final = img_final
             if precise_template_match:
-                if best_match_level >= 0.85 or (best_match_level >= 0.7 and maxVal * pos_criteria < best_match_level):
+                if best_match_level >= 0.99 or (best_match_level >= 0.9 and maxVal * pos_criteria < best_match_level):  # originally 0.85 and 0.7
                     Done = True # If threshold if really good, or much worse than best so far (means match level started decreasing in this loop), then end
             else:
-                if best_match_level >= 0.50 or (best_match_level >= 0.4 and maxVal * pos_criteria < best_match_level):
+                if best_match_level >= 0.6 or (best_match_level >= 0.5 and maxVal * pos_criteria < best_match_level):  # originally 0.5 and 0.4
                     Done = True # If threshold if really good, or much worse than best so far (means match level started decreasing in this loop), then end
             if not Done: # Quality not good enough, try another threshold
                 local_threshold += step_threshold
@@ -4273,10 +4274,6 @@ def match_template(frame_idx, img):
             best_maxVal = None
             best_img_final = None
             Done = False
-        elif (best_top_left is not None and abs(template_list.get_active_position()[1]-best_top_left[1]) > ih//2):
-            logging.error(f"Shift too big: frame_idx {frame_idx+first_absolute_frame}, best_thres: {best_thres}, best_top_left: {best_top_left}, "
-                            f"best_maxVal: {best_maxVal}, step_threshold: {step_threshold}, local_threshold: {local_threshold}, limit_threshold: {limit_threshold}")
-            best_maxVal = 0.0
         if Done:
             break
 
@@ -4609,6 +4606,37 @@ def calculate_frame_displacement_simple(frame_idx, img, threshold=10, slice_widt
 
     return horizontal_offset, vertical_offset
 
+
+# sanitize_displacement: if displacement too big, set it to zero
+def sanitize_displacement(frame_idx, img, match_level, move_x, move_y):
+    # Get imag edimensions
+    width = img.shape[1]
+    height = img.shape[0]
+
+    # Calculate rolling average of match level
+    match_level_average.add_value(match_level)
+    move_too_big = False
+
+    if len(move_x_average.window) > 10 and move_x_average.get_average() is not None and abs(move_x - move_x_average.get_average()) > width*0.03:
+        move_too_big = True
+    else:
+        move_x_average.add_value(move_x)
+
+    if len(move_y_average.window) > 10 and move_y_average.get_average() is not None and abs(move_y - move_y_average.get_average()) > height*0.10:
+        move_too_big = True
+    else:
+        move_y_average.add_value(move_y)
+
+    if move_too_big:
+        # If calculates displacement is too much, leave frame as is (probably captured position as-is is better)
+        logging.warning(f"Frame {frame_idx:5d}: Calculated displacement ({move_x}, {move_y}) is too big, ignoring it.")
+        move_x = 0
+        move_y = 0
+        match_level = 0
+
+    return match_level, move_x, move_y
+
+
 # Original algorithm based on templates
 # Extracted code to calculate displacement to use with the manual option
 def calculate_frame_displacement_with_templates(frame_idx, img_ref, img_ref_alt = None, id = -1):
@@ -4642,23 +4670,18 @@ def calculate_frame_displacement_with_templates(frame_idx, img_ref, img_ref_alt 
             img_matched = best_img_matched
             break
 
-    if top_left is not None and top_left[1] != -1 and match_level > 0.1:
+    if top_left is not None and top_left[1] != -1 and match_level > 0.5:
         move_x = hole_template_pos[0] - top_left[0]
         move_y = hole_template_pos[1] - top_left[1]
-        """
-        if abs(move_x) > 200 or abs(move_y) > 600:  # if shift too big, ignore it, probably for the better
-            logging.warning(f"Frame {frame_idx:5d}: Shift too big ({move_x}, {move_y}), ignoring it.")
-            move_x = 0
-            move_y = 0
-        """
     else:   # If match is not good, keep the frame where it is, will probably look better
         logging.warning(f"Frame {frame_idx:5d}: Template match not good ({match_level}""), ignoring it.")
         move_x = 0
         move_y = 0
+        top_left = [0,0]
     log_line = f"T{id} - " if id != -1 else ""
 
     if top_left is not None:
-        logging.debug(log_line+f"Frame_idx: {frame_idx:5d}, Frame: {frame_idx+first_absolute_frame:5d}, threshold: {frame_treshold:3d}, template: ({hole_template_pos[0]:4d},{hole_template_pos[1]:4d}), top left: ({top_left[0]:4d},{top_left[1]:4d}), move_x:{move_x:4d}, move_y:{move_y:4d}")
+        logging.debug(log_line+f"Frame_idx: {frame_idx:5d}, Frame: {frame_idx+first_absolute_frame:5d}, threshold: {frame_treshold:3d}, match_level: {match_level}, template: ({hole_template_pos[0]:4d},{hole_template_pos[1]:4d}), top left: ({top_left[0]:4d},{top_left[1]:4d}), move_x:{move_x:4d}, move_y:{move_y:4d}")
         debug_template_display_frame_raw(img_matched, top_left[0] - stabilization_shift_x_value.get(), top_left[1] - stabilization_shift_y_value.get(), film_hole_template.shape[1], film_hole_template.shape[0], match_level_color_bgr(match_level))
         debug_template_display_info(frame_idx, frame_treshold, top_left, move_x, move_y)
     return move_x, move_y, top_left, match_level, frame_treshold, num_loops
@@ -4754,6 +4777,9 @@ def stabilize_image(frame_idx, img, img_ref, offset_x = 0, offset_y = 0, img_ref
     global perform_stabilization
     global template_list
 
+    if not perform_stabilization.get(): # Not really needed, stabilize_image only called when enabled but just in case
+        return img, 1.0, 0, 0
+    
     # Get image dimensions to perform image shift later
     width = img_ref.shape[1]
     height = img_ref.shape[0]
@@ -4772,20 +4798,12 @@ def stabilize_image(frame_idx, img, img_ref, offset_x = 0, offset_y = 0, img_ref
     # Items logged: Tag, project id, Frame number, missing pixel rows, location (bottom/top), Vertical shift
     stabilization_threshold_match_label.config(fg='white', bg=match_level_color(match_level),
                                                text=str(int(match_level * 100)))
-    if ConvertLoopRunning:
-        move_too_big = False
-        # Calculate rolling average of match level
-        match_level_average.add_value(match_level)
-        if len(move_x_average.window) > 10 and move_x_average.get_average() is not None and abs(move_x - move_x_average.get_average()) > width*0.05:
-            move_too_big = True
-        else:
-            move_x_average.add_value(move_x)
-        if len(move_y_average.window) > 10 and move_y_average.get_average() is not None and abs(move_y - move_y_average.get_average()) > height*0.15:
-            move_too_big = True
-        else:
-            move_y_average.add_value(move_y)
-        if missing_rows > 0 or match_level < 0.9 or move_too_big:
-            if match_level < (0.7 if not high_sensitive_bad_frame_detection else 0.9) or move_too_big:   # Only add really bad matches
+
+    match_level, move_x, move_y = sanitize_displacement(frame_idx, img, match_level, move_x, move_y)
+
+    if ConvertLoopRunning: # Only add frames to misaligned list, or to csv file, when running conversion loop
+        if missing_rows > 0 or match_level < 0.9:
+            if match_level < (0.7 if not high_sensitive_bad_frame_detection else 0.9):   # Only add really bad matches
                 ### Record bad frames always
                 if True or FrameSync_Viewer_opened:  # Generate bad frame list only if popup opened
                     insert_or_replace_sorted(bad_frame_list, {'frame_idx': frame_idx, 'x': 0, 'y': 0, 
@@ -4797,25 +4815,18 @@ def stabilize_image(frame_idx, img, img_ref, offset_x = 0, offset_y = 0, img_ref
             if GenerateCsv:
                 with open(CsvPathName, 'a') as csv_file:
                     csv_file.write(f"{first_absolute_frame+frame_idx}, {missing_rows}, {frame_threshold}, {num_loops}, {int(match_level*100)}, {move_x}, {move_y}\n")
-    if match_level < 0.4:   # If match level is too bad, revert to simple algorithm
-        move_x, move_y = calculate_frame_displacement_simple(frame_idx, img)
-    # Create the translation matrix using move_x and move_y (NumPy array): This is the actual stabilization
-    # We double-check the check box since this function might be called just to debug template detection
-    if perform_stabilization.get():
-        move_x += offset_x
-        move_y += offset_y
-        # Add vertical offset as decided by user, to compensate for vertically assimmetrical films
-        translated_image = shift_image(img, width, height, move_x + StabilizationShiftX, move_y + StabilizationShiftY)
-    else:
-        translated_image = img
+    if match_level > 0 and match_level < 0.4:   # If match level is too bad, leave frame as captured
+        move_x = 0
+        move_y = 0
+    # Apply stabilization offsets in all cases (even if perfect match)
+    move_x += offset_x
+    move_y += offset_y
+    # Add vertical offset as decided by user, to compensate for vertically assimmetrical films
+    translated_image = shift_image(img, width, height, move_x + StabilizationShiftX, move_y + StabilizationShiftY)
     # Draw stabilization rectangles only for image in popup debug window to allow having it activated while encoding
     if not use_simple_stabilization and FrameSync_Viewer_opened and top_left[1] != -1 :
-        if not perform_stabilization.get():
-            move_x = 0
-            move_y = 0
-        else:   # Do not move rectangle when manually stabilizing frames
-            move_x -= offset_x
-            move_y -= offset_y
+        move_x -= offset_x
+        move_y -= offset_y
         left_stripe_img = get_image_left_stripe(translated_image)
         # No need for a search area rectangle, since the image in the debug popup is already that rectangle
         debug_template_display_frame_stabilized(left_stripe_img, top_left[0] + move_x, top_left[1] + move_y,
