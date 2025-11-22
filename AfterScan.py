@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.24"
+__version__ = "1.30.25"
 __data_version__ = "1.0"
 __date__ = "2025-11-22"
-__version_highlight__ = "Fix issue when no files exist in source folder, or source folder does not exist"
+__version_highlight__ = "Add button to video generated popup to allow start video playback automatically after generation"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -1894,6 +1894,7 @@ def widget_status_update(widget_state=0, button_action=0):
     global SourceDirFileList
     global template_list
     global job_list_listbox_disabled
+    global video_play_btn
 
     if widget_state != 0:
         CropAreaDefined = CropTopLeft != (0, 0) and CropBottomRight != (0, 0)
@@ -1954,6 +1955,7 @@ def widget_status_update(widget_state=0, button_action=0):
         ffmpeg_preset_rb2.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         ffmpeg_preset_rb3.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         start_batch_btn.config(state=widget_state if button_action != start_batch_btn else NORMAL)
+        video_play_btn.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         add_job_btn.config(state=widget_state)
         delete_job_btn.config(state=widget_state)
         rerun_job_btn.config(state=widget_state)
@@ -5860,6 +5862,53 @@ def call_ffmpeg():
     ffmpeg_success = ffmpeg_process.wait() == 0
     ffmpeg_encoding_status = ffmpeg_state.Completed
 
+def play_video():
+    TargetVideoFilename = video_filename_str.get()
+    if not launch_video(os.path.join(video_target_dir_str.get(), TargetVideoFilename)):
+        tk.messagebox.showerror(
+            f"Error launching video {os.path.join(video_target_dir_str.get(), TargetVideoFilename)}",
+            "An error occurred while trying to launch the video.\r\n"
+            "Please check that a default video player is correctly installed "
+            "in your system.")
+
+
+def launch_video(video_file_path):
+    """
+    Launches video playback using the default player of the operating system.
+
+    Args:
+        video_file_path (str): The full or relative path to the video file.
+    """
+    operating_system = platform.system()
+    
+    logging.debug(f"Trying to launch video '{video_file_path}' in OS {operating_system}")
+
+    try:
+        if operating_system == "Windows":
+            # Comando nativo de Windows para abrir un archivo con la aplicación predeterminada
+            os.startfile(video_file_path)
+            
+        elif operating_system == "Darwin":  # macOS
+            # Comando nativo de macOS para abrir archivos
+            sp.run(["open", video_file_path])
+            
+        elif operating_system == "Linux":
+            # Comando estándar de Linux (generalmente xdg-open o gnome-open)
+            # 'xdg-open' abrirá el archivo con la aplicación predeterminada
+            sp.run(["xdg-open", video_file_path])
+            
+        else:
+            logging.error(f"OS '{operating_system}' not supported for direct opening.")
+            return False
+
+        return True
+    except FileNotFoundError:
+        logging.error(f"Error: Default video player not found or the command '{video_file_path}' does not exist.")
+        return False
+    except Exception as e:
+        logging.error(f"An error occurred while trying to launch the video: {e}")
+        return False
+
 
 def video_generation_loop():
     global Go_btn
@@ -5957,12 +6006,15 @@ def video_generation_loop():
             status_str = "Status: Video generated OK"
             app_status_label.config(text=status_str, fg='green')
             if not BatchJobRunning:
-                tk.messagebox.showinfo(
+                start_video = tk.messagebox.askyesno(
                     "Video generation by ffmpeg has ended",
-                    "\r\nVideo encoding has finalized successfully. "
+                    "Video encoding has finalized successfully. "
                     "You can find your video in the target folder, "
                     "as stated below\r\n" +
-                    os.path.join(video_target_dir_str.get(), TargetVideoFilename))
+                    os.path.join(video_target_dir_str.get(), TargetVideoFilename)
+                    + "\r\nDo you want to play the video now?")
+                if start_video:
+                    launch_video(os.path.join(video_target_dir_str.get(), TargetVideoFilename))
         else:
             logging.error("Video generation failed for %s", os.path.join(video_target_dir_str.get(), TargetVideoFilename))
             status_str = "Status: Video generation failed"
@@ -6260,6 +6312,7 @@ def build_ui():
     global display_template_popup_btn
     global stabilization_shift_y_value, stabilization_shift_label, stabilization_shift_y_spinbox
     global stabilization_shift_x_value, stabilization_shift_x_spinbox
+    global video_play_btn
 
     # Menu bar
     menu_bar = tk.Menu(win)
@@ -6860,6 +6913,14 @@ def build_ui():
     resolution_dropdown.pack(side=LEFT, anchor=E, padx=5)
     resolution_dropdown.config(state=DISABLED)
     as_tooltips.add(resolution_dropdown, "Resolution to be used when generating the video")
+
+    # Create button to play the video
+    video_play_btn = Button(video_frame, text='▶', width=8,
+                               height=1, command=play_video,
+                               activebackground='green',
+                               activeforeground='white', wraplength=80, font=("Arial", FontSize))
+    video_play_btn.grid(row=video_row, column=2, sticky=E, padx=5)
+    as_tooltips.add(video_play_btn, "Play the generated video")
 
     video_row += 1
 
