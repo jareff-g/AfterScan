@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.23"
+__version__ = "1.30.24"
 __data_version__ = "1.0"
-__date__ = "2025-11-21"
-__version_highlight__ = "Improve stabilization process, specially in extreme cases"
+__date__ = "2025-11-22"
+__version_highlight__ = "Fix issue when no files exist in source folder, or source folder does not exist"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -1122,7 +1122,8 @@ def decode_project_config():
     else:
         UserDefinedLeftStripeWidthProportion = 0.25
 
-    adjust_dimensions_based_on_frame()
+    if len(SourceDirFileList) > 0:
+        adjust_dimensions_based_on_frame()
 
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
@@ -4938,7 +4939,11 @@ def get_source_dir_file_list():
     global frame_height, frame_width
 
     if not os.path.isdir(SourceDir):
-        return
+        tk.messagebox.showerror("Error!",
+                                "Source folder does not exist. "
+                                "Please specify a different one and try again")
+        frames_target_dir.delete(0, 'end')
+        return 0
 
     # Try first with standard scan filename template
     SourceDirFileList_jpg = list(glob(os.path.join(
@@ -4998,7 +5003,7 @@ def get_source_dir_file_list():
                                 "No files match pattern name. "
                                 "Please specify new one and try again")
         frames_target_dir.delete(0, 'end')
-        return
+        return 0
     else:
         HdrFilesOnly = NumLegacyHdrFiles > NumFiles
 
@@ -5180,6 +5185,12 @@ def start_convert():
         ConvertLoopExitRequested = True
         ConvertLoopRunning = False
     else:
+        if len(SourceDirFileList) == 0:
+            tk.messagebox.showwarning(
+                "No source frames",
+                "No source frames loaded.\r\n"
+                "Please load source frames and try again.")
+            return
         if not skip_frame_regeneration.get() and not delete_detected_bad_frames():
             return
         # Enforce minimum value for Gamma in case user clicks starts rigth after having manually entered a zero in GC box
