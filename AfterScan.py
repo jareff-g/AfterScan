@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.25"
+__version__ = "1.30.26"
 __data_version__ = "1.0"
-__date__ = "2025-11-22"
-__version_highlight__ = "Add button to video generated popup to allow start video playback automatically after generation"
+__date__ = "2025-11-23"
+__version_highlight__ = "Improve template match when high-accuracy is not selected"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -257,7 +257,7 @@ bad_frame_info = {}
 current_bad_frame_index = -1    # Current bad frame being displayed/edited
 process_bad_frame_index = -1    # Bad frame index for re-generation
 stop_bad_frame_save = False     # Flag to force stop the save bad frame loop
-high_sensitive_bad_frame_detection = False
+detect_minor_mismatches = False
 stabilization_bounds_alert = False
 CropAreaDefined = False
 RectangleTopLeft = (0, 0)
@@ -362,7 +362,7 @@ move_y_average = None
 SavedWithVersion = None # Used to retrieve version from config file (with wich version was this config last saved)
 
 use_simple_stabilization = False    # Stabilize using simpler (and slightier less precise) algorithm, no templates required
-precise_template_match = False
+precise_template_match = True
 
 # Info required for usage counter
 UserConsent = None
@@ -669,7 +669,7 @@ def decode_general_config():
     global general_config
     global UserConsent, AnonymousUuid, LastConsentDate
     global SavedWithVersion, JobListFilename
-    global precise_template_match, high_sensitive_bad_frame_detection
+    global precise_template_match, detect_minor_mismatches
     global UserDefinedLeftStripeWidthProportion
     if 'SourceDir' in general_config:
         SourceDir = general_config["SourceDir"]
@@ -704,7 +704,7 @@ def decode_general_config():
     if 'PreciseTemplateMatch' in general_config:
         precise_template_match = general_config["PreciseTemplateMatch"]
     if 'HighSensitiveBadFrameDetection' in general_config:
-        high_sensitive_bad_frame_detection = general_config["HighSensitiveBadFrameDetection"]
+        detect_minor_mismatches = general_config["HighSensitiveBadFrameDetection"]
 
 
 
@@ -900,7 +900,7 @@ def decode_project_config():
     global extended_stabilization
     global Force43, Force169
     global perform_denoise, perform_sharpness, perform_gamma_correction, gamma_correction_str
-    global high_sensitive_bad_frame_detection, current_bad_frame_index
+    global detect_minor_mismatches, current_bad_frame_index
     global precise_template_match
     global StabilizationShiftX, StabilizationShiftY
     global UserDefinedLeftStripeWidthProportion
@@ -2892,9 +2892,9 @@ def bad_frames_decrease_threshold_5(event = None):
     bad_frames_decrease_threshold(5)
 
 
-def set_high_sensitive_bad_frame_detection():
-    global high_sensitive_bad_frame_detection
-    high_sensitive_bad_frame_detection = high_sensitive_bad_frame_detection_value.get()
+def set_detect_minor_mismatches():
+    global detect_minor_mismatches
+    detect_minor_mismatches = detect_minor_mismatches_value.get()
 
 
 def set_stabilization_bounds_alert():
@@ -2927,7 +2927,7 @@ def FrameSync_Viewer_popup_update_widgets(status, except_save=False):
     increase_threshold_button_5.config(state=status)
     delete_bad_frames_button.config(state=status)
     delete_current_bad_frame_button.config(state=status)
-    high_sensitive_bad_frame_detection_checkbox.config(state=status)
+    detect_minor_mismatches_checkbox.config(state=status)
     # Do not disable alert checkbox to give a chance to stop the alerts without stopping the encoding
     # stabilization_bounds_alert_checkbox.config(state=status)
     # precise_template_match_checkbox.config(state=status)
@@ -2954,9 +2954,9 @@ def FrameSync_Viewer_popup():
     global decrease_threshold_button_1, threshold_label, increase_threshold_button_1
     global decrease_threshold_button_5, increase_threshold_button_5
     global delete_bad_frames_button, delete_current_bad_frame_button
-    global high_sensitive_bad_frame_detection_checkbox, high_sensitive_bad_frame_detection_value
+    global detect_minor_mismatches_checkbox, detect_minor_mismatches_value
     global precise_template_match_checkbox, precise_template_match_value
-    global precise_template_match, high_sensitive_bad_frame_detection
+    global precise_template_match, detect_minor_mismatches
     global stabilization_bounds_alert, stabilization_bounds_alert_value, stabilization_bounds_alert_checkbox
     global StabilizationThreshold
     global pos_before_text, pos_after_text, threshold_before_text, threshold_after_text
@@ -3147,7 +3147,7 @@ def FrameSync_Viewer_popup():
     # Checkbox to allow high sensitive detencion (match < 0.9)
     precise_template_match_value = tk.BooleanVar(value=precise_template_match)
     precise_template_match_checkbox = tk.Checkbutton(right_frame,
-                                                         text='High-Accuracy Alignment',
+                                                         text='Precise template match',
                                                          variable=precise_template_match_value,
                                                          command=set_precise_template_match,
                                                          onvalue=True, offvalue=False,
@@ -3156,15 +3156,15 @@ def FrameSync_Viewer_popup():
     as_tooltips.add(precise_template_match_checkbox, "Activate high accuracy template detection for better stabilization (implies slower encoding)")
 
     # Checkbox to allow high sensitive detencion (match < 0.9)
-    high_sensitive_bad_frame_detection_value = tk.BooleanVar(value=high_sensitive_bad_frame_detection)
-    high_sensitive_bad_frame_detection_checkbox = tk.Checkbutton(right_frame,
-                                                         text='Enhanced Sensitivity Detection',
-                                                         variable=high_sensitive_bad_frame_detection_value,
-                                                         command=set_high_sensitive_bad_frame_detection,
+    detect_minor_mismatches_value = tk.BooleanVar(value=detect_minor_mismatches)
+    detect_minor_mismatches_checkbox = tk.Checkbutton(right_frame,
+                                                         text='Detect minor mismatches',
+                                                         variable=detect_minor_mismatches_value,
+                                                         command=set_detect_minor_mismatches,
                                                          onvalue=True, offvalue=False,
                                                          width=40, font=("Arial", FontSize))
-    high_sensitive_bad_frame_detection_checkbox.pack(pady=5, padx=10, anchor="center")
-    as_tooltips.add(high_sensitive_bad_frame_detection_checkbox, "Besides frames clearly misaligned, detect also slightly misaligned frames")
+    detect_minor_mismatches_checkbox.pack(pady=5, padx=10, anchor="center")
+    as_tooltips.add(detect_minor_mismatches_checkbox, "Besides frames clearly misaligned, detect also slightly misaligned frames")
 
     # Checkbox - Beep if stabilization forces image out of cropping bounds
     stabilization_bounds_alert_value = tk.BooleanVar(value=stabilization_bounds_alert)
@@ -3363,8 +3363,8 @@ def FrameSync_Viewer_popup():
 
     precise_template_match = precise_template_match_value.get()
     general_config["PreciseTemplateMatch"] = precise_template_match
-    high_sensitive_bad_frame_detection = high_sensitive_bad_frame_detection_value.get()
-    general_config["HighSensitiveBadFrameDetection"] = high_sensitive_bad_frame_detection
+    detect_minor_mismatches = detect_minor_mismatches_value.get()
+    general_config["HighSensitiveBadFrameDetection"] = detect_minor_mismatches
 
     FrameSync_Viewer_opened = False
 
@@ -4258,7 +4258,7 @@ def match_template(frame_idx, img):
                 if best_match_level >= 0.99 or (best_match_level >= 0.9 and maxVal * pos_criteria < best_match_level):  # originally 0.85 and 0.7
                     Done = True # If threshold if really good, or much worse than best so far (means match level started decreasing in this loop), then end
             else:
-                if best_match_level >= 0.6 or (best_match_level >= 0.5 and maxVal * pos_criteria < best_match_level):  # originally 0.5 and 0.4
+                if best_match_level >= 0.8 or (best_match_level >= 0.7 and maxVal * pos_criteria < best_match_level):  # originally 0.5 and 0.4
                     Done = True # If threshold if really good, or much worse than best so far (means match level started decreasing in this loop), then end
             if not Done: # Quality not good enough, try another threshold
                 local_threshold += step_threshold
@@ -4806,7 +4806,7 @@ def stabilize_image(frame_idx, img, img_ref, offset_x = 0, offset_y = 0, img_ref
 
     if ConvertLoopRunning: # Only add frames to misaligned list, or to csv file, when running conversion loop
         if missing_rows > 0 or match_level < 0.9:
-            if match_level < (0.7 if not high_sensitive_bad_frame_detection else 0.9):   # Only add really bad matches
+            if match_level < (0.9 if detect_minor_mismatches else 0.7):   # Only add really bad matches
                 ### Record bad frames always
                 if True or FrameSync_Viewer_opened:  # Generate bad frame list only if popup opened
                     insert_or_replace_sorted(bad_frame_list, {'frame_idx': frame_idx, 'x': 0, 'y': 0, 
