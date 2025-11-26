@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.27"
+__version__ = "1.30.28"
 __data_version__ = "1.0"
 __date__ = "2025-11-26"
-__version_highlight__ = "Remove unneedeed set_scale calls, also change set_scale so that it receives a sample image instead of width."
+__version_highlight__ = "Factorize code in Template and TemplateList classes"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -383,14 +383,14 @@ Classes
 #################
 """
 class Template:
-    def __init__(self, name, filename, type, position):
+    def __init__(self, name, filename, type, position, width):
         self.name = name
         self.filename = filename
         self.type = type
         if self.type == 'custom':
             self.scale = 1.0
         else:
-            self.scale = frame_width/2028
+            self.scale = width/2028
         self.position = position
         self.scaled_position = (int(self.position[0] * self.scale),
                                 int(self.position[1] * self.scale))
@@ -413,11 +413,11 @@ class Template:
             self.size = (0,0)
             self.scaled_size = (0,0)
 
-    def refresh(self):
+    def refresh(self, width):
         if self.type == 'custom':
             self.scale = 1.0
         else:
-            self.scale = frame_width/2028
+            self.scale = width/2028
         self.template = cv2.imread(self.filename, cv2.IMREAD_GRAYSCALE)
         self.scaled_template = resize_image(self.template, self.scale)
         self.white_pixel_count = cv2.countNonZero(self.scaled_template)
@@ -435,6 +435,8 @@ class TemplateList:
     def __init__(self):
         self.templates = []
         self.active_template = None  # Initialize active_element to None
+        self.img_width = 2028
+        self.img_height = 1520
 
     def add(self, name, filename, type, position):
         exists = False
@@ -446,10 +448,10 @@ class TemplateList:
         if exists:
             t.filename = filename
             t.position = position
-            t.refresh()
+            t.refresh(self.img_width)
             target = t
         else:
-            target = Template(name, filename, type, position)
+            target = Template(name, filename, type, position, self.img_width)
             self.templates.append(target)
         self.active_template = target   # Set template just added as active
         return target
@@ -509,6 +511,7 @@ class TemplateList:
     def set_scale(self, sample_img):
         # If new image size is different, Update all scaled templates and positions
         # Size reference 2028x1520
+        # Probably we could call t.refresh instead of the following code, but let's keep it as is for now
         img_width = sample_img.shape[1]
         img_height = sample_img.shape[0]
         new_scale = img_width/2028
