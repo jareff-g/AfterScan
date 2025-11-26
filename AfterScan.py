@@ -79,6 +79,9 @@ except ImportError:
 
 from define_rectangle import DefineRectangle
 
+from afterscan_config import AfterScanConfig
+from afterscan_template_manager import Template, TemplateList
+
 # Check for temporalDenoise in OpenCV at startup
 HAS_TEMPORAL_DENOISE = hasattr(cv2, 'temporalDenoising')
 
@@ -102,10 +105,34 @@ FPS_CalculatedValue = -1
 denoise_window_size = 3
 temp_denoise_frame_deque = deque(maxlen=denoise_window_size)
 
+###########################################################
+###########################################################
+### general_config related vars
+general_config = None
+
+# Info required for usage counter
+AnonymousUuid = None
+UserConsent = None
+LastConsentDate = None
+
+# Other general config variables
+enable_rectangle_popup = False
+enable_soundtrack = False
+FFmpeg_denoise_param='8:6:4:3'
+FfmpegBinName = ""
+detect_minor_mismatches = False
+UserDefinedLeftStripeWidthProportion = 0.25
+CalculatedLeftStripeWidth = 0
+precise_template_match = True
+SourceDir = ""
+
 # Configuration & support file vars
 script_dir = os.path.dirname(os.path.realpath(__file__))
-
 general_config_filename = os.path.join(script_dir, "AfterScan.json")
+logs_dir = os.path.join(script_dir, "Logs")
+if not os.path.exists(logs_dir):
+    os.mkdir(logs_dir)
+'''
 project_settings_filename = os.path.join(script_dir, "AfterScan-projects.json")
 project_settings_backup_filename = os.path.join(script_dir, "AfterScan-projects.json.bak")
 project_config_basename = "AfterScan-project.json"
@@ -119,9 +146,6 @@ job_list_hash = None    # To determine if job list has changed since loaded
 temp_dir = os.path.join(script_dir, "temp")
 if not os.path.exists(temp_dir):
     os.mkdir(temp_dir)
-logs_dir = os.path.join(script_dir, "Logs")
-if not os.path.exists(logs_dir):
-    os.mkdir(logs_dir)
 copy_templates_from_temp = False
 resources_dir = os.path.join(script_dir, "Resources")
 if not os.path.exists(resources_dir):
@@ -150,6 +174,7 @@ EXPECTED_HASHES = {
     'Pattern_WB.jpg': '60d50644f26407503267b763bcc48d7bec88dd6f58bb238cf9bec6ba86938f33',
     'Pattern_Corner_TR.jpg': '5e56a49c029013588646b11adbdc4a223217abfb91423dd3cdde26abbf5dcd9c'
 }
+'''
 
 default_project_config = {
     "SourceDir": "",
@@ -175,9 +200,6 @@ default_project_config = {
     "FakeFillType": "none"
 }
 
-general_config = {
-}
-
 project_config = default_project_config.copy()
 
 
@@ -188,7 +210,6 @@ HoleSearchBottomRight = (0, 0)
 # Film frames (in/out) file vars
 TargetVideoFilename = ""
 TargetVideoTitle = ""
-SourceDir = ""
 TargetDir = ""
 file_type = 'jpg'
 file_type_out = file_type
@@ -246,8 +267,6 @@ RotationAngle = 0.0
 StabilizeAreaDefined = False
 StabilizationThreshold = 220.0
 StabilizationThreshold_default = StabilizationThreshold
-enable_rectangle_popup = False
-enable_soundtrack = False
 
 hole_search_area_adjustment_pending = False
 bad_frame_list = []     # List of tuples (5 elements each: Frame index, x offset, y offset, stabilization threshold, is frame saved)
@@ -257,7 +276,6 @@ bad_frame_info = {}
 current_bad_frame_index = -1    # Current bad frame being displayed/edited
 process_bad_frame_index = -1    # Bad frame index for re-generation
 stop_bad_frame_save = False     # Flag to force stop the save bad frame loop
-detect_minor_mismatches = False
 stabilization_bounds_alert = False
 CropAreaDefined = False
 RectangleTopLeft = (0, 0)
@@ -271,8 +289,6 @@ CropBottomRight = (0, 0)
 max_loop_count = 0
 StabilizationShiftY = 0
 StabilizationShiftX = 0
-UserDefinedLeftStripeWidthProportion = 0.25
-CalculatedLeftStripeWidth = 0
 
 Force43 = False
 Force169 = False
@@ -286,8 +302,6 @@ left_stripe_stabilized_canvas = None
 
 # Video generation vars
 VideoFps = 18
-FfmpegBinName = ""
-FFmpeg_denoise_param='8:6:4:3'
 ui_init_done = False
 IgnoreConfig = False
 global ffmpeg_installed
@@ -362,12 +376,6 @@ move_y_average = None
 SavedWithVersion = None # Used to retrieve version from config file (with wich version was this config last saved)
 
 use_simple_stabilization = False    # Stabilize using simpler (and slightier less precise) algorithm, no templates required
-precise_template_match = True
-
-# Info required for usage counter
-UserConsent = None
-AnonymousUuid = None
-LastConsentDate = None
 
 # Token to be inserted in each queue on program closure, to allow threads to shut down cleanly
 END_TOKEN = "TERMINATE_PROCESS"
@@ -375,164 +383,6 @@ LAST_ITEM_TOKEN = "LAST_ITEM"
 last_displayed_image = 0
 active_threads = 0
 num_threads = 0
-
-
-"""
-#################
-Classes
-#################
-"""
-class Template:
-    def __init__(self, name, filename, type, position):
-        self.name = name
-        self.filename = filename
-        self.type = type
-        if self.type == 'custom':
-            self.scale = 1.0
-        else:
-            self.scale = frame_width/2028
-        self.position = position
-        self.scaled_position = (int(self.position[0] * self.scale),
-                                int(self.position[1] * self.scale))
-        self.size = (0,0)
-        if os.path.isfile(filename):
-            self.template = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-            self.scaled_template = resize_image(self.template, self.scale)
-            # Calculate the white on black proportion to help with detection
-            self.white_pixel_count = cv2.countNonZero(self.scaled_template)
-            total_pixels = self.scaled_template.size
-            self.wb_proportion = self.white_pixel_count / total_pixels
-            self.size = (self.template.shape[1],self.template.shape[0])
-            self.scaled_size = (int(self.size[0] * self.scale),
-                                int(self.size[1] * self.scale))
-            logging.debug(f"Init Template {self.type}, size: {self.size}, scaled size: {self.scaled_size}")
-        else:
-            self.template = None
-            self.scaled_template = None
-            self.wb_proportion = 0.5
-            self.size = (0,0)
-            self.scaled_size = (0,0)
-
-    def refresh(self):
-        if self.type == 'custom':
-            self.scale = 1.0
-        else:
-            self.scale = frame_width/2028
-        self.template = cv2.imread(self.filename, cv2.IMREAD_GRAYSCALE)
-        self.scaled_template = resize_image(self.template, self.scale)
-        self.white_pixel_count = cv2.countNonZero(self.scaled_template)
-        total_pixels = self.scaled_template.size
-        self.wb_proportion = self.white_pixel_count / total_pixels
-        self.size = (self.template.shape[1], self.template.shape[0])
-        self.scaled_size = (int(self.size[0] * self.scale),
-                            int(self.size[1] * self.scale))
-        self.scaled_position = (int(self.position[0] * self.scale),
-                                int(self.position[1] * self.scale))
-        logging.debug(f"Init Template {self.type}, size: {self.size}, scaled size: {self.scaled_size}")
-
-
-class TemplateList:
-    def __init__(self):
-        self.templates = []
-        self.active_template = None  # Initialize active_element to None
-
-    def add(self, name, filename, type, position):
-        exists = False
-        for t in self.templates:
-            if t.name == name and t.type == type:  # If already exist, update it
-                self.active_template = t
-                exists = True
-                break
-        if exists:
-            t.filename = filename
-            t.position = position
-            t.refresh()
-            target = t
-        else:
-            target = Template(name, filename, type, position)
-            self.templates.append(target)
-        self.active_template = target   # Set template just added as active
-        return target
-
-    def get_all(self):
-        return self.templates
-
-    def remove(self, template):
-        if template in self.templates:
-            self.templates.remove(template)
-            if template == self.active_template:
-                self.active_template = None  # Reset active_element if removed
-            return True
-        else:
-            return False
-
-    def set_active(self, type, name):
-        for t in self.templates:
-            if t.type == type and t.name == name:
-                self.active_template = t
-                return True
-        return False
-
-    def get_template(self, type, name):
-        for t in self.templates:
-            if t.type == type and t.name == name:
-                return t.scaled_template
-        return None
-
-    def get_active(self):
-        return self.active_template
-
-    def get_active_template(self):
-        return self.active_template.scaled_template
-
-    def get_active_name(self):
-        return self.active_template.name
-
-    def get_active_position(self):
-        return self.active_template.scaled_position
-
-    def set_active_position(self, position):
-        self.active_template.scaled_position = position
-        self.active_template.position =  (int(t.scaled_position[0] / self.active_template.scale),
-                                    int(t.scaled_position[1] / self.active_template.scale))
-    def get_active_size(self):
-        return self.active_template.scaled_size
-
-    def set_active_size(self, size):
-        self.active_template.scaled_size = size
-        self.active_template.size = (int(size[0] / self.active_template.scale),
-                                int(size[1] / self.active_template.scale))
-    def get_scale(self):
-        # Size reference 2028x1520
-        return self.active_template.scale   # Scale is dynamic, as it depends on the set of images currently loaded
-
-    def set_scale(self, new_width):
-        # If new image size is different, Update all scaled templates and positions
-        # Size reference 2028x1520
-        new_scale = new_width/2028
-        for t in self.templates:
-            if t.type != 'custom' and new_scale != t.scale:
-                t.scale = new_scale
-                t.scaled_position = (int(t.position[0] * new_scale),
-                                    int(t.position[1] * new_scale))
-                t.scaled_template = resize_image(t.template, new_scale)
-                t.scaled_size = (int(t.size[0] * new_scale),
-                                int(t.size[1] * new_scale))
-
-    def get_active_filename(self):
-        return self.active_template.filename
-
-    def get_active_type(self):
-        return self.active_template.type
-
-    def get_active_white_pixel_count(self):
-        return self.active_template.white_pixel_count
-
-    def get_active_wb_proportion(self):
-        return self.active_template.wb_proportion
-
-    def set_active_wb_proportion(self, proportion):
-        self.active_template.wb_proportion = proportion
 
 
 
@@ -629,13 +479,15 @@ def sort_nested_json(data):
 
 def save_general_config():
     # Write config data upon exit
-    general_config["GeneralConfigDate"] = str(datetime.now())
-    general_config["WindowPos"] = win.geometry()
-    general_config["Version"] = __version__
+    general_config.general_config_date = str(datetime.now())
+    general_config.window_pos = win.geometry()
+    general_config.version = __version__
+    general_config.to_json(general_config_filename)
 
+    '''
     try:
         if template_popup_window.winfo_exists():
-            general_config["TemplatePopupWindowPos"] = template_popup_window.geometry()
+            general_config.template_popup_window_pos = template_popup_window.geometry()
     except Exception as e:
         logging.debug(f"Error (expected) while trying to save template popup window geometry: {e}")
     if not IgnoreConfig:
@@ -643,7 +495,7 @@ def save_general_config():
         sorted_data = sort_nested_json(general_config)
         with open(general_config_filename, 'w') as f:
             json.dump(sorted_data, f, indent=4)
-
+    '''
 
 def load_general_config():
     global general_config
@@ -662,15 +514,17 @@ def load_general_config():
         logging.debug("%s=%s", item, str(general_config[item]))
 
 
-def decode_general_config():
+def decode_general_config():    # delete_this
     global SourceDir
     global project_name
     global FfmpegBinName, FFmpeg_denoise_param, enable_rectangle_popup, enable_soundtrack
     global general_config
     global UserConsent, AnonymousUuid, LastConsentDate
     global SavedWithVersion, JobListFilename
-    global precise_template_match, detect_minor_mismatches
-    global UserDefinedLeftStripeWidthProportion
+    global detect_minor_mismatches
+
+    return
+
     if 'SourceDir' in general_config:
         SourceDir = general_config["SourceDir"]
         # If directory in configuration does not exist, set current working dir
@@ -710,42 +564,40 @@ def decode_general_config():
 
 def update_project_settings():
     global project_settings
-    global SourceDir
-    # SourceDir is the key for each project config inside the global project settings
-    if SourceDir in project_settings:
-        project_settings.update({SourceDir: project_config.copy()})
-    elif SourceDir != '':
-        project_settings.update({SourceDir: project_config.copy()})
-        # project_settings[project_config["SourceDir"]] = project_config.copy()
+    # general_config.source_dir is the key for each project config inside the global project settings
+    if general_config.source_dir in project_settings:
+        project_settings.update({general_config.source_dir: project_config.copy()})
+    elif general_config.source_dir != '':
+        project_settings.update({general_config.source_dir: project_config.copy()})
 
 def save_project_settings():
-    global project_settings, project_settings_filename, project_settings_backup_filename
+    global project_settings
 
     if not IgnoreConfig:
         # Delete existing backup file
-        if os.path.isfile(project_settings_backup_filename):
-            os.remove(project_settings_backup_filename)
+        if os.path.isfile(general_config.project_settings_backup_filename):
+            os.remove(general_config.project_settings_backup_filename)
         # Rename current project file as backup
-        if os.path.isfile(project_settings_filename):
-            os.rename(project_settings_filename, project_settings_backup_filename)
+        if os.path.isfile(general_config.project_settings_filename):
+            os.rename(general_config.project_settings_filename, general_config.project_settings_backup_filename)
             logging.debug("Saving project settings:")
         # Create list with global version info
         global_info = {'data_version': __data_version__, 'code_version': __version__, 'save_date': str(datetime.now())}
         list_to_save = [global_info, project_settings]
-        with open(project_settings_filename, 'w+') as f:
+        with open(general_config.project_settings_filename, 'w+') as f:
             json.dump(list_to_save, f, indent=4)
 
 
 def load_project_settings():
-    global project_settings, project_settings_filename, default_project_config
-    global SourceDir, files_to_delete
+    global project_settings, default_project_config
+    global files_to_delete
     global project_name
 
     projects_loaded = False
     error_while_loading = False
 
-    if not IgnoreConfig and os.path.isfile(project_settings_filename):
-        f = open(project_settings_filename)
+    if not IgnoreConfig and os.path.isfile(general_config.project_settings_filename):
+        f = open(general_config.project_settings_filename)
         try:
             saved_list = json.load(f)
         except Exception as e:
@@ -757,7 +609,7 @@ def load_project_settings():
             if isinstance(saved_list, dict):   # Old version of json files were directly a dictionary
                 tk.messagebox.showerror(
                     "Invalid project file",
-                    f"The project file {project_settings_filename} saved in disk is invalid."
+                    f"The project file {general_config.project_settings_filename} saved in disk is invalid."
                     "Project defaults will be loaded and existing file will be overwritten upon exit "
                     "(and a backup file generated in case you want to recover information from it)")
             else:
@@ -770,20 +622,19 @@ def load_project_settings():
                 for folder in project_folders:
                     if not os.path.isdir(folder):   # If project folder no longer exists...
                         if "CustomTemplateFilename" in project_settings[folder]:
-                            aux_template_filename = os.path.join(SourceDir, project_settings[folder]["CustomTemplateFilename"])
+                            aux_template_filename = os.path.join(general_config.source_dir, project_settings[folder]["CustomTemplateFilename"])
                             if os.path.isfile(aux_template_filename):
                                 os.remove(aux_template_filename)    # ...delete custom template, if it exists
                         project_settings.pop(folder)
                         logging.debug("Deleting %s from project settings, as it no longer exists", folder)
-                    elif not os.path.isdir(SourceDir) and os.path.isdir(folder):
-                        SourceDir = folder
+                    elif not os.path.isdir(general_config.source_dir) and os.path.isdir(folder):
+                        general_config.source_dir = folder
                         # Create a project id (folder name) for the stats logging below
                         # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
-                        project_name = os.path.split(SourceDir)[-1].replace(',', ';')
-
+                        project_name = os.path.split(general_config.source_dir)[-1].replace(',', ';')
     if not projects_loaded:   # No project settings file. Set empty config to force defaults
-        project_settings = {SourceDir: default_project_config.copy()}
-        project_settings[SourceDir]["SourceDir"] = SourceDir
+        project_settings = {general_config.source_dir: default_project_config.copy()}
+        project_settings[general_config.source_dir]["SourceDir"] = general_config.source_dir
 
 
 def save_project_config():
@@ -797,7 +648,7 @@ def save_project_config():
     global perform_denoise, perform_sharpness, perform_gamma_correction
 
     # Write project data upon exit
-    project_config["SourceDir"] = SourceDir
+    project_config["SourceDir"] = general_config.source_dir
     project_config["TargetDir"] = TargetDir
     project_config["CurrentFrame"] = CurrentFrame
     project_config["skip_frame_regeneration"] = skip_frame_regeneration.get()
@@ -844,20 +695,19 @@ def save_project_config():
     save_project_settings()
 
 def load_project_config():
-    global SourceDir
     global project_config, project_config_from_file
     global project_config_basename, project_config_filename
     global project_settings
     global default_project_config
 
     if not IgnoreConfig:
-        project_config_filename = os.path.join(SourceDir, project_config_basename)
+        project_config_filename = os.path.join(general_config.source_dir, general_config.project_config_basename)
     # Check if persisted project data file exist: If it does, load it
     project_config = default_project_config.copy()  # set default config
 
-    if SourceDir in project_settings:
+    if general_config.source_dir in project_settings:
         logging.debug("Loading project config from consolidated project settings")
-        project_config |= project_settings[SourceDir].copy()
+        project_config |= project_settings[general_config.source_dir].copy()
     elif os.path.isfile(project_config_filename):
         logging.debug("Loading project config from dedicated project config file")
         persisted_data_file = open(project_config_filename)
@@ -866,7 +716,7 @@ def load_project_config():
     else:  # No project config file. Set empty config to force defaults
         logging.debug("No project config exists, initializing defaults")
         project_config = default_project_config.copy()
-        project_config['SourceDir'] = SourceDir
+        project_config['SourceDir'] = general_config.source_dir
 
     for item in project_config:
         logging.debug("%s=%s", item, str(project_config[item]))
@@ -878,8 +728,8 @@ def load_project_config():
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
-def decode_project_config():        
-    global SourceDir, TargetDir
+def decode_project_config():        # delete_this
+    global TargetDir
     global project_config
     global template_list
     global project_config_basename, project_config_filename
@@ -900,22 +750,20 @@ def decode_project_config():
     global extended_stabilization
     global Force43, Force169
     global perform_denoise, perform_sharpness, perform_gamma_correction, gamma_correction_str
-    global detect_minor_mismatches, current_bad_frame_index
-    global precise_template_match
+    global current_bad_frame_index
     global StabilizationShiftX, StabilizationShiftY
-    global UserDefinedLeftStripeWidthProportion
 
     if 'SourceDir' in project_config:
-        SourceDir = project_config["SourceDir"]
-        project_name = os.path.split(SourceDir)[-1].replace(',', ';')
+        general_config.source_dir = project_config["SourceDir"]
+        project_name = os.path.split(general_config.source_dir)[-1].replace(',', ';')
         # If directory in configuration does not exist, set current working dir
-        if not os.path.isdir(SourceDir):
-            SourceDir = ""
+        if not os.path.isdir(general_config.source_dir):
+            general_config.source_dir = ""
             project_name = "No Project"
         else:
             get_source_dir_file_list()
         frames_source_dir.delete(0, 'end')
-        frames_source_dir.insert('end', SourceDir)
+        frames_source_dir.insert('end', general_config.source_dir)
         frames_source_dir.after(100, frames_source_dir.xview_moveto, 1)
         # Need to retrieve source file list at this point, since win.update at the end of thi sfunction will force a refresh of the preview
         # If we don't do it here, an oimage from the previou ssource folder will be displayed instead
@@ -987,7 +835,7 @@ def decode_project_config():
         if 'CustomTemplateName' in project_config:  # Load name if it exists, otherwise assign default
             template_name = project_config["CustomTemplateName"]
         else:
-            template_name = f"{os.path.split(SourceDir)[-1]}"
+            template_name = f"{os.path.split(general_config.source_dir)[-1]}"
         if 'CustomTemplateExpectedPos' in project_config:
             expected_hole_template_pos_custom = project_config["CustomTemplateExpectedPos"]
         else:
@@ -1116,11 +964,6 @@ def decode_project_config():
 
     if 'CurrentBadFrameIndex' in project_config:
         current_bad_frame_index = project_config["CurrentBadFrameIndex"]
-
-    if 'UserDefinedLeftStripeWidthProportion' in project_config:
-        UserDefinedLeftStripeWidthProportion = project_config["UserDefinedLeftStripeWidthProportion"]
-    else:
-        UserDefinedLeftStripeWidthProportion = 0.25
 
     if len(SourceDirFileList) > 0:
         adjust_dimensions_based_on_frame()
@@ -1303,7 +1146,7 @@ def job_list_load_selected():
                 project_config = job_list[entry_name]['project']
                 decode_project_config()
 
-                general_config["SourceDir"] = SourceDir
+                # general_config["SourceDir"] = SourceDir # delete_this
 
                 if encode_all_frames:
                     CurrentFrame = first_absolute_frame + (last_absolute_frame - first_absolute_frame) // 2
@@ -1409,12 +1252,12 @@ def generate_dict_hash(dictionary):
 
 
 def save_named_job_list():
-    global job_list, job_list_hash, JobListFilename
-    start_dir = os.path.split(JobListFilename)[0]  
+    global job_list, job_list_hash
+    start_dir = os.path.split(general_config.job_list_filename)[0]  
     aux_file = filedialog.asksaveasfilename(
         initialdir=start_dir,
         defaultextension=".json",
-        initialfile=JobListFilename,
+        initialfile=general_config.job_list_filename,
         filetypes=[("Joblist JSON files", "*.joblist.json"), ("JSON files", "*.json")],
         title="Select file to save job list")
     if len(aux_file) > 0:
@@ -1427,13 +1270,12 @@ def save_named_job_list():
             aux_file = f"{aux_file}.joblist.json"
         with open(aux_file, 'w+') as f:
             json.dump(job_list, f, indent=4)
-        JobListFilename = aux_file
-        general_config["JobListFilename"] = JobListFilename
+        general_config.job_list_filename = aux_file
         display_window_title()
 
 
 def load_named_job_list():
-    global job_list, JobListFilename, job_list_hash
+    global job_list, job_list_hash
 
     aux_hash = generate_dict_hash(job_list)
     if job_list_hash != aux_hash:   # Current job list modified since loaded
@@ -1442,7 +1284,7 @@ def load_named_job_list():
             "Current lob list contains unsaved changes.\r\n"
             "Do you want to save them before loading the new job list?\r\n"):
             save_named_job_list()
-    start_dir = os.path.split(JobListFilename)[0]  
+    start_dir = os.path.split(general_config.job_list_filename)[0]  
     aux_file = filedialog.askopenfilename(
         initialdir=start_dir,
         defaultextension=".json",
@@ -1450,29 +1292,28 @@ def load_named_job_list():
         title="Select file to retrieve job list")
     if len(aux_file) > 0:
         load_job_list(aux_file)
-        JobListFilename = aux_file
-        general_config["JobListFilename"] = JobListFilename
+        general_config.job_list_filename = aux_file
         job_list_hash = generate_dict_hash(job_list)
         display_window_title()
 
 
 def save_job_list():
-    global job_list, default_job_list_filename
+    global job_list
 
     if not IgnoreConfig:
-        with open(default_job_list_filename, 'w+') as f:
+        with open(general_config.default_job_list_filename, 'w+') as f:
             json.dump(job_list, f, indent=4)
 
 
 def load_job_list(filename = None):
-    global job_list, default_job_list_filename, job_list_treeview, job_list_hash
+    global job_list, job_list_treeview, job_list_hash
 
     if filename is None:
-        if not os.path.isfile(default_job_list_filename):   
+        if not os.path.isfile(general_config.default_job_list_filename):   
             # if default job list file does not exist, try with legacy one (before 1.20.13)
-            filename = default_job_list_filename_legacy
+            filename = general_config.default_job_list_filename_legacy
         else:
-            filename = default_job_list_filename
+            filename = general_config.default_job_list_filename
 
     display_window_title()  # setting title of the window
 
@@ -1577,7 +1418,7 @@ def job_processing_loop():
             # Load matching file list from target dir (source dir list retrieved in decode_project_config)
             get_target_dir_file_list()
 
-            logging.debug(f"Processing batch loop: Loaded {SourceDir} folder")
+            logging.debug(f"Processing batch loop: Loaded {general_config.source_dir} folder")
 
             start_convert()
             job_started = True
@@ -1744,7 +1585,7 @@ File handling functions
 
 
 def set_source_folder():
-    global SourceDir, frames_source_dir
+    global frames_source_dir
     global TargetDir, frames_target_dir
     global CurrentFrame, frame_slider, Go_btn, cropping_btn
     global first_absolute_frame
@@ -1756,7 +1597,7 @@ def set_source_folder():
     save_project_config()
 
     aux_dir = filedialog.askdirectory(
-        initialdir=SourceDir,
+        initialdir=general_config.source_dir,
         title="Select folder with captured images to process")
 
     if not aux_dir or aux_dir == "" or aux_dir == ():
@@ -1769,25 +1610,22 @@ def set_source_folder():
     else:
         win.config(cursor="watch")  # Set cursor to hourglass
         ui_init_done = False
-        SourceDir = aux_dir
+        general_config.source_dir = aux_dir
         frames_source_dir.delete(0, 'end')
-        frames_source_dir.insert('end', SourceDir)
+        frames_source_dir.insert('end', general_config.source_dir)
         frames_source_dir.after(100, frames_source_dir.xview_moveto, 1)
         # Create a project id (folder name) for the stats logging below
         # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
-        project_name = os.path.split(SourceDir)[-1].replace(',', ';')
-        general_config["SourceDir"] = SourceDir
-
+        project_name = os.path.split(general_config.source_dir)[-1].replace(',', ';')
+        # general_config["SourceDir"] = SourceDir # delete_this
 
     load_project_config()  # Needs SourceDir defined
 
     decode_project_config()  # Needs first_absolute_frame defined
 
-    template_list.set_scale(frame_width)    # frame_width set by get_source_dir_file_list
-
     # If not defined in project, create target folder inside source folder
     if TargetDir == '':
-        TargetDir = os.path.join(SourceDir, 'out')
+        TargetDir = os.path.join(general_config.source_dir, 'out')
         if not os.path.isdir(TargetDir):
             os.mkdir(TargetDir)
         get_target_dir_file_list()
@@ -1821,7 +1659,7 @@ def set_frames_target_folder():
 
     if not aux_dir or aux_dir == "" or aux_dir == ():
         return
-    elif aux_dir == SourceDir:
+    elif aux_dir == general_config.source_dir:
         tk.messagebox.showerror(
             "Error!",
             "Target folder cannot be the same as source folder.")
@@ -1845,7 +1683,7 @@ def set_video_target_folder():
 
     if not VideoTargetDir:
         return
-    elif VideoTargetDir == SourceDir:
+    elif VideoTargetDir == general_config.source_dir:
         tk.messagebox.showerror(
             "Error!",
             "Video target folder cannot be the same as source folder.")
@@ -2224,31 +2062,25 @@ def cmd_settings_popup_dismiss():
 
 
 def cmd_settings_popup_accept():
-    global options_dlg, FfmpegBinName, enable_rectangle_popup, FFmpeg_denoise_param
-    global enable_soundtrack, UserDefinedLeftStripeWidthProportion
+    global options_dlg
 
-    general_config["PopupPos"] = options_dlg.geometry()
+    general_config.popup_pos = options_dlg.geometry()
 
-    save_FfmpegBinName = FfmpegBinName
-    FfmpegBinName = custom_ffmpeg_path.get()
+    save_FfmpegBinName = general_config.ffmpeg_bin_name
+    general_config.ffmpeg_bin_name = custom_ffmpeg_path.get()
     if not is_ffmpeg_installed():
         tk.messagebox.showerror("Error!",
                                 "Provided FFMpeg path is invalid.")
         custom_ffmpeg_path.delete(0, 'end')
-        custom_ffmpeg_path.insert('end', FfmpegBinName)
-        FfmpegBinName = save_FfmpegBinName
+        custom_ffmpeg_path.insert('end', general_config.ffmpeg_bin_name)
+        general_config.ffmpeg_bin_name = save_FfmpegBinName
     else:
-        FfmpegBinName = custom_ffmpeg_path.get()
-        general_config["FfmpegBinName"] = FfmpegBinName
-    FFmpeg_denoise_param = ffmpeg_denoise_value.get()
-    general_config["FFmpegHqdn3d"] = FFmpeg_denoise_param
-    enable_rectangle_popup = enable_rectangle_popup_value.get()
-    general_config["EnablePopups"] = enable_rectangle_popup
+        general_config.ffmpeg_bin_name = custom_ffmpeg_path.get()
+    general_config.ffmpeg_hqdn3d = ffmpeg_denoise_value.get()
+    general_config.enable_popups = enable_rectangle_popup_value.get()
     if sound_file_available:
-        enable_soundtrack = enable_soundtrack_value.get()
-        general_config["EnableSoundtrack"] = enable_soundtrack
-    UserDefinedLeftStripeWidthProportion = left_stripe_width_value.get() / 100
-    project_config["UserDefinedLeftStripeWidthProportion"] = UserDefinedLeftStripeWidthProportion
+        general_config.enable_soundtrack = enable_soundtrack_value.get()
+    general_config.left_stripe_width_proportion = left_stripe_width_value.get() / 100
 
     options_dlg.grab_release()
     options_dlg.destroy()
@@ -2257,7 +2089,6 @@ def cmd_settings_popup_accept():
 def cmd_settings_popup():
     global options_dlg
     global custom_ffmpeg_path
-    global FFmpeg_denoise_param, FfmpegBinName
     global ffmpeg_denoise_value, enable_rectangle_popup_value, enable_soundtrack_value
     global left_stripe_width_value
 
@@ -2265,8 +2096,8 @@ def cmd_settings_popup():
 
     options_dlg = tk.Toplevel(win)
 
-    if 'PopupPos' in general_config:
-        options_dlg.geometry(f"+{general_config['PopupPos'].split('+', 1)[1]}")
+    if general_config.popup_pos != "":
+        options_dlg.geometry(f"+{general_config.popup_pos.split('+', 1)[1]}")
 
     options_dlg.title("AfterScan Settings")
     # options_dlg.geometry(f"300x100")
@@ -2280,26 +2111,26 @@ def cmd_settings_popup():
     custom_ffmpeg_path = Entry(options_dlg, width=10, borderwidth=1, font=("Arial", FontSize))
     custom_ffmpeg_path.grid(row=options_row, column=1, sticky=W, padx=5)
     custom_ffmpeg_path.delete(0, 'end')
-    custom_ffmpeg_path.insert('end', FfmpegBinName)
+    custom_ffmpeg_path.insert('end', general_config.ffmpeg_bin_name)
     custom_ffmpeg_path.bind('<<Paste>>', lambda event, entry=custom_ffmpeg_path: on_paste_all_entries(event, entry))
     as_tooltips.add(custom_ffmpeg_path, "Path where the ffmpeg executable is installed in your system")
 
     options_row += 1
 
-    # ffmpeg denoise filter parameters (hqdn3d=8:6:4:3) FFmpeg_denoise_param
+    # ffmpeg denoise filter parameters (hqdn3d=8:6:4:3) general_config.ffmpeg_hqdn3d
     ffmpeg_denoise_label = Label(options_dlg, text='FFmpeg hqdn3d parameter:', font=("Arial", FontSize))
     ffmpeg_denoise_label.grid(row=options_row, column=0, sticky=W, padx=5, pady=(10,5))
     ffmpeg_denoise_value = Entry(options_dlg, width=10, borderwidth=1, font=("Arial", FontSize))
     ffmpeg_denoise_value.grid(row=options_row, column=1, sticky=W, padx=5)
     ffmpeg_denoise_value.delete(0, 'end')
-    ffmpeg_denoise_value.insert('end', FFmpeg_denoise_param)
+    ffmpeg_denoise_value.insert('end', general_config.ffmpeg_hqdn3d)
     ffmpeg_denoise_value.bind('<<Paste>>', lambda event, entry=custom_ffmpeg_path: on_paste_all_entries(event, entry))
     as_tooltips.add(ffmpeg_denoise_value, "Parameter to pass to denoise filter (hqdn3d) filter as parameter durign video encoding. Default value is '8:6:4:3'")
 
     options_row += 1
 
     # Checkbox to add soundtrack to generated film
-    enable_soundtrack_value = tk.BooleanVar(value=enable_soundtrack)
+    enable_soundtrack_value = tk.BooleanVar(value=general_config.enable_soundtrack)
     enable_soundtrack_checkbox = tk.Checkbutton(options_dlg,
                                                          text='Add soundtrack to video',
                                                          variable=enable_soundtrack_value,
@@ -2310,7 +2141,7 @@ def cmd_settings_popup():
     options_row += 1
 
     # Checkbox to enable popups for Custom template and cropping definition
-    enable_rectangle_popup_value = tk.BooleanVar(value=enable_rectangle_popup)
+    enable_rectangle_popup_value = tk.BooleanVar(value=general_config.enable_popups)
     enable_rectangle_popup_checkbox = tk.Checkbutton(options_dlg,
                                                          text='Enable popups',
                                                          variable=enable_rectangle_popup_value,
@@ -2321,7 +2152,7 @@ def cmd_settings_popup():
     options_row += 1
 
     # Left stripe width value
-    left_stripe_width_value = tk.IntVar(value=int(UserDefinedLeftStripeWidthProportion*100))
+    left_stripe_width_value = tk.IntVar(value=int(general_config.left_stripe_width_proportion*100))
     left_stripe_width_label = Label(options_dlg, text='Left stripe width %:', font=("Arial", FontSize))
     left_stripe_width_label.grid(row=options_row, column=0, sticky=W, padx=5, pady=(10,5))
     left_stripe_width_spinbox = tk.Spinbox(options_dlg, width=3,
@@ -2362,10 +2193,10 @@ def cleanup_bad_frame_list(limit):
     Args:
         directory (str): Directory to search for files (default: current directory).
     """
-    bad_frame_list_name = f"{os.path.split(SourceDir)[-1]}"
+    bad_frame_list_name = f"{os.path.split(general_config.source_dir)[-1]}"
     # Set filename
     bad_frame_list_pattern_name = get_bad_frame_list_filename(with_timestamp=True, with_wildcards=True)
-    full_path_bad_frame_list_pattern_name = os.path.join(resources_dir, bad_frame_list_pattern_name)
+    full_path_bad_frame_list_pattern_name = os.path.join(general_config.resources_dir, bad_frame_list_pattern_name)
 
     # Get list of matching files
     files = glob(full_path_bad_frame_list_pattern_name)
@@ -2391,7 +2222,7 @@ def cleanup_bad_frame_list(limit):
 
 def get_bad_frame_list_filename(with_timestamp = False, with_wildcards = False):
     # Set filename to framer source folder
-    bad_frame_list_name = f"{os.path.split(SourceDir)[-1]}"
+    bad_frame_list_name = f"{os.path.split(general_config.source_dir)[-1]}"
     bad_frame_list_filename = f"{bad_frame_list_name}"
     if with_timestamp:
         if not with_wildcards:
@@ -2401,7 +2232,7 @@ def get_bad_frame_list_filename(with_timestamp = False, with_wildcards = False):
     bad_frame_list_filename += ".badframes.json"
     if with_timestamp:
         bad_frame_list_filename += ".bak"
-    return os.path.join(resources_dir, bad_frame_list_filename)
+    return os.path.join(general_config.resources_dir, bad_frame_list_filename)
     
 
 def save_bad_frame_list(with_timestamp = False):
@@ -2893,8 +2724,7 @@ def bad_frames_decrease_threshold_5(event = None):
 
 
 def set_detect_minor_mismatches():
-    global detect_minor_mismatches
-    detect_minor_mismatches = detect_minor_mismatches_value.get()
+    general_config.detect_minor_mismatches = detect_minor_mismatches_value.get()
 
 
 def set_stabilization_bounds_alert():
@@ -2903,8 +2733,7 @@ def set_stabilization_bounds_alert():
 
 
 def set_precise_template_match():
-    global precise_template_match
-    precise_template_match = precise_template_match_value.get()
+    general_config.precise_template_match = precise_template_match_value.get()
 
 
 def FrameSync_Viewer_popup_update_widgets(status, except_save=False):
@@ -2956,7 +2785,6 @@ def FrameSync_Viewer_popup():
     global delete_bad_frames_button, delete_current_bad_frame_button
     global detect_minor_mismatches_checkbox, detect_minor_mismatches_value
     global precise_template_match_checkbox, precise_template_match_value
-    global precise_template_match, detect_minor_mismatches
     global stabilization_bounds_alert, stabilization_bounds_alert_value, stabilization_bounds_alert_checkbox
     global StabilizationThreshold
     global pos_before_text, pos_after_text, threshold_before_text, threshold_after_text
@@ -2965,7 +2793,7 @@ def FrameSync_Viewer_popup():
     if FrameSync_Viewer_opened: # Already opened, user wants to close
         FrameSync_Viewer_opened = False # Set to false first, to avoid interactions with deleted elements
         StabilizationThreshold = StabilizationThreshold_default   # Restore original value
-        general_config["TemplatePopupWindowPos"] = template_popup_window.geometry()
+        general_config.template_popup_window_pos = template_popup_window.geometry()
         template_canvas.destroy()
         left_stripe_canvas.destroy()
         left_stripe_stabilized_canvas.destroy()
@@ -2986,8 +2814,8 @@ def FrameSync_Viewer_popup():
 
     template_popup_window.minsize(width=300, height=template_popup_window.winfo_height())
 
-    if 'TemplatePopupWindowPos' in general_config:
-        template_popup_window.geometry(f"+{general_config['TemplatePopupWindowPos'].split('+', 1)[1]}")
+    if general_config.template_popup_window_pos != "":
+        template_popup_window.geometry(f"+{general_config.template_popup_window_pos.split('+', 1)[1]}")
 
     # Create three vertical frames in the bottom horizontal frame
     left_frame = Frame(template_popup_window, width=60, height=8)
@@ -3145,7 +2973,7 @@ def FrameSync_Viewer_popup():
     as_tooltips.add(corrected_bad_frame_label, "Number of frames not properly stabilized, that have been manually adjusted")
 
     # Checkbox to allow high sensitive detencion (match < 0.9)
-    precise_template_match_value = tk.BooleanVar(value=precise_template_match)
+    precise_template_match_value = tk.BooleanVar(value=general_config.precise_template_match)
     precise_template_match_checkbox = tk.Checkbutton(right_frame,
                                                          text='Precise template match',
                                                          variable=precise_template_match_value,
@@ -3156,7 +2984,7 @@ def FrameSync_Viewer_popup():
     as_tooltips.add(precise_template_match_checkbox, "Activate high accuracy template detection for better stabilization (implies slower encoding)")
 
     # Checkbox to allow high sensitive detencion (match < 0.9)
-    detect_minor_mismatches_value = tk.BooleanVar(value=detect_minor_mismatches)
+    detect_minor_mismatches_value = tk.BooleanVar(value=general_config.detect_minor_mismatches)
     detect_minor_mismatches_checkbox = tk.Checkbutton(right_frame,
                                                          text='Detect minor mismatches',
                                                          variable=detect_minor_mismatches_value,
@@ -3361,10 +3189,8 @@ def FrameSync_Viewer_popup():
     # Run a loop for the popup window
     template_popup_window.wait_window()
 
-    precise_template_match = precise_template_match_value.get()
-    general_config["PreciseTemplateMatch"] = precise_template_match
-    detect_minor_mismatches = detect_minor_mismatches_value.get()
-    general_config["HighSensitiveBadFrameDetection"] = detect_minor_mismatches
+    general_config.precise_template_match = precise_template_match_value.get()
+    general_config.detect_minor_mismatches = detect_minor_mismatches_value.get()
 
     FrameSync_Viewer_opened = False
 
@@ -3472,7 +3298,7 @@ def debug_template_display_frame(canvas, canvas_image_id, img, x, y, width, heig
 
 def load_current_frame_image():
     # If HDR mode, pick the lightest frame to select rectangle
-    file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (CurrentFrame + 1, 2, file_type))
+    file3 = os.path.join(general_config.source_dir, FrameHdrInputFilenamePattern % (CurrentFrame + 1, 2, file_type))
     if os.path.isfile(file3):  # If hdr frames exist, add them
         file = file3
     else:
@@ -3532,7 +3358,6 @@ def scale_display_update(update_filters=True, offset_x = 0, offset_y = 0):
 
 def select_scale_frame(selected_frame):
     global win
-    global SourceDir
     global CurrentFrame
     global SourceDirFileList
     global first_absolute_frame
@@ -3913,12 +3738,12 @@ def select_rectangle_area(is_cropping=False):
 
     file = SourceDirFileList[CurrentFrame]
     # If HDR mode, pick the lightest frame to select rectangle
-    file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (CurrentFrame + 1, 2, file_type))
+    file3 = os.path.join(general_config.source_dir, FrameHdrInputFilenamePattern % (CurrentFrame + 1, 2, file_type))
     if os.path.isfile(file3):  # If hdr frames exist, add them
         file = file3
 
     image = load_image_for_rectangle_definition(file, is_cropping)
-    if enable_rectangle_popup:
+    if general_config.enable_popups:
         retvalue = interactive_rectangle_definition_cv2(image, is_cropping)
     else:
         image = opencv_to_pil(image)
@@ -4004,10 +3829,10 @@ def select_custom_template():
 
     # First, define custom template name and filename in case it needs to be deleted
     # Template Name = Last folder in the path, plus Frame From,  Frame to it not encoding all
-    template_name = f"{os.path.split(SourceDir)[-1]}"
+    template_name = f"{os.path.split(general_config.source_dir)[-1]}"
     # Set filename
     template_filename = f"Pattern.custom.{template_name}.jpg"
-    full_path_template_filename = os.path.join(resources_dir, template_filename)
+    full_path_template_filename = os.path.join(general_config.resources_dir, template_filename)
 
     if template_list.get_active_type() == 'custom':
         if os.path.isfile(template_list.get_active_filename()):
@@ -4032,7 +3857,7 @@ def select_custom_template():
         if select_rectangle_area(is_cropping=False) and CurrentFrame < len(SourceDirFileList):
             # Extract template from image
             file = SourceDirFileList[CurrentFrame]
-            file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (CurrentFrame + 1, 2, file_type))
+            file3 = os.path.join(general_config.source_dir, FrameHdrInputFilenamePattern % (CurrentFrame + 1, 2, file_type))
             if os.path.isfile(file3):  # If hdr frames exist, add them
                 file = file3
             full_img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
@@ -4068,7 +3893,7 @@ def select_custom_template():
 
             define_template_search_area(full_img)  # Adjust hole search area to new template
 
-            if enable_rectangle_popup:
+            if general_config.enable_popups:
                 # Display saved template for information
                 CustomTemplateWindowTitle = "Captured custom template. Press any key to continue."
                 win_x = int(img_final.shape[1] * area_select_image_factor)
@@ -4254,7 +4079,7 @@ def match_template(frame_idx, img):
                 best_top_left = top_left
                 best_maxVal = maxVal
                 best_img_final = img_final
-            if precise_template_match:
+            if general_config.precise_template_match:
                 if best_match_level >= 0.99 or (best_match_level >= 0.9 and maxVal * pos_criteria < best_match_level):  # originally 0.85 and 0.7
                     Done = True # If threshold if really good, or much worse than best so far (means match level started decreasing in this loop), then end
             else:
@@ -4460,7 +4285,7 @@ def get_image_left_stripe(img, calculated=True):
     global HoleSearchTopLeft, HoleSearchBottomRight
     global template_list
 
-    width = CalculatedLeftStripeWidth if calculated else int(UserDefinedLeftStripeWidthProportion*img.shape[1])
+    width = general_config.left_stripe_width_pixels if calculated else int(general_config.left_stripe_width_proportion*img.shape[1])
     return np.copy(img[0:img.shape[1], 0:width])
 
 
@@ -4509,6 +4334,9 @@ def get_target_position(frame_idx, img, orientation='v', threshold=10, slice_wid
     height = img.shape[0]
     width = img.shape[1]
 
+    if slice_width > width:
+        slice_width = width
+
     # Set horizontal rows to make several atempts if required
     pos_list = []
     if orientation == 'v':
@@ -4534,10 +4362,10 @@ def get_target_position(frame_idx, img, orientation='v', threshold=10, slice_wid
         if orientation == 'v':
             # Get a vertical slice on the left of the image
             if slice_width > width:
-                raise ValueError("Slice width exceeds image width")
+                raise ValueError(f"Slice width ({slice_width}) exceeds image width ({width})")
             sliced_image = img[:, pos:pos+slice_width]
         else:
-            sliced_image = img[pos:pos+slice_width, :CalculatedLeftStripeWidth]    # Don't need a full horizontal slice, holes must be in the leftmost 25%
+            sliced_image = img[pos:pos+slice_width, :general_config.left_stripe_width_pixels]    # Don't need a full horizontal slice, holes must be in the leftmost 25%
 
         # Convert to pure black and white (binary image)
         _, binary_img = cv2.threshold(sliced_image, get_stabilization_threshold(), 255, cv2.THRESH_BINARY)
@@ -4806,7 +4634,7 @@ def stabilize_image(frame_idx, img, img_ref, offset_x = 0, offset_y = 0, img_ref
 
     if ConvertLoopRunning: # Only add frames to misaligned list, or to csv file, when running conversion loop
         if missing_rows > 0 or match_level < 0.9:
-            if match_level < (0.9 if detect_minor_mismatches else 0.7):   # Only add really bad matches
+            if match_level < (0.9 if general_config.detect_minor_mismatches else 0.7):   # Only add really bad matches
                 ### Record bad frames always
                 if True or FrameSync_Viewer_opened:  # Generate bad frame list only if popup opened
                     insert_or_replace_sorted(bad_frame_list, {'frame_idx': frame_idx, 'x': 0, 'y': 0, 
@@ -4895,10 +4723,9 @@ def denoise_image(img):
 
 def is_ffmpeg_installed():
     global ffmpeg_installed
-    global FfmpegBinName
     global ffmpeg_process
 
-    cmd_ffmpeg = [FfmpegBinName, '-h']
+    cmd_ffmpeg = [general_config.ffmpeg_bin_name, '-h']
 
     try:
         ffmpeg_process = sp.Popen(cmd_ffmpeg, stderr=sp.PIPE, stdout=sp.PIPE)
@@ -4927,7 +4754,7 @@ def system_suspend():
 
 
 def get_source_dir_file_list():
-    global SourceDir, frame_width, frame_height
+    global frame_width, frame_height
     global project_config
     global SourceDirFileList
     global CurrentFrame, first_absolute_frame, last_absolute_frame
@@ -4940,7 +4767,7 @@ def get_source_dir_file_list():
     global FrameSync_Images_Factor
     global frame_height, frame_width
 
-    if not os.path.isdir(SourceDir):
+    if not os.path.isdir(general_config.source_dir):
         tk.messagebox.showerror("Error!",
                                 "Source folder does not exist. "
                                 "Please specify a different one and try again")
@@ -4949,11 +4776,11 @@ def get_source_dir_file_list():
 
     # Try first with standard scan filename template
     SourceDirFileList_jpg = list(glob(os.path.join(
-        SourceDir,
+        general_config.source_dir,
         FrameInputFilenamePatternList_jpg)))
     if len(SourceDirFileList_jpg) == 0:     # Only try to read if there are no JPG at all
         SourceDirFileList_png = list(glob(os.path.join(
-            SourceDir,
+            general_config.source_dir,
             FrameInputFilenamePatternList_png)))
         SourceDirFileList = sorted(SourceDirFileList_png)
         file_type_out = 'png'  # If we have png files in the input, we default to png for the output
@@ -4962,10 +4789,10 @@ def get_source_dir_file_list():
         file_type_out = 'jpg'
 
     SourceDirHdrFileList_jpg = list(glob(os.path.join(
-        SourceDir,
+        general_config.source_dir,
         HdrInputFilenamePatternList_jpg)))
     SourceDirHdrFileList_png = list(glob(os.path.join(
-        SourceDir,
+        general_config.source_dir,
         HdrInputFilenamePatternList_png)))
     SourceDirHdrFileList = sorted(SourceDirHdrFileList_jpg + SourceDirHdrFileList_png)
     if len(SourceDirHdrFileList_png) != 0:
@@ -4974,10 +4801,10 @@ def get_source_dir_file_list():
         file_type_out = 'jpg'
 
     SourceDirLegacyHdrFileList_jpg = list(glob(os.path.join(
-        SourceDir,
+        general_config.source_dir,
         LegacyHdrInputFilenamePatternList_jpg)))
     SourceDirLegacyHdrFileList_png = list(glob(os.path.join(
-        SourceDir,
+        general_config.source_dir,
         LegacyHdrInputFilenamePatternList_png)))
     SourceDirLegacyHdrFileList = sorted(SourceDirLegacyHdrFileList_jpg + SourceDirLegacyHdrFileList_png)
     if len(SourceDirLegacyHdrFileList_png) != 0:
@@ -5028,7 +4855,7 @@ def get_source_dir_file_list():
     # Set frame dimensions in global variable, for use everywhere
     frame_width = aux_image.shape[1]
     frame_height = aux_image.shape[0]
-    template_list.set_scale(frame_width)    # frame_width set by get_source_dir_file_list
+    template_list.set_scale(aux_image)    # frame_width set by get_source_dir_file_list
 
     return len(SourceDirFileList)
 
@@ -5122,14 +4949,13 @@ def define_template_search_area(img):
     global TemplateTopLeft, template_list
     global template_wb_proportion_text
     global extended_stabilization
-    global CalculatedLeftStripeWidth
 
     # Sproket hole corner to be detected in image, to adjust search area width
     aux_template = template_list.get_active_template()
-    if aux_template.shape[1] > int(img.shape[1]*UserDefinedLeftStripeWidthProportion):
+    if aux_template.shape[1] > int(img.shape[1]*general_config.left_stripe_width_proportion):
         TemplateSearchAreaWidth = aux_template.shape[1]
     else:
-        TemplateSearchAreaWidth = int(img.shape[1]*UserDefinedLeftStripeWidthProportion)
+        TemplateSearchAreaWidth = int(img.shape[1]*general_config.left_stripe_width_proportion)
     # Adjust left stripe width (search area)
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_bw = cv2.threshold(img_gray, 240, 255, cv2.THRESH_BINARY)[1]
@@ -5137,12 +4963,12 @@ def define_template_search_area(img):
 
     result = cv2.matchTemplate(img_target, aux_template, cv2.TM_CCOEFF_NORMED)
     (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
-    CalculatedLeftStripeWidth = maxLoc[0] + template_list.get_active_size()[0]
-    CalculatedLeftStripeWidth += int(80 * img.shape[0]/1520)   # Increase width, proportional to the image size (250 pixels for default size 2028x1520)
-    logging.debug(f"Calculated left stripe width: {CalculatedLeftStripeWidth}")
+    general_config.left_stripe_width_pixels = maxLoc[0] + template_list.get_active_size()[0]
+    general_config.left_stripe_width_pixels += int(80 * img.shape[0]/1520)   # Increase width, proportional to the image size (250 pixels for default size 2028x1520)
+    logging.debug(f"Calculated left stripe width: {general_config.left_stripe_width_pixels}")
     if extended_stabilization.get():
         logging.debug("Extended stabilization requested: Widening search area by 50 pixels")
-        CalculatedLeftStripeWidth += 50     # If precise stabilization, make search area wider (although not clear this will help instead of making it worse)
+        general_config.left_stripe_width_pixels += 50     # If precise stabilization, make search area wider (although not clear this will help instead of making it worse)
 
 """
 ########################
@@ -5268,7 +5094,7 @@ def start_convert():
                 if name == "":  # Assign default if no filename
                     name = "AfterScan-"
                 CsvFilename = datetime.now().strftime("%Y_%m_%d-%H-%M-%S_") + name + '.csv'
-                CsvPathName = resources_dir
+                CsvPathName = general_config.resources_dir
                 if CsvPathName == "":
                     CsvPathName = os.getcwd()
                 CsvPathName = os.path.join(CsvPathName, CsvFilename)
@@ -5350,7 +5176,7 @@ def generation_exit(success = True):
 
 
 def frame_encode(frame_idx, id, do_save = True, offset_x = 0, offset_y = 0):
-    global SourceDir, TargetDir
+    global TargetDir
     global HdrFilesOnly , first_absolute_frame, frames_to_encode
     global FrameInputFilenamePattern, HdrSetInputFilenamePattern, FrameHdrInputFilenamePattern, FrameOutputFilenamePattern
     global CropTopLeft, CropBottomRight
@@ -5367,14 +5193,14 @@ def frame_encode(frame_idx, id, do_save = True, offset_x = 0, offset_y = 0):
     # Get current file(s)
     if HdrFilesOnly:    # Legacy HDR (before 2 Dec 2023): Dedicated filename
         images_to_merge.clear()
-        file1 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 1, file_type))
+        file1 = os.path.join(general_config.source_dir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 1, file_type))
         img_ref = cv2.imread(file1, cv2.IMREAD_UNCHANGED)   # Keep first frame of the set for stabilization reference
         images_to_merge.append(img_ref)
-        file2 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 2, file_type))
+        file2 = os.path.join(general_config.source_dir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 2, file_type))
         images_to_merge.append(cv2.imread(file2, cv2.IMREAD_UNCHANGED))
-        file3 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 3, file_type))
+        file3 = os.path.join(general_config.source_dir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 3, file_type))
         images_to_merge.append(cv2.imread(file3, cv2.IMREAD_UNCHANGED))
-        file4 = os.path.join(SourceDir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 4, file_type))
+        file4 = os.path.join(general_config.source_dir, HdrSetInputFilenamePattern % (frame_idx + first_absolute_frame, 4, file_type))
         images_to_merge.append(cv2.imread(file4, cv2.IMREAD_UNCHANGED))
         AlignMtb.process(images_to_merge, images_to_merge)
         img = MergeMertens.process(images_to_merge)
@@ -5382,28 +5208,28 @@ def frame_encode(frame_idx, id, do_save = True, offset_x = 0, offset_y = 0):
         img = img / img.max() * 255
         img = np.uint8(img)
     else:
-        file1 = os.path.join(SourceDir, FrameInputFilenamePattern % (frame_idx + first_absolute_frame, file_type))
+        file1 = os.path.join(general_config.source_dir, FrameInputFilenamePattern % (frame_idx + first_absolute_frame, file_type))
         if not os.path.isfile(file1):
             file_type = 'png' if file_type == 'jpg' else 'jpg'  # Try with the other file type
-            file1 = os.path.join(SourceDir, FrameInputFilenamePattern % (frame_idx + first_absolute_frame, file_type))
+            file1 = os.path.join(general_config.source_dir, FrameInputFilenamePattern % (frame_idx + first_absolute_frame, file_type))
         # read image
         img = cv2.imread(file1, cv2.IMREAD_UNCHANGED)
         img_ref = img   # Reference image is the same image for standard capture
         # Check if HDR frames exist. Can handle between 2 and 5
-        file2 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 2, file_type))
+        file2 = os.path.join(general_config.source_dir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 2, file_type))
         if os.path.isfile(file2):   # If hdr frames exist, add them
             images_to_merge.clear()
             images_to_merge.append(img_ref)     # Add first frame
             img_ref_aux = img_ref
             img_ref = cv2.imread(file2, cv2.IMREAD_UNCHANGED) # Override stabilization reference with HDR#2
             images_to_merge.append(img_ref)
-            file3 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 3, file_type))
+            file3 = os.path.join(general_config.source_dir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 3, file_type))
             if os.path.isfile(file3):  # If hdr frames exist, add them
                 images_to_merge.append(cv2.imread(file3, cv2.IMREAD_UNCHANGED))
-                file4 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 4, file_type))
+                file4 = os.path.join(general_config.source_dir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 4, file_type))
                 if os.path.isfile(file4):  # If hdr frames exist, add them
                     images_to_merge.append(cv2.imread(file4, cv2.IMREAD_UNCHANGED))
-                    file5 = os.path.join(SourceDir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 5, file_type))
+                    file5 = os.path.join(general_config.source_dir, FrameHdrInputFilenamePattern % (frame_idx + first_absolute_frame, 5, file_type))
                     if os.path.isfile(file5):  # If hdr frames exist, add them
                         images_to_merge.append(cv2.imread(file5, cv2.IMREAD_UNCHANGED))
 
@@ -5476,7 +5302,6 @@ def frame_update_ui(frame_idx, merged):
 
 
 def frame_encoding_thread(queue, event, id):
-    global SourceDir
     global ConvertLoopExitRequested, ConvertLoopRunning
     global active_threads, working_threads
     global last_displayed_image
@@ -5485,8 +5310,8 @@ def frame_encoding_thread(queue, event, id):
         logging.debug(f"Thread {id} started")
         while not event.is_set():
             message = queue.get()
-            if not os.path.isdir(SourceDir):
-                logging.error(f"Source dir {SourceDir} unmounted: Stop encoding session")
+            if not os.path.isdir(general_config.source_dir):
+                logging.error(f"Source dir {general_config.source_dir} unmounted: Stop encoding session")
             if message[0] == "encode_frame":
                 # Encode frame
                 merged = frame_encode(message[1], id)[0]
@@ -5769,7 +5594,6 @@ def call_ffmpeg():
     global VideoTargetDir, TargetDir
     global cmd_ffmpeg
     global ffmpeg_preset
-    global FfmpegBinName
     global TargetVideoFilename
     global StartFrame
     global ffmpeg_process, ffmpeg_success
@@ -5784,7 +5608,7 @@ def call_ffmpeg():
         video_width = resolution_dict[project_config["VideoResolution"]].split(':')[0]
         video_height = resolution_dict[project_config["VideoResolution"]].split(':')[1]
 
-    cmd_ffmpeg = [FfmpegBinName,
+    cmd_ffmpeg = [general_config.ffmpeg_bin_name,
                   '-y',
                   '-loglevel', 'error',
                   '-stats',
@@ -5801,7 +5625,7 @@ def call_ffmpeg():
                        '-start_number', str(StartFrame + first_absolute_frame),
                        '-i', os.path.join(TargetDir, pattern)])
     # Add soundtrack if enabled
-    if enable_soundtrack:
+    if general_config.enable_soundtrack:
         cmd_ffmpeg.extend(['-stream_loop', '-1', '-i', soundtrack_file_path])
     # Create filter_complex or one or two inputs
     filter_complex_options=''
@@ -5812,7 +5636,7 @@ def call_ffmpeg():
             filter_complex_options+='scale=w='+video_width+':h='+video_height+':'
         filter_complex_options+='force_original_aspect_ratio=decrease,pad='+video_width+':'+video_height+':(ow-iw)/2:(oh-ih)/2,setsar=1'
         if perform_denoise.get():
-            filter_complex_options+=f',hqdn3d={FFmpeg_denoise_param}'
+            filter_complex_options+=f',hqdn3d={general_config.ffmpeg_hqdn3d}'
         filter_complex_options+='[v0];'
     # Main video
     # trim filter: Problems with some specific number of frames, which cause video encoding to extend till the end
@@ -5828,7 +5652,7 @@ def call_ffmpeg():
         filter_complex_options+='scale=w='+video_width+':h='+video_height+':'
     filter_complex_options+='force_original_aspect_ratio=decrease,pad='+video_width+':'+video_height+':(ow-iw)/2:(oh-ih)/2,setsar=1'
     if perform_denoise.get():
-        filter_complex_options+=f',hqdn3d={FFmpeg_denoise_param}'
+        filter_complex_options+=f',hqdn3d={general_config.ffmpeg_hqdn3d}'
     filter_complex_options+='[v2];'
     # Concatenate title (if exists) + main video
     if title_num_frames > 0:   # There is a title
@@ -5836,7 +5660,7 @@ def call_ffmpeg():
     filter_complex_options+='[v2]concat=n='+str(2 if title_num_frames>0 else 1)+':v=1[v]'
     cmd_ffmpeg.extend(['-filter_complex', filter_complex_options])
 
-    if not enable_soundtrack:
+    if not general_config.enable_soundtrack:
         cmd_ffmpeg.extend(['-an'])  # no audio
     cmd_ffmpeg.extend(
         ['-vcodec', 'libx264',
@@ -5844,7 +5668,7 @@ def call_ffmpeg():
          '-crf', '18',
          '-pix_fmt', 'yuv420p',
          '-map', '[v]'])
-    if enable_soundtrack:
+    if general_config.enable_soundtrack:
         if title_num_frames > 0:   # There is a title
             cmd_ffmpeg.extend(['-map', '2:a'])
         else:
@@ -6083,18 +5907,17 @@ def multiprocessing_init():
 
 
 def init_display():
-    global SourceDir
     global CurrentFrame
     global SourceDirFileList
     global PreviewWidth, PreviewHeight, PreviewRatio
 
     # Get first file
-    if SourceDir == "":
+    if general_config.source_dir == "":
         tk.messagebox.showerror("Error!",
                                 "Please specify source and target folders.")
         return
 
-    os.chdir(SourceDir)
+    os.chdir(general_config.source_dir)
 
     if len(SourceDirFileList) == 0:
         return
@@ -6137,7 +5960,7 @@ def init_logging():
     logging.info("AfterScann %s (%s)", __version__, __date__)
     logging.info("Log file: %s", log_file_fullpath)
 
-
+'''
 def verify_templates():
     retvalue = True
     error_message = ""
@@ -6164,6 +5987,7 @@ def verify_templates():
         error_message += f"\r\nPlease install the correct template files for AfterScan {__version__} and try again."
         tk.messagebox.showerror("Error!", error_message)
     return retvalue, error_message
+'''
 
 
 def afterscan_init():
@@ -6171,7 +5995,6 @@ def afterscan_init():
     global TopWinX
     global TopWinY
     global WinInitDone
-    global SourceDir
     global PreviewWidth, PreviewHeight
     global screen_height
     global BigSize, FontSize
@@ -6199,8 +6022,8 @@ def afterscan_init():
         app_height = PreviewHeight + 330
 
     display_window_title()  # setting title of the window
-    if 'WindowPos' in general_config:
-         win.geometry(f"+{general_config['WindowPos'].split('+', 1)[1]}")
+    if general_config.window_pos != "":
+         win.geometry(f"+{general_config.window_pos.split('+', 1)[1]}")
 
     win.update_idletasks()
 
@@ -6236,8 +6059,8 @@ def afterscan_init():
 
 def display_window_title():
     title = f"{__module__} {__version__}"
-    if JobListFilename != default_job_list_filename:
-        aux = os.path.split(JobListFilename)[1]
+    if general_config.job_list_filename != general_config.default_job_list_filename:
+        aux = os.path.split(general_config.job_list_filename)[1]
         if aux.endswith('.json'):
             aux = aux.removesuffix('.json')
         if aux.endswith('.joblist'):
@@ -6256,7 +6079,6 @@ def adjust_last_column():
 
 def build_ui():
     global win
-    global SourceDir
     global frames_source_dir, frames_target_dir, video_target_dir, video_target_dir_str
     global perform_cropping, cropping_btn
     global perform_denoise, perform_denoise_checkbox
@@ -6285,7 +6107,6 @@ def build_ui():
     global video_target_folder_btn, video_filename_label, video_title_label
     global ffmpeg_preset
     global ffmpeg_preset_rb1, ffmpeg_preset_rb2, ffmpeg_preset_rb3
-    global FfmpegBinName
     global skip_frame_regeneration
     global frame_slider, selected_frame_time, CurrentFrame, frame_selected, selected_frame_number, selected_frame_index
     global film_type
@@ -6338,7 +6159,7 @@ def build_ui():
                           command=lambda: webbrowser.open("https://discord.gg/r2UGkH7qg2"))
     help_menu.add_command(label="AfterScan Wiki", font=("Arial", FontSize), 
                           command=lambda: webbrowser.open("https://github.com/jareff-g/AfterScan/wiki"))
-    if UserConsent == "no":
+    if general_config.user_consent == "no":
         help_menu.add_command(label="Report AfterScan usage", font=("Arial", FontSize), 
                               command=lambda: get_consent(True))
     help_menu.add_command(label="About AfterScan", font=("Arial", FontSize), 
@@ -6458,7 +6279,7 @@ def build_ui():
                                     borderwidth=1, font=("Arial", FontSize))
     frames_source_dir.pack(side=LEFT)
     frames_source_dir.delete(0, 'end')
-    frames_source_dir.insert('end', SourceDir)
+    frames_source_dir.insert('end', general_config.source_dir)
     frames_source_dir.after(100, frames_source_dir.xview_moveto, 1)
     frames_source_dir.bind('<<Paste>>', lambda event, entry=frames_source_dir: on_paste_all_entries(event, entry))
 
@@ -7138,9 +6959,10 @@ def exit_app():  # Exit Application
 
 # Get or generate persistent user ID
 def get_user_id():
-    global AnonymousUuid, general_config
-    if AnonymousUuid != None:
-        return AnonymousUuid
+    global general_config
+
+    if general_config.anonymous_uuid != "":
+        return general_config.anonymous_uuid
     else:
         serial = None
         try:
@@ -7152,33 +6974,30 @@ def get_user_id():
         except FileNotFoundError:
             logging.error(f"e")
         if serial == None:
-            AnonymousUuid = hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()
-            logging.debug(f"Generating generic uuid: {AnonymousUuid}")
+            general_config.anonymous_uuid = hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()
+            logging.debug(f"Generating generic uuid: {general_config.anonymous_uuid}")
         else:
-            AnonymousUuid = hashlib.sha256(serial.encode()).hexdigest()
-            logging.debug(f"Generating RPi uuid: {AnonymousUuid}")
-        general_config['AnonymousUuid'] = AnonymousUuid
-        return AnonymousUuid
+            general_config.anonymous_uuid = hashlib.sha256(serial.encode()).hexdigest()
+            logging.debug(f"Generating RPi uuid: {general_config.anonymous_uuid}")
+        return general_config.anonymous_uuid
 
 
 def get_consent(force = False):
-    global UserConsent, general_config, LastConsentDate
+    global general_config
     # Check reporting consent
     if requests_loaded:
-        if force or UserConsent == None or LastConsentDate == None or (UserConsent == 'no' and (datetime.today()-LastConsentDate).days >= 60):
+        if force or general_config.user_consent == None or general_config.last_consent_date == None or (general_config.user_consent == 'no' and (datetime.today()-general_config.last_consent_date).days >= 60):
             consent = tk.messagebox.askyesno(
                 "AfterScan User Count",
                 "Help us count AfterScan users anonymously? Reports versions to track usage. No personal data is collected, just an anonymous hash plus AfterScan versions."
             )
-            LastConsentDate = datetime.today()
-            general_config['LastConsentDate'] = LastConsentDate.isoformat()
-            UserConsent = "yes" if consent else "no"
-            general_config['UserConsent'] = UserConsent
+            general_config.last_consent_date = datetime.today().isoformat()  # Update last consent date
+            general_config.user_consent = "yes" if consent else "no"
 
 
 # Ping server if requests is available (call once at startup)
 def report_usage():
-    if UserConsent == "yes" and requests_loaded:
+    if general_config.user_consent == "yes" and requests_loaded:
         encoded_2 = "Rucy5uZXQ6NTAwMC9jb3VudA=="
         user_id = get_user_id()  # Reuse persistent ID
         payload = {
@@ -7200,7 +7019,6 @@ def main(argv):
     global LogLevel, LoggingMode
     global template_list
     global ExpertMode
-    global FfmpegBinName
     global IsWindows, IsLinux, IsMac
     global project_config_filename, project_config_basename
     global perform_stabilization
@@ -7216,6 +7034,7 @@ def main(argv):
     global num_threads
     global use_simple_stabilization
     global dev_debug_enabled
+    global general_config   # Only temporary, until dependency injection implemented
     
     LoggingMode = "INFO"
     go_disable_tooptips = False
@@ -7290,20 +7109,22 @@ def main(argv):
     else:
         init_logging()
 
+    # load_general_config() # delete_this
+    general_config = AfterScanConfig.from_json(general_config_filename)
+    general_config.initialize_environment_paths(general_config_filename)
+
     # Add default templates to template list
     template_list = TemplateList()
-    template_list.add("S8", hole_template_filename_s8, "S8", (66, 838))     # New, smaller
-    template_list.add("R8", hole_template_filename_r8, "R8", (65, 1080)) # Default R8 (bottom hole)
-    template_list.add("BW", hole_template_filename_bw, "aux", (0, 0))
-    template_list.add("WB", hole_template_filename_wb, "aux", (0, 0))
-    template_list.add("Corner", hole_template_filename_corner, "aux", (0, 0))
+    template_list.add("S8", general_config.hole_template_filename_s8, "S8", (66, 838))     # New, smaller
+    template_list.add("R8", general_config.hole_template_filename_r8, "R8", (65, 1080)) # Default R8 (bottom hole)
+    template_list.add("BW", general_config.hole_template_filename_bw, "aux", (0, 0))
+    template_list.add("WB", general_config.hole_template_filename_wb, "aux", (0, 0))
+    template_list.add("Corner", general_config.hole_template_filename_corner, "aux", (0, 0))
 
-    templates_ok, error_msg = verify_templates()
+    templates_ok, error_msg = template_list.check_default_template_consistency(script_dir)
     if not templates_ok:
         logging.error(error_msg)
         return
-
-    load_general_config()
 
     afterscan_init()
 
@@ -7321,38 +7142,38 @@ def main(argv):
     ffmpeg_installed = False
     if platform.system() == 'Windows':
         IsWindows = True
-        if FfmpegBinName is None or FfmpegBinName == "":
-            FfmpegBinName = 'C:\\ffmpeg\\bin\\ffmpeg.exe'
+        if general_config.ffmpeg_bin_name is None or general_config.ffmpeg_bin_name == "":
+            general_config.ffmpeg_bin_name = 'C:\\ffmpeg\\bin\\ffmpeg.exe'
         AltFfmpegBinName = 'ffmpeg.exe'
         logging.debug("Detected Windows OS")
     elif platform.system() == 'Linux':
         IsLinux = True
-        if FfmpegBinName is None or FfmpegBinName == "":
-            FfmpegBinName = 'ffmpeg'
+        if general_config.ffmpeg_bin_name is None or general_config.ffmpeg_bin_name == "":
+            general_config.ffmpeg_bin_name = 'ffmpeg'
         AltFfmpegBinName = 'ffmpeg'
         logging.debug("Detected Linux OS")
     elif platform.system() == 'Darwin':
         IsMac = True
-        if FfmpegBinName is None or FfmpegBinName == "":
-            FfmpegBinName = 'ffmpeg'
+        if general_config.ffmpeg_bin_name is None or general_config.ffmpeg_bin_name == "":
+            general_config.ffmpeg_bin_name = 'ffmpeg'
         AltFfmpegBinName = 'ffmpeg'
         logging.debug("Detected Darwin (MacOS) OS")
     else:
-        if FfmpegBinName is None or FfmpegBinName == "":
-            FfmpegBinName = 'ffmpeg'
+        if general_config.ffmpeg_bin_name is None or general_config.ffmpeg_bin_name == "":
+            general_config.ffmpeg_bin_name = 'ffmpeg'
         AltFfmpegBinName = 'ffmpeg'
         logging.debug("OS not recognized: " + platform.system())
 
     if is_ffmpeg_installed():
         ffmpeg_installed = True
     elif platform.system() == 'Windows':
-        FfmpegBinName = AltFfmpegBinName
+        general_config.ffmpeg_bin_name = AltFfmpegBinName
         if is_ffmpeg_installed():
             ffmpeg_installed = True
     if not ffmpeg_installed:
         tk.messagebox.showerror(
             "Error: ffmpeg is not installed",
-            f"FFmpeg is not installed in this computer at the designated path '{FfmpegBinName}'.\r\n"
+            f"FFmpeg is not installed in this computer at the designated path '{general_config.ffmpeg_bin_name}'.\r\n"
             "It is not mandatory for the application to run; "
             "Frame stabilization and cropping will still work, "
             "video generation will not")
@@ -7361,9 +7182,9 @@ def main(argv):
     win.config(cursor="watch")  # Set cursor to hourglass
     widget_status_update()
 
-    if SourceDir is not None:
-        project_config_filename = os.path.join(SourceDir,
-                                               project_config_basename)
+    if general_config.source_dir is not None:
+        project_config_filename = os.path.join(general_config.source_dir,
+                                               general_config.project_config_basename)
     load_project_settings()
     
     load_project_config()
@@ -7376,15 +7197,13 @@ def main(argv):
     adjust_last_column()
 
     # If Templates folder do not exist (introduced with AfterScan 1.12), copy over files from temp folder
-    if copy_templates_from_temp:
-        copy_jpg_files(temp_dir, resources_dir)
+    if general_config.copy_templates_from_temp:
+        copy_jpg_files(general_config.temp_dir, general_config.resources_dir)
 
     ui_init_done = True
 
-    template_list.set_scale(frame_width)    # frame_width set by get_source_dir_file_list
-
     # Disable a few items that should be not operational without source folder
-    if len(SourceDir) == 0:
+    if len(general_config.source_dir) == 0:
         Go_btn.config(state=DISABLED)
         cropping_btn.config(state=DISABLED)
         frame_slider.config(state=DISABLED)
