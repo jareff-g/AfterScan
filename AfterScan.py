@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.26"
+__version__ = "1.30.27"
 __data_version__ = "1.0"
-__date__ = "2025-11-23"
-__version_highlight__ = "Improve template match when high-accuracy is not selected"
+__date__ = "2025-11-26"
+__version_highlight__ = "Remove unneedeed set_scale calls, also change set_scale so that it receives a sample image instead of width."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -506,10 +506,12 @@ class TemplateList:
         # Size reference 2028x1520
         return self.active_template.scale   # Scale is dynamic, as it depends on the set of images currently loaded
 
-    def set_scale(self, new_width):
+    def set_scale(self, sample_img):
         # If new image size is different, Update all scaled templates and positions
         # Size reference 2028x1520
-        new_scale = new_width/2028
+        img_width = sample_img.shape[1]
+        img_height = sample_img.shape[0]
+        new_scale = img_width/2028
         for t in self.templates:
             if t.type != 'custom' and new_scale != t.scale:
                 t.scale = new_scale
@@ -1782,8 +1784,6 @@ def set_source_folder():
     load_project_config()  # Needs SourceDir defined
 
     decode_project_config()  # Needs first_absolute_frame defined
-
-    template_list.set_scale(frame_width)    # frame_width set by get_source_dir_file_list
 
     # If not defined in project, create target folder inside source folder
     if TargetDir == '':
@@ -5028,7 +5028,7 @@ def get_source_dir_file_list():
     # Set frame dimensions in global variable, for use everywhere
     frame_width = aux_image.shape[1]
     frame_height = aux_image.shape[0]
-    template_list.set_scale(frame_width)    # frame_width set by get_source_dir_file_list
+    template_list.set_scale(aux_image)    # frame_width set by get_source_dir_file_list
 
     return len(SourceDirFileList)
 
@@ -7380,8 +7380,6 @@ def main(argv):
         copy_jpg_files(temp_dir, resources_dir)
 
     ui_init_done = True
-
-    template_list.set_scale(frame_width)    # frame_width set by get_source_dir_file_list
 
     # Disable a few items that should be not operational without source folder
     if len(SourceDir) == 0:
