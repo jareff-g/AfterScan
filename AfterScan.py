@@ -132,49 +132,6 @@ general_config_filename = os.path.join(script_dir, "AfterScan.json")
 logs_dir = os.path.join(script_dir, "Logs")
 if not os.path.exists(logs_dir):
     os.mkdir(logs_dir)
-'''
-project_settings_filename = os.path.join(script_dir, "AfterScan-projects.json")
-project_settings_backup_filename = os.path.join(script_dir, "AfterScan-projects.json.bak")
-project_config_basename = "AfterScan-project.json"
-project_config_filename = ""
-project_config_from_file = True
-project_name = "No Project"
-default_job_list_filename_legacy = os.path.join(script_dir, "AfterScan_job_list.json")
-default_job_list_filename = os.path.join(script_dir, "AfterScan.joblist.json")
-JobListFilename = default_job_list_filename
-job_list_hash = None    # To determine if job list has changed since loaded
-temp_dir = os.path.join(script_dir, "temp")
-if not os.path.exists(temp_dir):
-    os.mkdir(temp_dir)
-copy_templates_from_temp = False
-resources_dir = os.path.join(script_dir, "Resources")
-if not os.path.exists(resources_dir):
-    os.mkdir(resources_dir)
-    copy_templates_from_temp = True
-# Soundtrack
-soundtrack_file_path = os.path.join(script_dir, "projector-loop.mp3")
-if os.path.isfile(soundtrack_file_path):
-    sound_file_available = True
-else:
-    sound_file_available = False
-
-template_list = None
-hole_template_filename_r8 = os.path.join(script_dir, "Pattern.R8.jpg")
-hole_template_filename_s8 = os.path.join(script_dir, "Pattern.S8.jpg")
-hole_template_filename_custom = os.path.join(script_dir, "Pattern.custom.jpg")
-hole_template_filename_corner = os.path.join(script_dir, "Pattern_Corner_TR.jpg")
-hole_template_filename_bw = os.path.join(script_dir, "Pattern_BW.jpg")
-hole_template_filename_wb = os.path.join(script_dir, "Pattern_WB.jpg")
-hole_template_filename = hole_template_filename_s8
-files_to_delete = []
-EXPECTED_HASHES = {
-    'Pattern.S8.jpg': 'dc4b94a14ef3d3dad3fe9d5708b4f2702bed44be2a3ed0aef63e8405301b3562', # new, smaller
-    'Pattern.R8.jpg': 'ce7c81572bc0a03b079d655aab10ec16924c8d3b313087bd841cf68a6657fe9a',
-    'Pattern_BW.jpg': '4a90371097219e5d5604c00bead6710b694e70b48fe66dbc5c2ce31ceedce4cf',
-    'Pattern_WB.jpg': '60d50644f26407503267b763bcc48d7bec88dd6f58bb238cf9bec6ba86938f33',
-    'Pattern_Corner_TR.jpg': '5e56a49c029013588646b11adbdc4a223217abfb91423dd3cdde26abbf5dcd9c'
-}
-'''
 
 default_project_config = {
     "SourceDir": "",
@@ -514,54 +471,6 @@ def load_general_config():
         logging.debug("%s=%s", item, str(general_config[item]))
 
 
-def decode_general_config():    # delete_this
-    global SourceDir
-    global project_name
-    global FfmpegBinName, FFmpeg_denoise_param, enable_rectangle_popup, enable_soundtrack
-    global general_config
-    global UserConsent, AnonymousUuid, LastConsentDate
-    global SavedWithVersion, JobListFilename
-    global detect_minor_mismatches
-
-    return
-
-    if 'SourceDir' in general_config:
-        SourceDir = general_config["SourceDir"]
-        # If directory in configuration does not exist, set current working dir
-        if not os.path.isdir(SourceDir):
-            SourceDir = ""
-            project_name = "No Project"
-        else:
-            # Create a project id (folder name) for the stats logging below
-            # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
-            project_name = os.path.split(SourceDir)[-1].replace(',', ';')
-
-    if 'FfmpegBinName' in general_config:
-        FfmpegBinName = general_config["FfmpegBinName"]
-
-    if 'UserConsent' in general_config:
-        UserConsent = general_config["UserConsent"]
-    if 'AnonymousUuid' in general_config:
-        AnonymousUuid = general_config["AnonymousUuid"]
-    if 'LastConsentDate' in general_config:
-        LastConsentDate = datetime.fromisoformat(general_config["LastConsentDate"])
-    if 'Version' in general_config:
-        SavedWithVersion = general_config["Version"]
-    if 'JobListFilename' in general_config:
-        JobListFilename = general_config["JobListFilename"]
-    if 'FFmpegHqdn3d' in general_config:
-        FFmpeg_denoise_param = general_config["FFmpegHqdn3d"]
-    if 'EnablePopups' in general_config:
-        enable_rectangle_popup = general_config["EnablePopups"]
-    if 'EnableSoundtrack' in general_config and sound_file_available:
-        enable_soundtrack = general_config["EnableSoundtrack"]
-    if 'PreciseTemplateMatch' in general_config:
-        precise_template_match = general_config["PreciseTemplateMatch"]
-    if 'HighSensitiveBadFrameDetection' in general_config:
-        detect_minor_mismatches = general_config["HighSensitiveBadFrameDetection"]
-
-
-
 def update_project_settings():
     global project_settings
     # general_config.source_dir is the key for each project config inside the global project settings
@@ -728,7 +637,7 @@ def load_project_config():
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
-def decode_project_config():        # delete_this
+def decode_project_config():
     global TargetDir
     global project_config
     global template_list
@@ -1145,8 +1054,6 @@ def job_list_load_selected():
                 # Copy job settings as current project settings
                 project_config = job_list[entry_name]['project']
                 decode_project_config()
-
-                # general_config["SourceDir"] = SourceDir # delete_this
 
                 if encode_all_frames:
                     CurrentFrame = first_absolute_frame + (last_absolute_frame - first_absolute_frame) // 2
@@ -1617,7 +1524,6 @@ def set_source_folder():
         # Create a project id (folder name) for the stats logging below
         # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
         project_name = os.path.split(general_config.source_dir)[-1].replace(',', ';')
-        # general_config["SourceDir"] = SourceDir # delete_this
 
     load_project_config()  # Needs SourceDir defined
 
@@ -7109,7 +7015,6 @@ def main(argv):
     else:
         init_logging()
 
-    # load_general_config() # delete_this
     general_config = AfterScanConfig.from_json(general_config_filename)
     general_config.initialize_environment_paths(general_config_filename)
 
@@ -7130,8 +7035,6 @@ def main(argv):
 
     if go_disable_tooptips:
         as_tooltips.disable()
-
-    decode_general_config()
 
     # Check reporting consent on first run
     get_consent()
