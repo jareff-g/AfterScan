@@ -21,19 +21,21 @@ __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
 
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, fields
 import os
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from afterscan_template_manager import Template, TemplateList
+import copy
+import logging
 
 @dataclass
 class ProjectHeader:
     code_version: str = "1.0"
     data_version: str = "1.0"
-    date: str = "" # Set before saving
+    save_date: str = "" # Set before saving
 
 @dataclass
-class SingleProjectConfig:
+class ProjectConfigEntry:
     source_dir: str = ""
     target_dir: str = ""
     video_target_dir: str = ""
@@ -64,7 +66,7 @@ class SingleProjectConfig:
     stabilization_shift_y: int = 0
     rotation_angle: str = "0.0"
     custom_template_defined: bool = False
-    custom_template_expected_pos: List[int, int] = field(default_factory=lambda: (0, 0))
+    custom_template_expected_pos: List[int] = field(default_factory=lambda: (0, 0))
     custom_template_filename: str = ""
     gamma_correction_value: float = 1.0
     crop_rectangle: List[List[int]] = field(default_factory=lambda: [[0, 0], [0, 0]])
@@ -75,12 +77,68 @@ class SingleProjectConfig:
     video_resolution: str = ""
     current_bad_frame_index: int = -1
 
+    """
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ProjectConfigEntry':
+        return cls(**data)
+    """
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ProjectConfigEntry':
+        """
+        Create an instance of ProjectConfigEntry from a dictionary,
+        filtering out any invalid/legacy keys that might exist in the JSON file.
+        """
+        # 1. Get the names of all valid fields defined in the class
+        #    This acts as the expected "schema".
+        valid_fields = {f.name for f in fields(cls)}
+        
+        # 2. Filter the input dictionary
+        #    We only keep key-value pairs where the key exists in the schema.
+        filtered_data = {
+            key: value
+            for key, value in data.items()
+            if key in valid_fields
+        }
+
+        # 3. Destructure the filtered dictionary, now safe, into the constructor.
+        #    If keys are missing, dataclasses will use the default values defined.
+        return cls(**filtered_data)
+
+    def copy(self) -> 'ProjectConfigEntry':
+        """
+        Returns a deep copy of the current ProjectConfigEntry instance.
+        The new instance is completely independent of the original, including 
+        mutable fields (like job_list) which are fully duplicated.
+        """
+        return copy.deepcopy(self)
+
+    def log_fields(self):
+        """
+        Converts the current dataclass instance to a dictionary and logs 
+        all its contents at the DEBUG level.
+        
+        This method replaces your previous external loop.
+        """
+        # 1. Use asdict(self) to convert the instance into a standard dictionary
+        project_config_dict = asdict(self)
+        
+        logging.debug("--- Debugging ProjectConfigEntry Contents ---")
+        
+        # 2. Iterate over the resulting dictionary items
+        for key, value in project_config_dict.items():
+            # Log key and value
+            logging.debug("%s = %s", key, str(value))
+            
+        logging.debug("----------------------------------------------")
+
+
 @dataclass
-class ProjectSettingsFile:
+class ProjectRegistry:
     header: ProjectHeader = field(default_factory=ProjectHeader)
     
     # Stores all individual projects, keyed by their folder path (string)
-    projects: Dict[str, SingleProjectConfig] = field(default_factory=dict)
+    projects: Dict[str, ProjectConfigEntry] = field(default_factory=dict)
 
     @staticmethod
     def convert_keys_to_snake_case(camel_dict: dict) -> dict:
@@ -94,9 +152,9 @@ class ProjectSettingsFile:
             
             # Recursively handle nested dictionaries/lists (important if project config is deep)
             if isinstance(value, dict):
-                value = convert_keys_to_snake_case(value)
+                value = ProjectRegistry.convert_keys_to_snake_case(value)
             elif isinstance(value, list):
-                value = [convert_keys_to_snake_case(item) if isinstance(item, dict) else item for item in value]
+                value = [ProjectRegistry.convert_keys_to_snake_case(item) if isinstance(item, dict) else item for item in value]
                 
             snake_dict[snake_key] = value
             
@@ -138,16 +196,16 @@ class ProjectSettingsFile:
         # --- Step 4.2: Handle the OLD (Anonymous) structure ---
         else:
             # Loading OLD (anonymous) project file structure. UPGRADING
-            
+            print("Debugging: Type of 'data' before popping:", type(data)) # <-- ADD THIS LINE            
             # 4.2.1. Extract the Header data using the existing snake_case keys (using pop to remove them)
             header_data = {
-                "data_version": data.pop("data_version", "1.0"),
-                "code_version": data.pop("code_version", "1.0"),
-                "save_date": data.pop("save_date", ""),
+                "code_version": data[0].pop("code_version"),
+                "data_version": data[0].pop("data_version"),
+                "save_date": data[0].pop("save_date")
             }
             
             # 4.2.2. The remainder of the dictionary is the anonymous project data
-            projects_data = data
+            projects_data = data[1]
 
             # projects_data now holds the remaining anonymous dict: {path: {CamelCaseConfig}, ...}
             temp_projects_data = {}
@@ -155,7 +213,7 @@ class ProjectSettingsFile:
             # 4.2.3. Iterate through each project's data dictionary for conversion
             for path, project_dict_camel_case in projects_data.items():
                 # Apply the conversion function to the project's configuration dictionary
-                project_dict_snake_case = convert_keys_to_snake_case(project_dict_camel_case)
+                project_dict_snake_case = cls.convert_keys_to_snake_case(project_dict_camel_case)
                 temp_projects_data[path] = project_dict_snake_case
                 
             projects_data = temp_projects_data
@@ -292,7 +350,68 @@ class ProjectSettingsFile:
         # 1. The dictionaries in projects_data now have snake_case keys.
         projects_dict = {}
         for path, project_data in projects_data.items():
-            # SingleProjectConfig.from_dict expects snake_case keys
-            projects_dict[path] = SingleProjectConfig.from_dict(project_data) 
+            # ProjectConfigEntry.from_dict expects snake_case keys
+            projects_dict[path] = ProjectConfigEntry.from_dict(project_data) 
             
         return cls(header=header_data, projects=projects_dict)
+
+    def to_json(self, json_path: str):
+        """
+        Serializes the ProjectRegistry instance to a JSON file.
+        This method permanently upgrades the file format to use the 'header' and 
+        'projects' keys.
+        """
+        # 1. Convert the entire nested structure (header and projects) to a dictionary.
+        # This will produce the new, structured format.
+        data_dict = asdict(self)
+        
+        # 2. Sort the keys for consistency and readability.
+        sorted_data = self.sort_nested_json(data_dict) 
+        
+        # 3. Write the sorted dictionary to the JSON file, ensuring data integrity.
+        # We write to a temporary file first to prevent leaving an empty file 
+        # if the write operation fails (similar to what happened before).
+        temp_path = json_path + ".tmp"
+        
+        try:
+            with open(temp_path, 'w') as f:
+                json.dump(sorted_data, f, indent=4) 
+            
+            # 4. If successful, replace the original file with the temporary one.
+            os.replace(temp_path, json_path)
+            print(f"Project settings saved successfully to: {json_path}")
+
+        except Exception as e:
+            print(f"ERROR: Failed to save project settings to {json_path}. Exception: {e}")
+            # Clean up the temporary file if it still exists
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def get_active_config(self, current_source_dir: str) -> 'ProjectConfigEntry':
+        """
+        Retrieves the configuration entry matching the current source directory 
+        from the registry, or returns a default configuration if not found.
+        """
+        
+        # 1. Check if the current source directory exists as a key in the entries
+        if current_source_dir in self.projects:
+            logging.debug(f"Configuration found for directory: {current_source_dir}")
+            
+            # 2. Extract the stored instance
+            stored_entry = self.projects[current_source_dir]
+            
+            # 3. Return a deep copy of the stored entry. 
+            #    This is CRITICAL: it ensures any modifications to the active_config 
+            #    do not change the data stored in the project_registry until saved.
+            active_config = stored_entry.copy()
+            
+        else:
+            logging.info(f"No existing configuration found for '{current_source_dir}'. Creating default entry.")
+            
+            # If no entry is found, create a brand new default instance.
+            active_config = ProjectConfigEntry() 
+            
+            # Optionally, you might initialize the project_name here:
+            # active_config.project_name = current_source_dir.split('/')[-1] # Example
+            
+        return active_config

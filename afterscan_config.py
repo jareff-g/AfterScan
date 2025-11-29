@@ -82,7 +82,7 @@ class AfterScanConfig:
     template_list: list["Template"] = None # None is a fine default. Template set as string to avoid circular import dependency
     left_stripe_width_pixels: int = 100
 
-    # --- Mantenimiento de Compatibilidad ---
+    # --- Retrieve config from json file keeping backward compatibility with legacy names ---
     @classmethod
     def from_json(cls, json_path: str):
         """

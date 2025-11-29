@@ -80,6 +80,7 @@ except ImportError:
 from define_rectangle import DefineRectangle
 
 from afterscan_config import AfterScanConfig
+from project_config import ProjectRegistry, ProjectConfigEntry
 from afterscan_template_manager import Template, TemplateList
 
 # Check for temporalDenoise in OpenCV at startup
@@ -107,8 +108,10 @@ temp_denoise_frame_deque = deque(maxlen=denoise_window_size)
 
 ###########################################################
 ###########################################################
-### general_config related vars
+### general_config related vars (global for now, to be replaced by dependency injection when cleanup completed)
 general_config = None
+project_registry = None
+project_config_entry = None
 
 # Info required for usage counter
 AnonymousUuid = None
@@ -434,7 +437,7 @@ def sort_nested_json(data):
         return data
 
 
-def save_general_config():
+def save_general_config():  # delete_this
     # Write config data upon exit
     general_config.general_config_date = str(datetime.now())
     general_config.window_pos = win.geometry()
@@ -454,7 +457,7 @@ def save_general_config():
             json.dump(sorted_data, f, indent=4)
     '''
 
-def load_general_config():
+def load_general_config():  # delete_this
     global general_config
     global general_config_filename
 
@@ -471,16 +474,17 @@ def load_general_config():
         logging.debug("%s=%s", item, str(general_config[item]))
 
 
+# Update or add current configuration to project settings list
 def update_project_settings():
-    global project_settings
+    global project_registry
     # general_config.source_dir is the key for each project config inside the global project settings
-    if general_config.source_dir in project_settings:
-        project_settings.update({general_config.source_dir: project_config.copy()})
+    if general_config.source_dir in project_registry:
+        project_registry.update({general_config.source_dir: project_config.copy()})
     elif general_config.source_dir != '':
-        project_settings.update({general_config.source_dir: project_config.copy()})
+        project_registry.update({general_config.source_dir: project_config.copy()})
 
 def save_project_settings():
-    global project_settings
+    global project_registry
 
     if not IgnoreConfig:
         # Delete existing backup file
@@ -492,13 +496,13 @@ def save_project_settings():
             logging.debug("Saving project settings:")
         # Create list with global version info
         global_info = {'data_version': __data_version__, 'code_version': __version__, 'save_date': str(datetime.now())}
-        list_to_save = [global_info, project_settings]
+        list_to_save = [global_info, project_registry]
         with open(general_config.project_settings_filename, 'w+') as f:
             json.dump(list_to_save, f, indent=4)
 
 
 def load_project_settings():
-    global project_settings, default_project_config
+    global project_registry, default_project_config
     global files_to_delete
     global project_name
 
@@ -524,17 +528,17 @@ def load_project_settings():
             else:
                 # New version is a list
                 logging.info(f"Loading project file: {saved_list[0]['data_version']},  {saved_list[0]['code_version']},  {saved_list[0]['save_date']}")
-                project_settings = saved_list[1]
+                project_registry = saved_list[1]
                 projects_loaded = True
                 # Perform some cleanup, in case projects have been deleted
-                project_folders = list(project_settings.keys())  # freeze keys iterator into a list
+                project_folders = list(project_registry.keys())  # freeze keys iterator into a list
                 for folder in project_folders:
                     if not os.path.isdir(folder):   # If project folder no longer exists...
-                        if "CustomTemplateFilename" in project_settings[folder]:
-                            aux_template_filename = os.path.join(general_config.source_dir, project_settings[folder]["CustomTemplateFilename"])
+                        if "CustomTemplateFilename" in project_registry[folder]:
+                            aux_template_filename = os.path.join(general_config.source_dir, project_registry[folder]["CustomTemplateFilename"])
                             if os.path.isfile(aux_template_filename):
                                 os.remove(aux_template_filename)    # ...delete custom template, if it exists
-                        project_settings.pop(folder)
+                        project_registry.pop(folder)
                         logging.debug("Deleting %s from project settings, as it no longer exists", folder)
                     elif not os.path.isdir(general_config.source_dir) and os.path.isdir(folder):
                         general_config.source_dir = folder
@@ -542,8 +546,8 @@ def load_project_settings():
                         # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
                         project_name = os.path.split(general_config.source_dir)[-1].replace(',', ';')
     if not projects_loaded:   # No project settings file. Set empty config to force defaults
-        project_settings = {general_config.source_dir: default_project_config.copy()}
-        project_settings[general_config.source_dir]["SourceDir"] = general_config.source_dir
+        project_registry = {general_config.source_dir: default_project_config.copy()}
+        project_registry[general_config.source_dir]["SourceDir"] = general_config.source_dir
 
 
 def save_project_config():
@@ -606,7 +610,7 @@ def save_project_config():
 def load_project_config():
     global project_config, project_config_from_file
     global project_config_basename, project_config_filename
-    global project_settings
+    global project_registry
     global default_project_config
 
     if not IgnoreConfig:
@@ -614,21 +618,21 @@ def load_project_config():
     # Check if persisted project data file exist: If it does, load it
     project_config = default_project_config.copy()  # set default config
 
-    if general_config.source_dir in project_settings:
+    if general_config.source_dir in project_registry.projects:
+        print("Debugging: Type of 'project_registry.projects[general_config.source_dir]' before copying:", type(project_registry.projects[general_config.source_dir])) # <-- ADD THIS LINE            
         logging.debug("Loading project config from consolidated project settings")
-        project_config |= project_settings[general_config.source_dir].copy()
+        project_config = project_registry.projects[general_config.source_dir].copy()
     elif os.path.isfile(project_config_filename):
         logging.debug("Loading project config from dedicated project config file")
         persisted_data_file = open(project_config_filename)
-        project_config |= json.load(persisted_data_file)
+        project_config = json.load(persisted_data_file)
         persisted_data_file.close()
     else:  # No project config file. Set empty config to force defaults
         logging.debug("No project config exists, initializing defaults")
         project_config = default_project_config.copy()
         project_config['SourceDir'] = general_config.source_dir
 
-    for item in project_config:
-        logging.debug("%s=%s", item, str(project_config[item]))
+    project_config.log_fields()  # Log all fields for debugging
 
 
     # Allow to determine source of current project, to avoid
@@ -4930,7 +4934,7 @@ def start_convert():
         # Enforce minimum value for Gamma in case user clicks starts rigth after having manually entered a zero in GC box
         gamma_enforce_min_value()
         # Save current project status
-        save_general_config()
+        save_general_config()  # delete_this
         save_project_config()
         save_job_list()
         # Empty FPS register list
@@ -6857,7 +6861,7 @@ def exit_app():  # Exit Application
         logging.debug(f"Waiting for threads to exit, {active_threads} pending")
         time.sleep(0.2)
 
-    save_general_config()
+    save_general_config()  # delete_this
     save_project_config()
     save_job_list()
     win.destroy()
@@ -6931,7 +6935,7 @@ def main(argv):
     global ui_init_done
     global IgnoreConfig
     global job_list
-    global project_settings
+    global project_registry, project_config_entry
     global default_project_config
     global is_demo, ForceSmallSize, ForceBigSize
     global GenerateCsv
@@ -6955,7 +6959,7 @@ def main(argv):
     job_list = {}
 
     # Create project settings dictionary
-    project_settings = default_project_config.copy()
+    # project_registry = default_project_config.copy()  # delete_this
 
     opts, args = getopt.getopt(argv, "hiel:dcst:12nab", ["goanyway"])
 
@@ -7017,6 +7021,8 @@ def main(argv):
 
     general_config = AfterScanConfig.from_json(general_config_filename)
     general_config.initialize_environment_paths(general_config_filename)
+    project_registry = ProjectRegistry.from_json(general_config.project_settings_filename)  #  Loads all projects from file
+    project_config_entry = project_registry.get_active_config(general_config.source_dir)
 
     # Add default templates to template list
     template_list = TemplateList()
@@ -7088,10 +7094,9 @@ def main(argv):
     if general_config.source_dir is not None:
         project_config_filename = os.path.join(general_config.source_dir,
                                                general_config.project_config_basename)
-    load_project_settings()
-    
-    load_project_config()
-    decode_project_config()
+    #load_project_settings()  # delete_this - Loads all projects from file
+    #load_project_config()  # delete_this - Load current project config (matcshing source dir)
+    #decode_project_config()  # delete_this - Loads project config values in global variables
 
     load_job_list()
 
