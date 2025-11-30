@@ -44,6 +44,7 @@ class AfterScanConfig:
     popup_pos: str = ""
     precise_template_match: bool = False
     source_dir: str = ""
+    target_dir: str = ""
     template_popup_window_pos: str = ""
     user_consent: str = "yes"
     version: str = ""
@@ -159,6 +160,7 @@ class AfterScanConfig:
             popup_pos=data.get('popup_pos', ""),
             precise_template_match=data.get('precise_template_match', False),
             source_dir=data.get('source_dir', ""),
+            target_dir=data.get('target_dir', ""),
             template_popup_window_pos=data.get('template_popup_window_pos', ""),
             user_consent=data.get('user_consent', "yes"),
             version=data.get('version', ""),

@@ -68,14 +68,16 @@ class ProjectConfigEntry:
     custom_template_defined: bool = False
     custom_template_expected_pos: List[int] = field(default_factory=lambda: (0, 0))
     custom_template_filename: str = ""
+    custom_template_name: str = ""
     gamma_correction_value: float = 1.0
-    crop_rectangle: List[List[int]] = field(default_factory=lambda: [[0, 0], [0, 0]])
+    crop_rectangle: List[List[int]] = field(default_factory=lambda: [[0, 0], [0, 0]])   # Top left first, bottom right second
     force_4_3: bool = False
     force_16_9: bool = False
     ffmpeg_preset: str = "veryfast"
     perform_rotation: bool = False
     video_resolution: str = ""
     current_bad_frame_index: int = -1
+    from_file: bool = True
 
     """
     @classmethod
@@ -355,6 +357,16 @@ class ProjectRegistry:
             
         return cls(header=header_data, projects=projects_dict)
 
+    @staticmethod
+    def sort_nested_json(data):
+        """Sorts keys in nested dictionaries recursively."""
+        if isinstance(data, dict):
+            return {k: ProjectRegistry.sort_nested_json(data[k]) for k in sorted(data)}
+        elif isinstance(data, list):
+            return [ProjectRegistry.sort_nested_json(item) for item in data]
+        else:
+            return data
+
     def to_json(self, json_path: str):
         """
         Serializes the ProjectRegistry instance to a JSON file.
@@ -415,3 +427,21 @@ class ProjectRegistry:
             # active_config.project_name = current_source_dir.split('/')[-1] # Example
             
         return active_config
+    
+    def save_config_entry(self, source_dir: str, config_to_save: 'ProjectConfigEntry'):
+        """
+        Updates the registry with the configuration for the specified directory.
+
+        It performs a deep copy to ensure the instance stored in the registry 
+        is independent of the active, working instance in the main application.
+        """
+        if not isinstance(config_to_save, ProjectConfigEntry):
+            logging.error("Attempted to save an object that is not a ProjectConfigEntry.")
+            return
+
+        # CRITICAL: Always save a deep copy. 
+        # This prevents modifications to the active config *after* saving 
+        # from corrupting the registry instance before it's written to disk.
+        self.projects[source_dir] = config_to_save.copy()
+        
+        logging.debug(f"Registry updated for directory: {source_dir}")
