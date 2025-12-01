@@ -43,8 +43,7 @@ class AfterScanConfig:
     left_stripe_width_proportion: float = 0.25
     popup_pos: str = ""
     precise_template_match: bool = False
-    source_dir: str = ""
-    target_dir: str = ""
+    source_dir: str = ""    # Even if this is part of the project configuration, since it is the key to retrieve each specific project, needs to be in general_config
     template_popup_window_pos: str = ""
     user_consent: str = "yes"
     version: str = ""
@@ -160,7 +159,6 @@ class AfterScanConfig:
             popup_pos=data.get('popup_pos', ""),
             precise_template_match=data.get('precise_template_match', False),
             source_dir=data.get('source_dir', ""),
-            target_dir=data.get('target_dir', ""),
             template_popup_window_pos=data.get('template_popup_window_pos', ""),
             user_consent=data.get('user_consent', "yes"),
             version=data.get('version', ""),

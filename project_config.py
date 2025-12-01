@@ -71,6 +71,7 @@ class ProjectConfigEntry:
     custom_template_name: str = ""
     gamma_correction_value: float = 1.0
     crop_rectangle: List[List[int]] = field(default_factory=lambda: [[0, 0], [0, 0]])   # Top left first, bottom right second
+    crop_area_defined: bool = False
     force_4_3: bool = False
     force_16_9: bool = False
     ffmpeg_preset: str = "veryfast"
