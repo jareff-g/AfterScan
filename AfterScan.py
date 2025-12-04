@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.01"
+__version__ = "1.40.02"
 __data_version__ = "1.0"
 __date__ = "2025-12-04"
-__version_highlight__ = "Refactoring: Converted global vars and json elements from CamelCase to snake_case"
+__version_highlight__ = "Refactoring: Renamed remaining json elements"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -209,7 +209,6 @@ align_mtb = None
 source_dir_file_list = []
 target_dir_file_list = []
 film_type = 'S8'
-frame_fill_type = 'fake'
 
 # Dimensions of frames in collection currently loaded: x, y (as it is needed often)
 frame_width = 2028
@@ -261,7 +260,7 @@ rectangle_bottom_right = (0, 0)
 # Rectangle of current cropping area
 crop_top_left = (0, 0)
 crop_bottom_right = (0, 0)
-# Rectangle of current custom template
+# Rectangle of current custom template - delete_this
 ## TemplateTopLeft = (0, 0)
 ## TemplateBottomRight = (0, 0)
 max_loop_count = 0
@@ -587,26 +586,26 @@ def set_project_defaults():
     perform_denoise.set(project_config["perform_denoise"])
     project_config["perform_sharpness"] = False
     perform_sharpness.set(project_config["perform_sharpness"])
-    project_config["PerformGammaCorrection"] = False
-    perform_gamma_correction.set(project_config["PerformGammaCorrection"])
-    project_config["FrameFillType"] = 'none'
-    frame_fill_type.set(project_config["FrameFillType"])
+    project_config["perform_gamma_correction"] = False
+    perform_gamma_correction.set(project_config["perform_gamma_correction"])
+    project_config["frame_fill_type"] = 'none'
+    frame_fill_type.set(project_config["frame_fill_type"])
     project_config["generate_video"] = False
     generate_video.set(project_config["generate_video"])
     project_config["current_frame"] = 0
     frame_slider.set(project_config["current_frame"])
     project_config["encode_all_frames"] = True
     encode_all_frames.set(project_config["encode_all_frames"])
-    project_config["FrameFrom"] = 0
-    frame_from_str.set(str(project_config["FrameFrom"]))
-    project_config["FrameTo"] = 0
-    frame_to_str.set(str(project_config["FrameTo"]))
+    project_config["frame_from"] = 0
+    frame_from_str.set(str(project_config["frame_from"]))
+    project_config["frame_to"] = 0
+    frame_to_str.set(str(project_config["frame_to"]))
     project_config["perform_stabilization"] = False
     perform_stabilization.set(project_config["perform_stabilization"])
-    project_config["LowContrastCustomTemplate"] = False
-    low_contrast_custom_template.set(project_config["LowContrastCustomTemplate"])
-    project_config["ExtendedStabilization"] = False
-    extended_stabilization.set(project_config["ExtendedStabilization"])
+    project_config["low_contrast_custom_template"] = False
+    low_contrast_custom_template.set(project_config["low_contrast_custom_template"])
+    project_config["extended_stabilization"] = False
+    extended_stabilization.set(project_config["extended_stabilization"])
     project_config["skip_frame_regeneration"] = False
     skip_frame_regeneration.set(project_config["skip_frame_regeneration"])
     project_config["video_filename"] = ""
@@ -636,7 +635,7 @@ def save_general_config():
 
     try:
         if template_popup_window.winfo_exists():
-            general_config["TemplatePopupWindowPos"] = template_popup_window.geometry()
+            general_config["template_popup_window_pos"] = template_popup_window.geometry()
     except Exception as e:
         logging.debug(f"Error (expected) while trying to save template popup window geometry: {e}")
     if not ignore_config:
@@ -713,14 +712,14 @@ def decode_general_config():
         ffmpeg_denoise_param = general_config['ffmpeg_hqdn_3d']
     elif 'FFmpegHqdn3d' in general_config:
         ffmpeg_denoise_param = general_config['FFmpegHqdn3d']
-    if 'EnablePopups' in general_config:
-        enable_rectangle_popup = general_config["EnablePopups"]
-    if 'EnableSoundtrack' in general_config and sound_file_available:
-        enable_soundtrack = general_config["EnableSoundtrack"]
-    if 'PreciseTemplateMatch' in general_config:
-        precise_template_match = general_config["PreciseTemplateMatch"]
-    if 'HighSensitiveBadFrameDetection' in general_config:
-        detect_minor_mismatches = general_config["HighSensitiveBadFrameDetection"]
+    if 'enable_rectangle_popup' in general_config:
+        enable_rectangle_popup = general_config["enable_rectangle_popup"]
+    if 'enable_soundtrack' in general_config and sound_file_available:
+        enable_soundtrack = general_config["enable_soundtrack"]
+    if 'precise_template_match' in general_config:
+        precise_template_match = general_config["precise_template_match"]
+    if 'detect_minor_mismatches' in general_config:
+        detect_minor_mismatches = general_config["detect_minor_mismatches"]
 
 
 
@@ -785,8 +784,8 @@ def load_project_settings():
                 project_folders = list(project_settings.keys())  # freeze keys iterator into a list
                 for folder in project_folders:
                     if not os.path.isdir(folder):   # If project folder no longer exists...
-                        if "CustomTemplateFilename" in project_settings[folder]:
-                            aux_template_filename = os.path.join(source_dir, project_settings[folder]["CustomTemplateFilename"])
+                        if "custom_template_filename" in project_settings[folder]:
+                            aux_template_filename = os.path.join(source_dir, project_settings[folder]["custom_template_filename"])
                             if os.path.isfile(aux_template_filename):
                                 os.remove(aux_template_filename)    # ...delete custom template, if it exists
                         project_settings.pop(folder)
@@ -817,33 +816,29 @@ def save_project_config():
     project_config["target_dir"] = target_dir
     project_config["current_frame"] = current_frame
     project_config["skip_frame_regeneration"] = skip_frame_regeneration.get()
-    project_config["FFmpegPreset"] = ffmpeg_preset.get()
-    project_config["ProjectConfigDate"] = str(datetime.now())
+    project_config["ffmpeg_preset"] = ffmpeg_preset.get()
+    project_config["project_config_date"] = str(datetime.now())
     project_config["perform_cropping"] = perform_cropping.get()
     project_config["perform_denoise"] = perform_denoise.get()
     project_config["perform_sharpness"] = perform_sharpness.get()
-    project_config["PerformGammaCorrection"] = perform_gamma_correction.get()
-    project_config["GammaCorrectionValue"] = float(gamma_correction_str.get())
-    project_config["FrameFillType"] = frame_fill_type.get()
-    project_config["ExtendedStabilization"] = extended_stabilization.get()
-    project_config["LowContrastCustomTemplate"] = low_contrast_custom_template.get()
+    project_config["perform_gamma_correction"] = perform_gamma_correction.get()
+    project_config["gamma_correction_value"] = float(gamma_correction_str.get())
+    project_config["frame_fill_type"] = frame_fill_type.get()
+    project_config["extended_stabilization"] = extended_stabilization.get()
+    project_config["low_contrast_custom_template"] = low_contrast_custom_template.get()
     project_config["video_title"] = video_title_str.get()
     project_config["video_filename"] = video_filename_str.get()
-    project_config["FrameFrom"] = int(frame_from_str.get())
-    project_config["FrameTo"] = int(frame_to_str.get())
+    project_config["frame_from"] = int(frame_from_str.get())
+    project_config["frame_to"] = int(frame_to_str.get())
     # Next item: widget variable is inside popup, might not be available, so use global variable
-    project_config["CurrentBadFrameIndex"] = current_bad_frame_index
+    project_config["current_bad_frame_index"] = current_bad_frame_index
     if stabilize_area_defined:
         project_config["perform_stabilization"] = perform_stabilization.get()
         project_config["stabilization_shift_y"] = stabilization_shift_y_value.get()
         project_config["stabilization_shift_x"] = stabilization_shift_x_value.get()
         if not encode_all_frames.get():
-            project_config["HolePos"] = template_list.get_active_position()
-            project_config["HoleScale"] = template_list.get_active_scale()
-
-    # remove deprecated items from config
-    if "CustomHolePos" in project_config:
-        del project_config["CustomHolePos"]
+            project_config["hole_pos"] = template_list.get_active_position()
+            project_config["hole_scale"] = template_list.get_active_scale()
 
     if len(bad_frame_list) > 0:
         save_bad_frame_list()   # Bad frames need to be saved even in batch mode
@@ -962,11 +957,11 @@ def decode_project_config():
         video_target_dir_entry.after(100, video_target_dir_entry.xview_moveto, 1)
     current_frame = 0
     if not batch_job_running: # only if project loaded by user, otherwise it alters start encoding frame in batch mode
-        if 'CurrentFrame' in project_config:
-            current_frame = project_config["current_frame"]
+        if 'current_frame' in project_config:
+            current_frame = project_config['current_frame']
             current_frame = max(current_frame, 0)
-        elif 'current_frame' in project_config:
-            current_frame = project_config["current_frame"]
+        elif 'CurrentFrame' in project_config:
+            current_frame = project_config['CurrentFrame']
             current_frame = max(current_frame, 0)
     if 'encode_all_frames' in project_config:
         encode_all_frames.set(project_config['encode_all_frames'])
@@ -974,11 +969,15 @@ def decode_project_config():
         encode_all_frames.set(project_config["EncodeAllFrames"])
     else:
         encode_all_frames.set(True)
-    if 'FrameFrom' in project_config:
+    if 'frame_from' in project_config:
+        frame_from_str.set(str(project_config["frame_from"]))
+    elif 'FrameFrom' in project_config:
         frame_from_str.set(str(project_config["FrameFrom"]))
     else:
         frame_from_str.set('0')
-    if 'FrameTo' in project_config:
+    if 'frame_to' in project_config:
+        frame_to_str.set(str(project_config["frame_to"]))
+    elif 'FrameTo' in project_config:
         frame_to_str.set(str(project_config["FrameTo"]))
     else:
         frame_to_str.set('0')
@@ -1016,22 +1015,34 @@ def decode_project_config():
     else:
         stabilization_threshold = 220.0
 
-    if 'LowContrastCustomTemplate' in project_config:
+    if 'low_contrast_custom_template' in project_config:
+        low_contrast_custom_template.set(project_config["low_contrast_custom_template"])
+    elif 'LowContrastCustomTemplate' in project_config:
         low_contrast_custom_template.set(project_config["LowContrastCustomTemplate"])
 
-    if 'ExtendedStabilization' in project_config:
+    if 'extended_stabilization' in project_config:
+        extended_stabilization.set(project_config["extended_stabilization"])
+    elif 'ExtendedStabilization' in project_config:
         extended_stabilization.set(project_config["ExtendedStabilization"])
 
-    if 'CustomTemplateDefined' in project_config and project_config["CustomTemplateDefined"]:
-        if 'CustomTemplateName' in project_config:  # Load name if it exists, otherwise assign default
+    if 'custom_template_defined' not in project_config and 'CustomTemplateDefined' not in project_config:
+        project_config["custom_template_defined"] = False
+    else:
+        if 'custom_template_name' in project_config:  # Load name if it exists, otherwise assign default
+            template_name = project_config["custom_template_name"]
+        elif 'CustomTemplateName' in project_config:  # Load name if it exists, otherwise assign default
             template_name = project_config["CustomTemplateName"]
         else:
             template_name = f"{os.path.split(source_dir)[-1]}"
-        if 'CustomTemplateExpectedPos' in project_config:
-            expected_hole_template_pos_custom = project_config["CustomTemplateExpectedPos"]
+        if 'custom_template_expected_pos' in project_config:
+            custom_template_expected_pos = project_config["custom_template_expected_pos"]
+        elif 'CustomTemplateExpectedPos' in project_config:
+            custom_template_expected_pos = project_config["CustomTemplateExpectedPos"]
         else:
-            expected_hole_template_pos_custom = (0, 0)
-        if 'CustomTemplateFilename' in project_config:
+            custom_template_expected_pos = (0, 0)
+        if 'custom_template_filename' in project_config:
+            full_path_template_filename = project_config["custom_template_filename"]
+        elif 'CustomTemplateFilename' in project_config:
             full_path_template_filename = project_config["CustomTemplateFilename"]
         else:
             template_filename = f"Pattern.custom.{template_name}.jpg"
@@ -1041,13 +1052,13 @@ def decode_project_config():
                 "Template in project invalid",
                 f"The custom template saved for project {template_name} is invalid."
                 "Please redefine custom template for this project.")
-            del project_config['CustomTemplateFilename']
+            del project_config['custom_template_filename']
             # Invalid custom template defined, set default one
             set_film_type()
-            project_config["CustomTemplateDefined"] = False
+            project_config["custom_template_defined"] = False
         else:
             logging.debug(f"Adding custom template {template_name} from configuration to template list (filename {full_path_template_filename})")
-            template_list.add(template_name, full_path_template_filename, "custom", expected_hole_template_pos_custom)
+            template_list.add(template_name, full_path_template_filename, "custom", custom_template_expected_pos)
             debug_template_refresh_template()
     else:
         # No custom template defined, set default one
@@ -1071,15 +1082,22 @@ def decode_project_config():
         perform_sharpness.set(project_config['PerformSharpness'])
     else:
         perform_sharpness.set(False)
-    if 'PerformGammaCorrection' in project_config:
+    if 'perform_gamma_correction' in project_config:
+        perform_gamma_correction.set(project_config["perform_gamma_correction"])
+    elif 'PerformGammaCorrection' in project_config:
         perform_gamma_correction.set(project_config["PerformGammaCorrection"])
     else:
         perform_gamma_correction.set(False)
-    if 'GammaCorrectionValue' in project_config:
+    if 'gamma_correction_value' in project_config:
+        gamma_correction_str.set(project_config["gamma_correction_value"])
+    elif 'GammaCorrectionValue' in project_config:
         gamma_correction_str.set(project_config["GammaCorrectionValue"])
     else:
         gamma_correction_str.set("2.2")
-    if 'CropRectangle' in project_config:
+    if 'crop_rectangle' in project_config:
+        crop_bottom_right = tuple(project_config["crop_rectangle"][1])
+        crop_top_left = tuple(project_config["crop_rectangle"][0])
+    elif 'CropRectangle' in project_config:
         crop_bottom_right = tuple(project_config["CropRectangle"][1])
         crop_top_left = tuple(project_config["CropRectangle"][0])
     else:
@@ -1100,11 +1118,13 @@ def decode_project_config():
         force_16_9_crop.set(False)
     force_4_3 = force_4_3_crop.get()
     force_16_9 = force_16_9_crop.get()
-    if 'FrameFillType' in project_config:
+    if 'frame_fill_type' in project_config:
+        frame_fill_type.set(project_config["frame_fill_type"])
+    elif 'FrameFillType' in project_config:
         frame_fill_type.set(project_config["FrameFillType"])
     else:
-        project_config["FrameFillType"] = 'fake'
-        frame_fill_type.set(project_config["FrameFillType"])
+        project_config["frame_fill_type"] = 'fake'
+        frame_fill_type.set(project_config["frame_fill_type"])
 
     if 'generate_video' in project_config:
         generate_video.set(project_config['generate_video'])
@@ -1125,7 +1145,9 @@ def decode_project_config():
         skip_frame_regeneration.set(project_config["skip_frame_regeneration"])
     else:
         skip_frame_regeneration.set(False)
-    if 'FFmpegPreset' in project_config:
+    if 'ffmpeg_preset' in project_config:
+        ffmpeg_preset.set(project_config["ffmpeg_preset"])
+    elif 'FFmpegPreset' in project_config:
         ffmpeg_preset.set(project_config["FFmpegPreset"])
     else:
         ffmpeg_preset.set("veryfast")
@@ -1155,7 +1177,9 @@ def decode_project_config():
     else:
         stabilization_shift_x_value.set(0)
 
-    if 'PerformRotation' in project_config:
+    if 'perform_rotation' in project_config:
+        perform_rotation.set(project_config["perform_rotation"])
+    elif 'PerformRotation' in project_config:
         perform_rotation.set(project_config["PerformRotation"])
     else:
         perform_rotation.set(False)
@@ -1170,13 +1194,17 @@ def decode_project_config():
         video_fps = 18
         video_fps_dropdown_selected.set(video_fps)
     set_fps(str(video_fps))
-    if 'VideoResolution' in project_config:
+    if 'video_resolution' in project_config:
+        resolution_dropdown_selected.set(project_config["video_resolution"])
+    elif 'VideoResolution' in project_config:
         resolution_dropdown_selected.set(project_config["VideoResolution"])
     else:
         resolution_dropdown_selected.set('1920x1440 (1080P)')
-        project_config["VideoResolution"] = '1920x1440 (1080P)'
+        project_config["video_resolution"] = '1920x1440 (1080P)'
 
-    if 'CurrentBadFrameIndex' in project_config:
+    if 'current_bad_frame_index' in project_config:
+        current_bad_frame_index = project_config["current_bad_frame_index"]
+    elif 'CurrentBadFrameIndex' in project_config:
         current_bad_frame_index = project_config["CurrentBadFrameIndex"]
 
     if 'user_defined_left_stripe_width_proportion' in project_config:
@@ -1318,10 +1346,10 @@ def job_list_add_current():
             TargetTemplateFile = os.path.join(CustomTemplateDir, os.path.splitext(job_list[entry_name]['project']['video_filename'])[0]+'.jpg' )
             if template_list.get_active_filename() != TargetTemplateFile:
                 shutil.copyfile(template_list.get_active_filename(), TargetTemplateFile)
-            job_list[entry_name]['project']['CustomTemplateFilename'] = TargetTemplateFile
+            job_list[entry_name]['project']['custom_template_filename'] = TargetTemplateFile
         else:
-            if 'CustomTemplateFilename' in project_config:
-                del project_config['CustomTemplateFilename']
+            if 'custom_template_filename' in project_config:
+                del project_config['custom_template_filename']
         if item_id is None:
             item_id = job_list_treeview.insert('', 'end', text=entry_name, values=(description,), 
                                                tags=("pending","joblist_font",))
@@ -1373,7 +1401,7 @@ def job_list_load_selected():
                     current_frame = first_absolute_frame + (last_absolute_frame - first_absolute_frame) // 2
                 else:
                     # Set current_frame in the middle of the project frame range
-                    current_frame = project_config["FrameFrom"] + (project_config["FrameTo"] - project_config["FrameFrom"]) // 2
+                    current_frame = project_config["frame_from"] + (project_config["frame_to"] - project_config["frame_from"]) // 2
 
                 # Enable Start and Crop buttons, plus slider, once we have files to handle
                 cropping_btn.config(state=NORMAL)
@@ -1627,9 +1655,9 @@ def job_processing_loop():
             if item_id is not None:
                 job_list_treeview.item(item_id, tags=("ongoing","joblist_font",))
             CurrentJobEntry = entry
-            if 'FrameFrom' in job_list[entry]['project']:
-                # At some point FrameFrom and FrameTo were saved to project file as strings, so just in case, convert them.
-                current_frame = int(job_list[entry]['project']['FrameFrom'])
+            if 'frame_from' in job_list[entry]['project']:
+                # At some point frame_from and frame_to were saved to project file as strings, so just in case, convert them.
+                current_frame = int(job_list[entry]['project']['frame_from'])
                 logging.debug(f"Set current Frame to {current_frame}")
             else:
                 current_frame = 0
@@ -2081,7 +2109,7 @@ def perform_rotation_selection():
         state=NORMAL if perform_rotation.get() else DISABLED)
     rotation_angle_label.config(
         state=NORMAL if perform_rotation.get() else DISABLED)
-    project_config["PerformRotation"] = perform_rotation.get()
+    project_config["perform_rotation"] = perform_rotation.get()
     win.after(5, scale_display_update)
 
 
@@ -2116,14 +2144,14 @@ def perform_stabilization_selection():
 def low_contrast_custom_template_selection():
     global low_contrast_custom_template
 
-    project_config["LowContrastCustomTemplate"] = low_contrast_custom_template.get()
+    project_config["low_contrast_custom_template"] = low_contrast_custom_template.get()
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
 
 def extended_stabilization_selection():
     global extended_stabilization, hole_search_area_adjustment_pending
-    project_config["ExtendedStabilization"] = extended_stabilization.get()
+    project_config["extended_stabilization"] = extended_stabilization.get()
     hole_search_area_adjustment_pending = True
     win.after(5, scale_display_update)
     widget_status_update(NORMAL)
@@ -2190,7 +2218,7 @@ def perform_denoise_selection():
 
 
 def perform_gamma_correction_selection():
-    project_config["PerformGammaCorrection"] = perform_gamma_correction.get()
+    project_config["perform_gamma_correction"] = perform_gamma_correction.get()
     if ui_init_done:
         win.after(5, scale_display_update)
 
@@ -2254,7 +2282,7 @@ def set_fps(selected):
 
 def set_resolution(selected):
     global resolution_dict
-    project_config["VideoResolution"] = selected
+    project_config["video_resolution"] = selected
 
 
 def display_template_popup_closure():
@@ -2289,7 +2317,7 @@ def cmd_settings_popup_accept():
     global options_dlg, ffmpeg_bin_name, enable_rectangle_popup, ffmpeg_denoise_param
     global enable_soundtrack, user_defined_left_stripe_width_proportion
 
-    general_config["PopupPos"] = options_dlg.geometry()
+    general_config["popup_pos"] = options_dlg.geometry()
 
     save_FfmpegBinName = ffmpeg_bin_name
     ffmpeg_bin_name = custom_ffmpeg_path.get()
@@ -2305,10 +2333,10 @@ def cmd_settings_popup_accept():
     ffmpeg_denoise_param = ffmpeg_denoise_value.get()
     general_config["ffmpeg_hqdn_3d"] = ffmpeg_denoise_param
     enable_rectangle_popup = enable_rectangle_popup_value.get()
-    general_config["EnablePopups"] = enable_rectangle_popup
+    general_config["enable_rectangle_popup"] = enable_rectangle_popup
     if sound_file_available:
         enable_soundtrack = enable_soundtrack_value.get()
-        general_config["EnableSoundtrack"] = enable_soundtrack
+        general_config["enable_soundtrack"] = enable_soundtrack
     user_defined_left_stripe_width_proportion = left_stripe_width_value.get() / 100
     project_config["user_defined_left_stripe_width_proportion"] = user_defined_left_stripe_width_proportion
 
@@ -2327,7 +2355,9 @@ def cmd_settings_popup():
 
     options_dlg = tk.Toplevel(win)
 
-    if 'PopupPos' in general_config:
+    if 'popup_pos' in general_config:
+        options_dlg.geometry(f"+{general_config['popup_pos'].split('+', 1)[1]}")
+    elif 'PopupPos' in general_config:
         options_dlg.geometry(f"+{general_config['PopupPos'].split('+', 1)[1]}")
 
     options_dlg.title("AfterScan Settings")
@@ -3027,7 +3057,7 @@ def FrameSync_Viewer_popup():
     if frame_sync_viewer_opened: # Already opened, user wants to close
         frame_sync_viewer_opened = False # Set to false first, to avoid interactions with deleted elements
         stabilization_threshold = stabilization_threshold_default   # Restore original value
-        general_config["TemplatePopupWindowPos"] = template_popup_window.geometry()
+        general_config["template_popup_window_pos"] = template_popup_window.geometry()
         template_canvas.destroy()
         left_stripe_canvas.destroy()
         left_stripe_stabilized_canvas.destroy()
@@ -3048,8 +3078,8 @@ def FrameSync_Viewer_popup():
 
     template_popup_window.minsize(width=300, height=template_popup_window.winfo_height())
 
-    if 'TemplatePopupWindowPos' in general_config:
-        template_popup_window.geometry(f"+{general_config['TemplatePopupWindowPos'].split('+', 1)[1]}")
+    if 'template_popup_window_pos' in general_config:
+        template_popup_window.geometry(f"+{general_config['template_popup_window_pos'].split('+', 1)[1]}")
 
     # Create three vertical frames in the bottom horizontal frame
     left_frame = Frame(template_popup_window, width=60, height=8)
@@ -3424,9 +3454,9 @@ def FrameSync_Viewer_popup():
     template_popup_window.wait_window()
 
     precise_template_match = precise_template_match_value.get()
-    general_config["PreciseTemplateMatch"] = precise_template_match
+    general_config["precise_template_match"] = precise_template_match
     detect_minor_mismatches = detect_minor_mismatches_value.get()
-    general_config["HighSensitiveBadFrameDetection"] = detect_minor_mismatches
+    general_config["detect_minor_mismatches"] = detect_minor_mismatches
 
     frame_sync_viewer_opened = False
 
@@ -4045,7 +4075,7 @@ def select_cropping_area():
         crop_top_left = (0, 0)
         crop_bottom_right = (0, 0)
 
-    project_config["CropRectangle"] = (crop_top_left, crop_bottom_right)
+    project_config["crop_rectangle"] = (crop_top_left, crop_bottom_right)
     perform_cropping_checkbox.config(state=NORMAL if crop_area_defined
                                      else DISABLED)
 
@@ -4115,7 +4145,7 @@ def select_custom_template():
                 img_final = img_bw
 
             # Write template to disk
-            project_config["CustomTemplateFilename"] = full_path_template_filename
+            project_config["custom_template_filename"] = full_path_template_filename
             cv2.imwrite(full_path_template_filename, img_final)
 
             # Add template to list
@@ -4125,8 +4155,8 @@ def select_custom_template():
             FrameSync_Viewer_popup_update_widgets(NORMAL)
             custom_stabilization_btn.config(relief=SUNKEN)
 
-            project_config['CustomTemplateExpectedPos'] = template_list.get_active_position()
-            project_config['CustomTemplateName'] = template_list.get_active_name()
+            project_config['custom_template_expected_pos'] = template_list.get_active_position()
+            project_config['custom_template_name'] = template_list.get_active_name()
 
             define_template_search_area(full_img)  # Adjust hole search area to new template
 
@@ -4157,7 +4187,7 @@ def select_custom_template():
             widget_status_update(DISABLED, 0)
             FrameSync_Viewer_popup_update_widgets(DISABLED)
 
-    project_config["CustomTemplateDefined"] = True if template_list.get_active_type() == 'custom' else False
+    project_config["custom_template_defined"] = True if template_list.get_active_type() == 'custom' else False
     debug_template_refresh_template()
 
     # Enable all buttons in main window
@@ -5348,7 +5378,7 @@ def start_convert():
             win.after(1, frame_generation_loop)
         elif generate_video.get():
             # first check if resolution has been set
-            if resolution_dict[project_config["VideoResolution"]] == '':
+            if resolution_dict[project_config["video_resolution"]] == '':
                 if not batch_job_running:
                     logging.error("Error, no video resolution selected")
                     tk.messagebox.showerror("Error!", "Please specify video resolution.")
@@ -5842,9 +5872,9 @@ def call_ffmpeg():
     global title_num_frames
     global file_type_out
 
-    if resolution_dict[project_config["VideoResolution"]] != '':
-        video_width = resolution_dict[project_config["VideoResolution"]].split(':')[0]
-        video_height = resolution_dict[project_config["VideoResolution"]].split(':')[1]
+    if resolution_dict[project_config["video_resolution"]] != '':
+        video_width = resolution_dict[project_config["video_resolution"]].split(':')[0]
+        video_height = resolution_dict[project_config["video_resolution"]].split(':')[1]
 
     cmd_ffmpeg = [ffmpeg_bin_name,
                   '-y',
