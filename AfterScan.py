@@ -245,6 +245,7 @@ default_project_config = {
 HoleSearchTopLeft = (0, 0)
 HoleSearchBottomRight = (0, 0)
 
+""" delete_this
 # Film frames (in/out) file vars
 TargetVideoFilename = ""
 TargetVideoTitle = ""
@@ -273,11 +274,13 @@ SourceDirFileList = []
 TargetDirFileList = []
 film_type = 'S8'
 frame_fill_type = 'fake'
+"""
 
 # Dimensions of frames in collection currently loaded: x, y (as it is needed often)
 frame_width = 2028
 frame_height = 1520
 
+""" delete_this
 # Flow control vars
 ConvertLoopExitRequested = False
 ConvertLoopRunning = False
@@ -290,6 +293,7 @@ BigSize = True
 PreviewWidth = 700
 PreviewHeight = 525
 PreviewRatio = 1  # Defined globally for homogeneity, to be calculated once per project
+"""
 
 # Crop area rectangle drawing vars
 ref_point = []
@@ -630,9 +634,10 @@ def load_project_settings():
         project_registry[general_config.source_dir]["SourceDir"] = general_config.source_dir
 
 
+""" delete_this
 def save_project_config():
     global general_config, project_config_entry, project_registry
-    """ delete_this
+    ''' delete_this
     global template_list
     global skip_frame_regeneration
     global ffmpeg_preset
@@ -674,7 +679,7 @@ def save_project_config():
     # remove deprecated items from config
     if "CustomHolePos" in project_config:
         del project_config["CustomHolePos"]
-    """
+    '''
     project_config_entry.source_dir = general_config.source_dir
     project_config_entry.skip_frame_regeneration = skip_frame_regeneration.get()
     project_config_entry.project_config_date = str(datetime.now())
@@ -718,6 +723,7 @@ def save_project_config():
     )
     # save_project_settings()  # delete_this
     project_registry.to_json(general_config.project_settings_filename)
+"""
 
 """ delete_this
 def load_project_config():
@@ -1539,6 +1545,7 @@ def generate_dict_hash(dictionary):
     return hash_object.hexdigest()
 
 
+""" delete_this
 def save_named_job_list():
     global general_config
     global job_list, job_list_hash
@@ -1585,7 +1592,7 @@ def load_named_job_list():
         general_config.job_list_filename = aux_file
         job_list_hash = generate_dict_hash(job_list)
         display_window_title()
-
+"""
 
 def save_job_list():
     global job_list
@@ -3649,15 +3656,13 @@ def load_current_frame_image():
         file = SourceDirFileList[CurrentFrame]
     return cv2.imread(file, cv2.IMREAD_UNCHANGED)
 
-
+""" delete_this
 def scale_display_update(update_filters=True, offset_x = 0, offset_y = 0):
     global win
     global frame_scale_refresh_done, frame_scale_refresh_pending
     global CurrentFrame
     global perform_stabilization, perform_cropping, perform_rotation, hole_search_area_adjustment_pending
-    """ delete_this
     global CropTopLeft, CropBottomRight
-    """
     global SourceDirFileList
     global project_config_entry
 
@@ -3701,7 +3706,7 @@ def scale_display_update(update_filters=True, offset_x = 0, offset_y = 0):
             win.after(100, scale_display_update, update_filters) # If catching up after too many frames refreshed, las one do the refresh with filters
         else:
             frame_scale_refresh_done = True
-
+"""
 
 def select_scale_frame(selected_frame):
     global win
@@ -6275,6 +6280,7 @@ Application top level functions
 ###############################
 """
 
+""" delete_this
 # Validation function for different widgets
 def validate_entry_length(P, widget_name):
     max_lengths = {
@@ -6288,7 +6294,7 @@ def validate_entry_length(P, widget_name):
                             f"Maximum length for this field is {max_length}")
         return 
     return len(P) <= max_length
-
+"""
 
 def gamma_enforce_min_value(event=None):
     """Ensure value is strictly greater than zero when focus is lost."""
@@ -6431,7 +6437,9 @@ def afterscan_init():
     win.option_add("*font", "TkDefaultFont 10")
 
     # Init ToolTips
+    """ delete_this
     as_tooltips = Tooltips(FontSize)
+    """
 
     # Init rolling Averages
     match_level_average = RollingAverage(50)
@@ -6478,6 +6486,7 @@ def adjust_last_column():
     job_list_treeview.column(last_col, width=max(100, total_width - other_columns_width))    
 
 
+""" # delete_this
 def build_ui():
     global win
     global frames_source_dir, frames_target_dir, video_target_dir, video_target_dir_str
@@ -7308,7 +7317,7 @@ def build_ui():
 
     postprocessing_bottom_frame = Frame(video_frame, width=30)
     postprocessing_bottom_frame.grid(row=video_row, column=0)
-
+"""
 
 # Function to copy files from temp to templates folder the first time version 1.12 version is run
 def copy_jpg_files(source_folder, destination_folder):
@@ -7336,6 +7345,7 @@ def copy_jpg_files(source_folder, destination_folder):
         logging.debug(f"copy_jpg_files. An error occurred: {e}")
 
 
+""" delete_this
 def exit_app():  # Exit Application
     global win
     global active_threads
@@ -7358,7 +7368,7 @@ def exit_app():  # Exit Application
     save_project_config()
     save_job_list()
     win.destroy()
-
+"""
 
 # Get or generate persistent user ID
 def get_user_id():

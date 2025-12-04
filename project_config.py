@@ -27,6 +27,7 @@ from typing import List, Optional, Dict, Any
 from afterscan_template_manager import Template, TemplateList
 import copy
 import logging
+from afterscan_config import GeneralConfig
 
 @dataclass
 class ProjectHeader:
@@ -60,6 +61,8 @@ class ProjectConfigEntry:
     frame_fill_type: str = "none"
     frame_from: int = 0
     frame_to: int = 0
+    first_absolute_frame: int = 0
+    last_absolute_frame: int = 0
     low_contrast_custom_template: bool = False
     extended_stabilization: bool = False
     stabilization_shift_x: int = 0
@@ -79,6 +82,7 @@ class ProjectConfigEntry:
     video_resolution: str = ""
     current_bad_frame_index: int = -1
     from_file: bool = True
+    ignore_config: bool = False
 
     """
     @classmethod
@@ -134,6 +138,32 @@ class ProjectConfigEntry:
             logging.debug("%s = %s", key, str(value))
             
         logging.debug("----------------------------------------------")
+
+
+    def save(self, project_registry: 'ProjectRegistry', general_config: 'GeneralConfig'):
+        
+        # Before OO, fields in the config had to be set one by one from the UI widgets
+        # Now they are supposed to be up to date in the active instance
+
+        # To be completed: Probably we'll need a class for bad frame list
+        #if len(bad_frame_list) > 0:
+        #    save_bad_frame_list()   # Bad frames need to be saved even in batch mode
+
+        # Do not save if current project comes from batch job
+        if not self.from_file or general_config.ignore_config:
+            return
+
+        # No longer saving to dedicated file, all project settings in common file now
+        # with open(project_config_filename, 'w+') as f:
+        #     json.dump(project_config, f)
+
+        # update_project_settings()  # delete_this
+        project_registry.save_config_entry(
+            source_dir=self.source_dir,
+            config_to_save=self
+        )
+        # save_project_settings()  # delete_this
+        project_registry.to_json(general_config.project_settings_filename)
 
 
 @dataclass
