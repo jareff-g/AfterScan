@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.04"
+__version__ = "1.40.05"
 __data_version__ = "1.0"
 __date__ = "2025-12-05"
-__version_highlight__ = "Refactoring: Fixing bugs after mass renaming"
+__version_highlight__ = "Refactoring: Fixing bugs after mass renaming (2)"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -169,8 +169,7 @@ default_project_config = {
     "perform_stabilization": False,
     "skip_frame_regeneration": False,
     "video_filename": "",
-    "video_title": "",
-    "fill_borders": False
+    "video_title": ""
 }
 
 general_config = {
@@ -612,7 +611,6 @@ def set_project_defaults():
     video_filename_str.set(project_config["video_filename"])
     project_config["video_title"] = ""
     video_title_str.set(project_config["video_title"])
-    project_config["fill_borders"] = False
     project_config["stabilization_shift_y"] = 0
     project_config["stabilization_shift_x"] = 0
 
@@ -903,6 +901,11 @@ def load_project_config():
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
+
+def delete_dict_key(dict, old_key):
+    if old_key in dict:
+        del dict[old_key]
+
 def retrieve_dict_value_with_key_backward_compatibility(dict, old_key, new_key, default_value):
     new_key_exists = False
     old_key_exists = False
@@ -952,6 +955,8 @@ def decode_project_config():
     global stabilization_shift_x, stabilization_shift_y
     global user_defined_left_stripe_width_proportion
 
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'SourceDir', 'source_dir', '')
+    """
     if 'source_dir' in project_config or 'SourceDir' in project_config:
         if 'source_dir' in project_config:
             source_dir = project_config['source_dir']
@@ -959,6 +964,9 @@ def decode_project_config():
             source_dir = project_config['SourceDir']
             project_config['source_dir'] = source_dir
             del project_config['SourceDir']
+    """
+    source_dir = aux_value
+    if source_dir != '':
         project_name = os.path.split(source_dir)[-1].replace(',', ';')
         # If directory in configuration does not exist, set current working dir
         if not os.path.isdir(source_dir):
@@ -971,6 +979,8 @@ def decode_project_config():
         frames_source_dir.after(100, frames_source_dir.xview_moveto, 1)
         # Need to retrieve source file list at this point, since win.update at the end of thi sfunction will force a refresh of the preview
         # If we don't do it here, an oimage from the previou ssource folder will be displayed instead
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'TargetDir', 'target_dir', '')
+    """
     if 'target_dir' in project_config or 'TargetDir' in project_config:
         if 'target_dir' in project_config:
             target_dir = project_config['target_dir']
@@ -978,6 +988,9 @@ def decode_project_config():
             target_dir = project_config['TargetDir']
             project_config['target_dir'] = target_dir
             del project_config['TargetDir']
+    """
+    target_dir = aux_value
+    if target_dir != '':
         # If directory in configuration does not exist, set current working dir
         if not os.path.isdir(target_dir):
             target_dir = ""
@@ -986,6 +999,8 @@ def decode_project_config():
         frames_target_dir.delete(0, 'end')
         frames_target_dir.insert('end', target_dir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'VideoTargetDir', 'video_target_dir', '')
+    """
     if 'video_target_dir' in project_config or 'VideoTargetDir' in project_config:
         if 'video_target_dir' in project_config:
             video_target_dir_str.set(project_config['video_target_dir'])
@@ -993,12 +1008,17 @@ def decode_project_config():
             video_target_dir_str.set(project_config['VideoTargetDir'])
             project_config['video_target_dir'] = video_target_dir_str.get()
             del project_config['VideoTargetDir']
+    """
+    video_target_dir_str.set(aux_value)
+    if video_target_dir_str.get() != '':
         # If directory in configuration does not exist, set current working dir
         if not os.path.isdir(video_target_dir_str.get()):
             video_target_dir_str.set(target_dir)  # use frames target dir as fallback option
         video_target_dir_entry.after(100, video_target_dir_entry.xview_moveto, 1)
     current_frame = 0
     if not batch_job_running: # only if project loaded by user, otherwise it alters start encoding frame in batch mode
+        aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CurrentFrame', 'current_frame', 0)
+        """
         if 'current_frame' in project_config:
             current_frame = project_config['current_frame']
             current_frame = max(current_frame, 0)
@@ -1007,7 +1027,12 @@ def decode_project_config():
             current_frame = max(current_frame, 0)
             project_config['current_frame'] = current_frame
             del project_config['CurrentFrame']
+        """
+        current_frame = aux_value
+        # frame_slider.set(current_frame)
 
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'EncodeAllFrames', 'encode_all_frames', True)
+    """
     if 'encode_all_frames' in project_config:
         encode_all_frames.set(project_config['encode_all_frames'])
     elif 'EncodeAllFrames' in project_config:
@@ -1016,6 +1041,11 @@ def decode_project_config():
         del project_config['EncodeAllFrames']
     else:
         encode_all_frames.set(True)
+    """
+    encode_all_frames.set(aux_value)
+
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FrameFrom', 'frame_from', 0)
+    """
     if 'frame_from' in project_config:
         frame_from_str.set(str(project_config["frame_from"]))
     elif 'FrameFrom' in project_config:
@@ -1024,6 +1054,11 @@ def decode_project_config():
         del project_config["FrameFrom"]
     else:
         frame_from_str.set('0')
+    """
+    frame_from_str.set(str(aux_value))
+
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FrameTo', 'frame_to', 0)
+    """
     if 'frame_to' in project_config:
         frame_to_str.set(str(project_config["frame_to"]))
     elif 'FrameTo' in project_config:
@@ -1032,11 +1067,25 @@ def decode_project_config():
         del project_config["FrameTo"]
     else:
         frame_to_str.set('0')
+    """
+    frame_to_str.set(str(aux_value))
     if frame_to_str.get() != '' and frame_from_str.get() != '':
         frames_to_encode = int(frame_to_str.get()) - int(frame_from_str.get()) + 1
     else:
         frames_to_encode = 0
 
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FramesToEncode', 'frames_to_encode', frames_to_encode)
+    if frames_to_encode != aux_value:
+        project_config['frames_to_encode'] = frames_to_encode
+    
+    delete_dict_key(project_config, "FillBorders")
+    delete_dict_key(project_config, "FillBordersThickness")
+    delete_dict_key(project_config, "FillBordersMode")
+    delete_dict_key(project_config, "FakeFillType")
+    delete_dict_key(project_config, "StabilizationShift")
+                    
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FilmType', 'film_type', 'S8')
+    """
     if 'film_type' in project_config:
         film_type.set(project_config['film_type'])
     if film_type == '' and 'FilmType' in project_config:
@@ -1045,7 +1094,11 @@ def decode_project_config():
         del project_config['FilmType']
     else:
         project_config["film_type"] = 'S8'
+    """
+    film_type.set(aux_value)
 
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'RotationAngle', 'rotation_angle', 0)
+    """
     if 'rotation_angle' in project_config:
         rotation_angle = project_config['rotation_angle']
         rotation_angle_str.set(rotation_angle)
@@ -1057,7 +1110,13 @@ def decode_project_config():
     else:
         rotation_angle = 0
         rotation_angle_str.set(rotation_angle)
+    """
+    rotation_angle = aux_value
+    rotation_angle_str.set(rotation_angle)
+
     if expert_mode:
+        aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'StabilizationThreshold', 'stabilization_threshold', 220.0)
+        """
         if 'stabilization_threshold' in project_config:
             stabilization_threshold = float(project_config['stabilization_threshold'])
             stabilization_threshold_str.set(stabilization_threshold)
@@ -1069,25 +1128,36 @@ def decode_project_config():
         else:
             stabilization_threshold = 220.0
             stabilization_threshold_str.set(stabilization_threshold)
+        """
+        stabilization_threshold = aux_value
+        stabilization_threshold_str.set(stabilization_threshold)
     else:
         stabilization_threshold = 220.0
 
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'LowContrastCustomTemplate', 'low_contrast_custom_template', False)
+    """
     if 'low_contrast_custom_template' in project_config:
         low_contrast_custom_template.set(project_config["low_contrast_custom_template"])
     elif 'LowContrastCustomTemplate' in project_config:
         low_contrast_custom_template.set(project_config["LowContrastCustomTemplate"])
         project_config["low_contrast_custom_template"] = low_contrast_custom_template.get()
         del project_config["LowContrastCustomTemplate"]
+    """
+    low_contrast_custom_template.set(aux_value)
 
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'ExtendedStabilization', 'extended_stabilization', False)
+    """
     if 'extended_stabilization' in project_config:
         extended_stabilization.set(project_config["extended_stabilization"])
     elif 'ExtendedStabilization' in project_config:
         extended_stabilization.set(project_config["ExtendedStabilization"])
         project_config["extended_stabilization"] = extended_stabilization.get()
         del project_config["ExtendedStabilization"]
+    """
+    extended_stabilization.set(aux_value)
 
-    if 'custom_template_defined' not in project_config and 'CustomTemplateDefined' not in project_config:
-        project_config["custom_template_defined"] = False
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateDefined', 'custom_template_defined', False)
+    if not project_config["custom_template_defined"]:
         # No custom template defined, set default one
         set_film_type()
     else:
@@ -1112,16 +1182,9 @@ def decode_project_config():
         if 'custom_template_filename' in project_config:
             full_path_template_filename = project_config["custom_template_filename"]
         if full_path_template_filename == '' and 'CustomTemplateFilename' in project_config:
-            print(f"*** Detected legacy key CustomTemplateFilename")
             full_path_template_filename = project_config["CustomTemplateFilename"]
-            print(f"*** Retrieved value from legacy key {full_path_template_filename}")
             project_config["custom_template_filename"] = full_path_template_filename
-            print(f"*** Adding new key custom_template_filename, value = {project_config["custom_template_filename"]}")
             del project_config["CustomTemplateFilename"]
-            if 'CustomTemplateFilename' in project_config:
-                print(f"*** Key CustomTemplateFilename could not be deleted !!!")
-            else:
-                print(f"*** Key CustomTemplateFilename DELETED !!!")
         else:
         """
         full_path_template_filename = aux_value
@@ -1415,6 +1478,11 @@ def decode_project_config():
     else:
         user_defined_left_stripe_width_proportion = 0.25
     """
+    # Don't really need to retrieve the config date, this is intended only to be written. But anyhow...
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'ProjectConfigDate', 'project_config_date', str(datetime.now()))
+
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'HighSensitiveBadFrameDetection', 'precise_template_match', False)
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PreciseTemplateMatch', 'precise_template_match', False)
 
     if len(source_dir_file_list) > 0:
         adjust_dimensions_based_on_frame()
