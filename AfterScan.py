@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.03"
+__version__ = "1.40.04"
 __data_version__ = "1.0"
 __date__ = "2025-12-05"
-__version_highlight__ = "Refactoring: Renamed remaining variables"
+__version_highlight__ = "Refactoring: Fixing bugs after mass renaming"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -903,20 +903,26 @@ def load_project_config():
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
-def retrieve_dict_value_with_key_backward_compatibility(dict, old_key, new_key):
+def retrieve_dict_value_with_key_backward_compatibility(dict, old_key, new_key, default_value):
     new_key_exists = False
     old_key_exists = False
     if new_key in dict:  # Load new key if it exists, otherwise try with legacy
         value = dict[new_key]
         new_key_exists = True
-    if old_key in project_config and (not new_key_exists or (new_key_exists and type(value) is str and value == '')):
-        old_key_exists = True
-        value = dict[old_key]
-        dict[new_key] = value
-        del dict[old_key]
+    if old_key in dict:
+        if not new_key_exists or (new_key_exists and type(value) is str and value == ''):
+            value = dict[old_key]
+            dict[new_key] = value
+            del dict[old_key]
+        else:
+            old_key_exists = True
     if (not old_key_exists and not new_key_exists):
         print(f"******* No keys found: {old_key}, {new_key}")
-        value = ''
+        value = default_value  # Should not happen, but useful to allow recovery by caller
+        dict[new_key] = default_value
+    elif (old_key_exists and new_key_exists):
+        print(f"******* Both keys found, deletign old one: {old_key}")
+        del dict[old_key]   # If both keys exists, delete the legacy one
     return value
 
 def decode_project_config():        
@@ -1085,10 +1091,12 @@ def decode_project_config():
         # No custom template defined, set default one
         set_film_type()
     else:
-        template_name = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateName', 'custom_template_name')
-        if template_name == '':
-            template_name = f"{os.path.split(source_dir)[-1]}"
+        aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateName', 'custom_template_name', f"{os.path.split(source_dir)[-1]}")
+        template_name = aux_value
 
+        aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateExpectedPos', 'custom_template_expected_pos', (0, 0))
+        custom_template_expected_pos = aux_value
+        """
         if 'custom_template_expected_pos' in project_config:
             custom_template_expected_pos = project_config["custom_template_expected_pos"]
         elif 'CustomTemplateExpectedPos' in project_config:
@@ -1097,8 +1105,9 @@ def decode_project_config():
             del project_config["CustomTemplateExpectedPos"]
         else:
             custom_template_expected_pos = (0, 0)
+        """
 
-        full_path_template_filename = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateFilename', 'custom_template_filename')
+        aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateFilename', 'custom_template_filename', os.path.join(resources_dir, f"Pattern.custom.{template_name}.jpg"))
         """
         if 'custom_template_filename' in project_config:
             full_path_template_filename = project_config["custom_template_filename"]
@@ -1115,11 +1124,7 @@ def decode_project_config():
                 print(f"*** Key CustomTemplateFilename DELETED !!!")
         else:
         """
-        if full_path_template_filename == '':
-            template_filename = f"Pattern.custom.{template_name}.jpg"
-            full_path_template_filename = os.path.join(resources_dir, template_filename)
-            project_config["custom_template_filename"] = full_path_template_filename
-            print(f"*** Adding Key custom_template_filename {full_path_template_filename}")
+        full_path_template_filename = aux_value
 
         if not os.path.exists(full_path_template_filename):
             print(f"*** template filename: {full_path_template_filename}")
@@ -1137,6 +1142,9 @@ def decode_project_config():
             template_list.add(template_name, full_path_template_filename, "custom", custom_template_expected_pos)
             debug_template_refresh_template()
 
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformCropping', 'perform_cropping', False)
+    perform_cropping.set(aux_value)
+    """
     if 'perform_cropping' in project_config:
         perform_cropping.set(project_config['perform_cropping'])
     elif 'PerformCropping' in project_config:
@@ -1145,6 +1153,10 @@ def decode_project_config():
         del project_config['PerformCropping']
     else:
         perform_cropping.set(False)
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformDenoise', 'perform_denoise', False)
+    perform_denoise.set(aux_value)
+    """
     if 'perform_denoise' in project_config:
         perform_denoise.set(project_config['perform_denoise'])
     elif 'PerformDenoise' in project_config:
@@ -1153,6 +1165,10 @@ def decode_project_config():
         del project_config['PerformDenoise']
     else:
         perform_denoise.set(False)
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformSharpness', 'perform_sharpness', False)
+    perform_sharpness.set(aux_value)
+    """
     if 'perform_sharpness' in project_config:
         perform_sharpness.set(project_config['perform_sharpness'])
     elif 'PerformSharpness' in project_config:
@@ -1161,6 +1177,10 @@ def decode_project_config():
         del project_config['PerformSharpness']
     else:
         perform_sharpness.set(False)
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformGammaCorrection', 'perform_gamma_correction', False)
+    perform_gamma_correction.set(aux_value)
+    """
     if 'perform_gamma_correction' in project_config:
         perform_gamma_correction.set(project_config["perform_gamma_correction"])
     elif 'PerformGammaCorrection' in project_config:
@@ -1169,6 +1189,10 @@ def decode_project_config():
         del project_config["PerformGammaCorrection"]
     else:
         perform_gamma_correction.set(False)
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'GammaCorrectionValue', 'gamma_correction_value', "2.2")
+    gamma_correction_str.set(aux_value)
+    """
     if 'gamma_correction_value' in project_config:
         gamma_correction_str.set(project_config["gamma_correction_value"])
     elif 'GammaCorrectionValue' in project_config:
@@ -1177,6 +1201,12 @@ def decode_project_config():
         del project_config["GammaCorrectionValue"]
     else:
         gamma_correction_str.set("2.2")
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CropRectangle', 'crop_rectangle', ((0, 0), (0, 0)))
+    crop_top_left = aux_value[0]
+    crop_bottom_right = aux_value[1]
+    perform_cropping_selection()
+    """
     if 'crop_rectangle' in project_config:
         crop_bottom_right = tuple(project_config["crop_rectangle"][1])
         crop_top_left = tuple(project_config["crop_rectangle"][0])
@@ -1191,18 +1221,31 @@ def decode_project_config():
         perform_cropping.set(False)
         project_config["perform_cropping"] = False
     perform_cropping_selection()
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'Force_4/3', 'force_4_3', False)
+    force_4_3_crop.set(aux_value)
+    """
     if 'Force_4/3' in project_config:
         force_4_3_crop.set(project_config["Force_4/3"])
     else:
         force_4_3_crop.set(False)
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'Force_16/9', 'force_16_9', False)
+    force_16_9_crop.set(aux_value)
+    """
     if 'Force_16/9' in project_config:
         force_16_9_crop.set(project_config["Force_16/9"])
     else:
         force_16_9_crop.set(False)
+    """
     if force_4_3_crop.get():    # 4:3 has priority if both set
         force_16_9_crop.set(False)
     force_4_3 = force_4_3_crop.get()
     force_16_9 = force_16_9_crop.get()
+
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FrameFillType', 'frame_fill_type', 'fake')
+    frame_fill_type.set(aux_value)
+    """
     if 'frame_fill_type' in project_config:
         frame_fill_type.set(project_config["frame_fill_type"])
     if frame_fill_type == '' and 'FrameFillType' in project_config:
@@ -1212,7 +1255,10 @@ def decode_project_config():
     else:
         project_config["frame_fill_type"] = 'fake'
         frame_fill_type.set(project_config["frame_fill_type"])
-
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'GenerateVideo', 'generate_video', False)
+    generate_video.set(aux_value)
+    """
     if 'generate_video' in project_config:
         generate_video.set(project_config['generate_video'])
     elif 'GenerateVideo' in project_config:
@@ -1221,32 +1267,51 @@ def decode_project_config():
         del project_config["GenerateVideo"]
     else:
         generate_video.set(False)
+    """
     generate_video_selection()
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'VideoFilename', 'video_filename', '')
+    video_filename_str.set(aux_value)
+    """
     if 'video_filename' in project_config:
         video_filename_str.set(project_config['video_filename'])
     if video_filename_str.get() == '' and 'VideoFilename' in project_config:
         video_filename_str.set(project_config['VideoFilename'])
         project_config["video_filename"] = video_filename_str.get()
         del project_config["VideoFilename"]
-
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'VideoTitle', 'video_title', '')
+    video_title_str.set(aux_value)
+    """
     if 'video_title' in project_config:
         video_title_str.set(project_config['video_title'])
     if video_title_str.get() == '' and 'VideoTitle' in project_config:
         video_title_str.set(project_config['VideoTitle'])
         project_config["video_title"] = video_title_str.get()
         del project_config["VideoTitle"]
+    """
 
+    # Snake case from the start
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'SkipFrameRegeneration', 'skip_frame_regeneration', False)
+    skip_frame_regeneration.set(aux_value)
+    """
     if 'skip_frame_regeneration' in project_config:
         skip_frame_regeneration.set(project_config["skip_frame_regeneration"])
     else:
         skip_frame_regeneration.set(False)
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FFmpegPreset', 'ffmpeg_preset', 'veryfast')
+    ffmpeg_preset.set(aux_value)
+    """
     if 'ffmpeg_preset' in project_config:
         ffmpeg_preset.set(project_config["ffmpeg_preset"])
     if ffmpeg_preset.get() == '' and 'FFmpegPreset' in project_config:
         ffmpeg_preset.set(project_config["FFmpegPreset"])
     else:
         ffmpeg_preset.set("veryfast")
-
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformStabilization', 'perform_stabilization', False)
+    perform_stabilization.set(aux_value)
+    """
     if 'perform_stabilization' in project_config:
         perform_stabilization.set(project_config['perform_stabilization'])
     elif 'PerformStabilization' in project_config:
@@ -1255,7 +1320,10 @@ def decode_project_config():
         del project_config['PerformStabilization']
     else:
         perform_stabilization.set(False)
-
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'StabilizationShiftY', 'stabilization_shift_y', 0)
+    stabilization_shift_y_value.set(aux_value)
+    """
     if 'stabilization_shift_y' in project_config:
         stabilization_shift_y_value.set(project_config['stabilization_shift_y'])
         stabilization_shift_y = stabilization_shift_y_value.get()
@@ -1266,7 +1334,10 @@ def decode_project_config():
         del project_config['StabilizationShiftY']
     else:
         stabilization_shift_y_value.set(0)
-
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'StabilizationShiftX', 'stabilization_shift_x', 0)
+    stabilization_shift_x_value.set(aux_value)
+    """
     if 'stabilization_shift_x' in project_config:
         stabilization_shift_x_value.set(project_config['stabilization_shift_x'])
         stabilization_shift_x = stabilization_shift_x_value.get()
@@ -1277,7 +1348,10 @@ def decode_project_config():
         del project_config['StabilizationShiftX']
     else:
         stabilization_shift_x_value.set(0)
-
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformRotation', 'perform_rotation', False)
+    perform_rotation.set(aux_value)
+    """
     if 'perform_rotation' in project_config:
         perform_rotation.set(project_config["perform_rotation"])
     elif 'PerformRotation' in project_config:
@@ -1286,7 +1360,10 @@ def decode_project_config():
         del project_config["PerformRotation"]
     else:
         perform_rotation.set(False)
-
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'VideoFps', 'video_fps', 18)
+    video_fps = eval(aux_value)
+    """
     if 'video_fps' in project_config:
         video_fps = eval(project_config['video_fps'])
         video_fps_dropdown_selected.set(video_fps)
@@ -1298,7 +1375,13 @@ def decode_project_config():
     else:
         video_fps = 18
         video_fps_dropdown_selected.set(video_fps)
+    """
+    video_fps_dropdown_selected.set(video_fps)
     set_fps(str(video_fps))
+
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'VideoResolution', 'video_resolution', '1920x1440 (1080P)')
+    resolution_dropdown_selected.set(aux_value)
+    """
     if 'video_resolution' in project_config:
         resolution_dropdown_selected.set(project_config["video_resolution"])
     elif 'VideoResolution' in project_config:
@@ -1308,14 +1391,21 @@ def decode_project_config():
     else:
         resolution_dropdown_selected.set('1920x1440 (1080P)')
         project_config["video_resolution"] = '1920x1440 (1080P)'
-
+    """
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CurrentBadFrameIndex', 'current_bad_frame_index', 0)
+    current_bad_frame_index = aux_value
+    """
     if 'current_bad_frame_index' in project_config:
         current_bad_frame_index = project_config["current_bad_frame_index"]
     elif 'CurrentBadFrameIndex' in project_config:
         current_bad_frame_index = project_config["CurrentBadFrameIndex"]
         project_config["current_bad_frame_index"] = current_bad_frame_index
         del project_config["CurrentBadFrameIndex"]
+    """
 
+    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'UserDefinedLeftStripeWidthProportion', 'user_defined_left_stripe_width_proportion', 0.25)
+    user_defined_left_stripe_width_proportion = aux_value
+    """
     if 'user_defined_left_stripe_width_proportion' in project_config:
         user_defined_left_stripe_width_proportion = project_config['user_defined_left_stripe_width_proportion']
     elif 'UserDefinedLeftStripeWidthProportion' in project_config:
@@ -1324,6 +1414,7 @@ def decode_project_config():
         del project_config['UserDefinedLeftStripeWidthProportion']
     else:
         user_defined_left_stripe_width_proportion = 0.25
+    """
 
     if len(source_dir_file_list) > 0:
         adjust_dimensions_based_on_frame()
@@ -2350,8 +2441,8 @@ def force_4_3_selection():
     if force_4_3:
         force_16_9_crop.set(False)
         force_16_9 = False
-    project_config["Force_4/3"] = force_4_3_crop.get()
-    project_config["Force_16/9"] = force_16_9_crop.get()
+    project_config["force_4_3"] = force_4_3_crop.get()
+    project_config["force_16_9"] = force_16_9_crop.get()
 
 
 def force_16_9_selection():
@@ -2365,8 +2456,8 @@ def force_16_9_selection():
     if force_16_9:
         force_4_3_crop.set(False)
         force_4_3= False
-    project_config["Force_4/3"] = force_4_3_crop.get()
-    project_config["Force_16/9"] = force_16_9_crop.get()
+    project_config["force_4_3"] = force_4_3_crop.get()
+    project_config["force_16_9"] = force_16_9_crop.get()
 
 
 def encode_all_frames_selection():
