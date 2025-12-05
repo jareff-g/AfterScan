@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.02"
+__version__ = "1.40.03"
 __data_version__ = "1.0"
-__date__ = "2025-12-04"
-__version_highlight__ = "Refactoring: Renamed remaining json elements"
+__date__ = "2025-12-05"
+__version_highlight__ = "Refactoring: Renamed remaining variables"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -104,6 +104,7 @@ temp_denoise_frame_deque = deque(maxlen=denoise_window_size)
 
 # Configuration & support file vars
 script_dir = os.path.dirname(os.path.realpath(__file__))
+print(f"*** script_dir = {script_dir}")
 
 general_config_filename = os.path.join(script_dir, "AfterScan.json")
 project_settings_filename = os.path.join(script_dir, "AfterScan-projects.json")
@@ -261,7 +262,6 @@ rectangle_bottom_right = (0, 0)
 crop_top_left = (0, 0)
 crop_bottom_right = (0, 0)
 # Rectangle of current custom template - delete_this
-## TemplateTopLeft = (0, 0)
 ## TemplateBottomRight = (0, 0)
 max_loop_count = 0
 stabilization_shift_y = 0
@@ -674,8 +674,10 @@ def decode_general_config():
     if 'source_dir' in general_config or 'SourceDir' in general_config:
         if 'source_dir' in general_config:
             source_dir = general_config['source_dir']
-        elif 'SourceDir' in general_config:
+        if source_dir == '' and 'SourceDir' in general_config:
             source_dir = general_config['SourceDir']
+            general_config['source_dir'] = source_dir
+            del general_config['SourceDir']
         # If directory in configuration does not exist, set current working dir
         if not os.path.isdir(source_dir):
             source_dir = ""
@@ -687,31 +689,43 @@ def decode_general_config():
 
     if 'ffmpeg_bin_name' in general_config:
         ffmpeg_bin_name = general_config['ffmpeg_bin_name']
-    elif 'FfmpegBinName' in general_config:
+    if ffmpeg_bin_name == '' and 'FfmpegBinName' in general_config:
         ffmpeg_bin_name = general_config['FfmpegBinName']
+        general_config['ffmpeg_bin_name'] = ffmpeg_bin_name
+        del general_config['FfmpegBinName']
 
     if 'user_consent' in general_config:
         user_consent = general_config['user_consent']
-    elif 'UserConsent' in general_config:
+    if user_consent == '' and 'UserConsent' in general_config:
         user_consent = general_config['UserConsent']
+        general_config['user_consent'] = user_consent
+        del general_config['UserConsent']
     if 'anonymous_uuid' in general_config:
         anonymous_uuid = general_config['anonymous_uuid']
-    elif 'AnonymousUuid' in general_config:
+    if anonymous_uuid == '' and 'AnonymousUuid' in general_config:
         anonymous_uuid = general_config['AnonymousUuid']
+        general_config['anonymous_uuid'] = anonymous_uuid
+        del general_config['AnonymousUuid']
     if 'last_consent_date' in general_config:
         last_consent_date = datetime.fromisoformat(general_config['last_consent_date'])
-    elif 'LastConsentDate' in general_config:
+    if last_consent_date == '' and 'LastConsentDate' in general_config:
         last_consent_date = datetime.fromisoformat(general_config['LastConsentDate'])
+        general_config['last_consent_date'] = str(last_consent_date)
+        del general_config['LastConsentDate']
     if 'version' in general_config:
         saved_with_version = general_config["version"]
     if 'job_list_filename' in general_config:
         job_list_filename = general_config["job_list_filename"]
-    elif 'JobListFilename' in general_config:
+    if job_list_filename == '' and 'JobListFilename' in general_config:
         job_list_filename = general_config["JobListFilename"]
+        general_config['job_list_filename'] = job_list_filename
+        del general_config['JobListFilename']
     if 'ffmpeg_hqdn_3d' in general_config:
         ffmpeg_denoise_param = general_config['ffmpeg_hqdn_3d']
-    elif 'FFmpegHqdn3d' in general_config:
+    if ffmpeg_denoise_param == '' and 'FFmpegHqdn3d' in general_config:
         ffmpeg_denoise_param = general_config['FFmpegHqdn3d']
+        general_config['ffmpeg_hqdn_3d'] = ffmpeg_denoise_param
+        del general_config['FFmpegHqdn3d']
     if 'enable_rectangle_popup' in general_config:
         enable_rectangle_popup = general_config["enable_rectangle_popup"]
     if 'enable_soundtrack' in general_config and sound_file_available:
@@ -889,6 +903,22 @@ def load_project_config():
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
+def retrieve_dict_value_with_key_backward_compatibility(dict, old_key, new_key):
+    new_key_exists = False
+    old_key_exists = False
+    if new_key in dict:  # Load new key if it exists, otherwise try with legacy
+        value = dict[new_key]
+        new_key_exists = True
+    if old_key in project_config and (not new_key_exists or (new_key_exists and type(value) is str and value == '')):
+        old_key_exists = True
+        value = dict[old_key]
+        dict[new_key] = value
+        del dict[old_key]
+    if (not old_key_exists and not new_key_exists):
+        print(f"******* No keys found: {old_key}, {new_key}")
+        value = ''
+    return value
+
 def decode_project_config():        
     global source_dir, target_dir
     global project_config
@@ -919,8 +949,10 @@ def decode_project_config():
     if 'source_dir' in project_config or 'SourceDir' in project_config:
         if 'source_dir' in project_config:
             source_dir = project_config['source_dir']
-        elif 'SourceDir' in project_config:
+        if source_dir == '' and 'SourceDir' in project_config:
             source_dir = project_config['SourceDir']
+            project_config['source_dir'] = source_dir
+            del project_config['SourceDir']
         project_name = os.path.split(source_dir)[-1].replace(',', ';')
         # If directory in configuration does not exist, set current working dir
         if not os.path.isdir(source_dir):
@@ -936,8 +968,10 @@ def decode_project_config():
     if 'target_dir' in project_config or 'TargetDir' in project_config:
         if 'target_dir' in project_config:
             target_dir = project_config['target_dir']
-        elif 'TargetDir' in project_config:
+        if target_dir == '' and 'TargetDir' in project_config:
             target_dir = project_config['TargetDir']
+            project_config['target_dir'] = target_dir
+            del project_config['TargetDir']
         # If directory in configuration does not exist, set current working dir
         if not os.path.isdir(target_dir):
             target_dir = ""
@@ -949,8 +983,10 @@ def decode_project_config():
     if 'video_target_dir' in project_config or 'VideoTargetDir' in project_config:
         if 'video_target_dir' in project_config:
             video_target_dir_str.set(project_config['video_target_dir'])
-        elif 'VideoTargetDir' in project_config:
+        if video_target_dir_str == '' and 'VideoTargetDir' in project_config:
             video_target_dir_str.set(project_config['VideoTargetDir'])
+            project_config['video_target_dir'] = video_target_dir_str.get()
+            del project_config['VideoTargetDir']
         # If directory in configuration does not exist, set current working dir
         if not os.path.isdir(video_target_dir_str.get()):
             video_target_dir_str.set(target_dir)  # use frames target dir as fallback option
@@ -963,22 +999,31 @@ def decode_project_config():
         elif 'CurrentFrame' in project_config:
             current_frame = project_config['CurrentFrame']
             current_frame = max(current_frame, 0)
+            project_config['current_frame'] = current_frame
+            del project_config['CurrentFrame']
+
     if 'encode_all_frames' in project_config:
         encode_all_frames.set(project_config['encode_all_frames'])
     elif 'EncodeAllFrames' in project_config:
         encode_all_frames.set(project_config["EncodeAllFrames"])
+        project_config['encode_all_frames'] = encode_all_frames.get()
+        del project_config['EncodeAllFrames']
     else:
         encode_all_frames.set(True)
     if 'frame_from' in project_config:
         frame_from_str.set(str(project_config["frame_from"]))
     elif 'FrameFrom' in project_config:
         frame_from_str.set(str(project_config["FrameFrom"]))
+        project_config["frame_from"] = frame_from_str.get()
+        del project_config["FrameFrom"]
     else:
         frame_from_str.set('0')
     if 'frame_to' in project_config:
         frame_to_str.set(str(project_config["frame_to"]))
     elif 'FrameTo' in project_config:
         frame_to_str.set(str(project_config["FrameTo"]))
+        project_config["frame_to"] = frame_to_str.get()
+        del project_config["FrameTo"]
     else:
         frame_to_str.set('0')
     if frame_to_str.get() != '' and frame_from_str.get() != '':
@@ -988,8 +1033,10 @@ def decode_project_config():
 
     if 'film_type' in project_config:
         film_type.set(project_config['film_type'])
-    elif 'FilmType' in project_config:
+    if film_type == '' and 'FilmType' in project_config:
         film_type.set(project_config['FilmType'])
+        project_config['film_type'] = film_type.get()
+        del project_config['FilmType']
     else:
         project_config["film_type"] = 'S8'
 
@@ -999,6 +1046,8 @@ def decode_project_config():
     elif 'RotationAngle' in project_config:
         rotation_angle = project_config['RotationAngle']
         rotation_angle_str.set(rotation_angle)
+        project_config['rotation_angle'] = rotation_angle
+        del project_config['RotationAngle']
     else:
         rotation_angle = 0
         rotation_angle_str.set(rotation_angle)
@@ -1009,6 +1058,8 @@ def decode_project_config():
         elif 'StabilizationThreshold' in project_config:
             stabilization_threshold = float(project_config['StabilizationThreshold'])
             stabilization_threshold_str.set(stabilization_threshold)
+            project_config['stabilization_threshold'] = stabilization_threshold
+            del project_config['StabilizationThreshold']
         else:
             stabilization_threshold = 220.0
             stabilization_threshold_str.set(stabilization_threshold)
@@ -1019,40 +1070,65 @@ def decode_project_config():
         low_contrast_custom_template.set(project_config["low_contrast_custom_template"])
     elif 'LowContrastCustomTemplate' in project_config:
         low_contrast_custom_template.set(project_config["LowContrastCustomTemplate"])
+        project_config["low_contrast_custom_template"] = low_contrast_custom_template.get()
+        del project_config["LowContrastCustomTemplate"]
 
     if 'extended_stabilization' in project_config:
         extended_stabilization.set(project_config["extended_stabilization"])
     elif 'ExtendedStabilization' in project_config:
         extended_stabilization.set(project_config["ExtendedStabilization"])
+        project_config["extended_stabilization"] = extended_stabilization.get()
+        del project_config["ExtendedStabilization"]
 
     if 'custom_template_defined' not in project_config and 'CustomTemplateDefined' not in project_config:
         project_config["custom_template_defined"] = False
+        # No custom template defined, set default one
+        set_film_type()
     else:
-        if 'custom_template_name' in project_config:  # Load name if it exists, otherwise assign default
-            template_name = project_config["custom_template_name"]
-        elif 'CustomTemplateName' in project_config:  # Load name if it exists, otherwise assign default
-            template_name = project_config["CustomTemplateName"]
-        else:
+        template_name = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateName', 'custom_template_name')
+        if template_name == '':
             template_name = f"{os.path.split(source_dir)[-1]}"
+
         if 'custom_template_expected_pos' in project_config:
             custom_template_expected_pos = project_config["custom_template_expected_pos"]
         elif 'CustomTemplateExpectedPos' in project_config:
             custom_template_expected_pos = project_config["CustomTemplateExpectedPos"]
+            project_config["custom_template_expected_pos"] = custom_template_expected_pos
+            del project_config["CustomTemplateExpectedPos"]
         else:
             custom_template_expected_pos = (0, 0)
+
+        full_path_template_filename = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateFilename', 'custom_template_filename')
+        """
         if 'custom_template_filename' in project_config:
             full_path_template_filename = project_config["custom_template_filename"]
-        elif 'CustomTemplateFilename' in project_config:
+        if full_path_template_filename == '' and 'CustomTemplateFilename' in project_config:
+            print(f"*** Detected legacy key CustomTemplateFilename")
             full_path_template_filename = project_config["CustomTemplateFilename"]
+            print(f"*** Retrieved value from legacy key {full_path_template_filename}")
+            project_config["custom_template_filename"] = full_path_template_filename
+            print(f"*** Adding new key custom_template_filename, value = {project_config["custom_template_filename"]}")
+            del project_config["CustomTemplateFilename"]
+            if 'CustomTemplateFilename' in project_config:
+                print(f"*** Key CustomTemplateFilename could not be deleted !!!")
+            else:
+                print(f"*** Key CustomTemplateFilename DELETED !!!")
         else:
+        """
+        if full_path_template_filename == '':
             template_filename = f"Pattern.custom.{template_name}.jpg"
             full_path_template_filename = os.path.join(resources_dir, template_filename)
+            project_config["custom_template_filename"] = full_path_template_filename
+            print(f"*** Adding Key custom_template_filename {full_path_template_filename}")
+
         if not os.path.exists(full_path_template_filename):
+            print(f"*** template filename: {full_path_template_filename}")
             tk.messagebox.showwarning(
                 "Template in project invalid",
                 f"The custom template saved for project {template_name} is invalid."
                 "Please redefine custom template for this project.")
-            del project_config['custom_template_filename']
+            if 'custom_template_filename' in project_config:
+                del project_config['custom_template_filename']
             # Invalid custom template defined, set default one
             set_film_type()
             project_config["custom_template_defined"] = False
@@ -1060,38 +1136,45 @@ def decode_project_config():
             logging.debug(f"Adding custom template {template_name} from configuration to template list (filename {full_path_template_filename})")
             template_list.add(template_name, full_path_template_filename, "custom", custom_template_expected_pos)
             debug_template_refresh_template()
-    else:
-        # No custom template defined, set default one
-        set_film_type()
 
     if 'perform_cropping' in project_config:
         perform_cropping.set(project_config['perform_cropping'])
     elif 'PerformCropping' in project_config:
         perform_cropping.set(project_config['PerformCropping'])
+        project_config['perform_cropping'] = perform_cropping.get()
+        del project_config['PerformCropping']
     else:
         perform_cropping.set(False)
     if 'perform_denoise' in project_config:
         perform_denoise.set(project_config['perform_denoise'])
     elif 'PerformDenoise' in project_config:
         perform_denoise.set(project_config['PerformDenoise'])
+        project_config['perform_denoise'] = perform_denoise.get()
+        del project_config['PerformDenoise']
     else:
         perform_denoise.set(False)
     if 'perform_sharpness' in project_config:
         perform_sharpness.set(project_config['perform_sharpness'])
     elif 'PerformSharpness' in project_config:
         perform_sharpness.set(project_config['PerformSharpness'])
+        project_config['perform_sharpness'] = perform_sharpness.get()
+        del project_config['PerformSharpness']
     else:
         perform_sharpness.set(False)
     if 'perform_gamma_correction' in project_config:
         perform_gamma_correction.set(project_config["perform_gamma_correction"])
     elif 'PerformGammaCorrection' in project_config:
         perform_gamma_correction.set(project_config["PerformGammaCorrection"])
+        project_config["perform_gamma_correction"] = perform_gamma_correction.get()
+        del project_config["PerformGammaCorrection"]
     else:
         perform_gamma_correction.set(False)
     if 'gamma_correction_value' in project_config:
         gamma_correction_str.set(project_config["gamma_correction_value"])
     elif 'GammaCorrectionValue' in project_config:
         gamma_correction_str.set(project_config["GammaCorrectionValue"])
+        project_config["gamma_correction_value"] = gamma_correction_str.get()
+        del project_config["GammaCorrectionValue"]
     else:
         gamma_correction_str.set("2.2")
     if 'crop_rectangle' in project_config:
@@ -1100,6 +1183,8 @@ def decode_project_config():
     elif 'CropRectangle' in project_config:
         crop_bottom_right = tuple(project_config["CropRectangle"][1])
         crop_top_left = tuple(project_config["CropRectangle"][0])
+        project_config["crop_rectangle"] = [crop_top_left, crop_bottom_right]
+        del project_config["CropRectangle"]
     else:
         crop_bottom_right = (0, 0)
         crop_top_left = (0, 0)
@@ -1120,8 +1205,10 @@ def decode_project_config():
     force_16_9 = force_16_9_crop.get()
     if 'frame_fill_type' in project_config:
         frame_fill_type.set(project_config["frame_fill_type"])
-    elif 'FrameFillType' in project_config:
+    if frame_fill_type == '' and 'FrameFillType' in project_config:
         frame_fill_type.set(project_config["FrameFillType"])
+        project_config["frame_fill_type"] = frame_fill_type.get()
+        del project_config["FrameFillType"]
     else:
         project_config["frame_fill_type"] = 'fake'
         frame_fill_type.set(project_config["frame_fill_type"])
@@ -1130,24 +1217,32 @@ def decode_project_config():
         generate_video.set(project_config['generate_video'])
     elif 'GenerateVideo' in project_config:
         generate_video.set(project_config["GenerateVideo"])
+        project_config["generate_video"] = generate_video.get()
+        del project_config["GenerateVideo"]
     else:
         generate_video.set(False)
     generate_video_selection()
     if 'video_filename' in project_config:
         video_filename_str.set(project_config['video_filename'])
-    elif 'VideoFilename' in project_config:
+    if video_filename_str.get() == '' and 'VideoFilename' in project_config:
         video_filename_str.set(project_config['VideoFilename'])
+        project_config["video_filename"] = video_filename_str.get()
+        del project_config["VideoFilename"]
+
     if 'video_title' in project_config:
         video_title_str.set(project_config['video_title'])
-    elif 'VideoTitle' in project_config:
+    if video_title_str.get() == '' and 'VideoTitle' in project_config:
         video_title_str.set(project_config['VideoTitle'])
+        project_config["video_title"] = video_title_str.get()
+        del project_config["VideoTitle"]
+
     if 'skip_frame_regeneration' in project_config:
         skip_frame_regeneration.set(project_config["skip_frame_regeneration"])
     else:
         skip_frame_regeneration.set(False)
     if 'ffmpeg_preset' in project_config:
         ffmpeg_preset.set(project_config["ffmpeg_preset"])
-    elif 'FFmpegPreset' in project_config:
+    if ffmpeg_preset.get() == '' and 'FFmpegPreset' in project_config:
         ffmpeg_preset.set(project_config["FFmpegPreset"])
     else:
         ffmpeg_preset.set("veryfast")
@@ -1156,6 +1251,8 @@ def decode_project_config():
         perform_stabilization.set(project_config['perform_stabilization'])
     elif 'PerformStabilization' in project_config:
         perform_stabilization.set(project_config['PerformStabilization'])
+        project_config['perform_stabilization'] = perform_stabilization.get()
+        del project_config['PerformStabilization']
     else:
         perform_stabilization.set(False)
 
@@ -1165,6 +1262,8 @@ def decode_project_config():
     elif 'StabilizationShiftY' in project_config:
         stabilization_shift_y_value.set(project_config['StabilizationShiftY'])
         stabilization_shift_y = stabilization_shift_y_value.get()
+        project_config['stabilization_shift_y'] = stabilization_shift_y_value.get()
+        del project_config['StabilizationShiftY']
     else:
         stabilization_shift_y_value.set(0)
 
@@ -1174,6 +1273,8 @@ def decode_project_config():
     elif 'StabilizationShiftX' in project_config:
         stabilization_shift_x_value.set(project_config['StabilizationShiftX'])
         stabilization_shift_x = stabilization_shift_x_value.get()
+        project_config['stabilization_shift_x'] = stabilization_shift_x_value.get()
+        del project_config['StabilizationShiftX']
     else:
         stabilization_shift_x_value.set(0)
 
@@ -1181,6 +1282,8 @@ def decode_project_config():
         perform_rotation.set(project_config["perform_rotation"])
     elif 'PerformRotation' in project_config:
         perform_rotation.set(project_config["PerformRotation"])
+        project_config["perform_rotation"] = perform_rotation.get()
+        del project_config["PerformRotation"]
     else:
         perform_rotation.set(False)
 
@@ -1190,6 +1293,8 @@ def decode_project_config():
     elif 'VideoFps' in project_config:
         video_fps = eval(project_config['VideoFps'])
         video_fps_dropdown_selected.set(video_fps)
+        project_config['video_fps'] = video_fps
+        del project_config['VideoFps']
     else:
         video_fps = 18
         video_fps_dropdown_selected.set(video_fps)
@@ -1198,6 +1303,8 @@ def decode_project_config():
         resolution_dropdown_selected.set(project_config["video_resolution"])
     elif 'VideoResolution' in project_config:
         resolution_dropdown_selected.set(project_config["VideoResolution"])
+        project_config["video_resolution"] = resolution_dropdown_selected.get()
+        del project_config["VideoResolution"]
     else:
         resolution_dropdown_selected.set('1920x1440 (1080P)')
         project_config["video_resolution"] = '1920x1440 (1080P)'
@@ -1206,11 +1313,15 @@ def decode_project_config():
         current_bad_frame_index = project_config["current_bad_frame_index"]
     elif 'CurrentBadFrameIndex' in project_config:
         current_bad_frame_index = project_config["CurrentBadFrameIndex"]
+        project_config["current_bad_frame_index"] = current_bad_frame_index
+        del project_config["CurrentBadFrameIndex"]
 
     if 'user_defined_left_stripe_width_proportion' in project_config:
         user_defined_left_stripe_width_proportion = project_config['user_defined_left_stripe_width_proportion']
     elif 'UserDefinedLeftStripeWidthProportion' in project_config:
         user_defined_left_stripe_width_proportion = project_config['UserDefinedLeftStripeWidthProportion']
+        project_config['user_defined_left_stripe_width_proportion'] = user_defined_left_stripe_width_proportion
+        del project_config['UserDefinedLeftStripeWidthProportion']
     else:
         user_defined_left_stripe_width_proportion = 0.25
 
@@ -1341,12 +1452,12 @@ def job_list_add_current():
         job_list[entry_name] = {'project': project_config.copy(), 'done': False, 'attempted': False, 'description': description}
         # If a custom pattern is used, copy it with the name of the job, and change it in the joblist/project item
         if template_list.get_active_type() == 'custom' and os.path.isfile(template_list.get_active_filename()):
-            CustomTemplateDir = os.path.dirname(template_list.get_active_filename())    # should be resources_dir, but better be safe
+            custom_template_dir = os.path.dirname(template_list.get_active_filename())    # should be resources_dir, but better be safe
             # Maybe we should check here if a video filename has been defined
-            TargetTemplateFile = os.path.join(CustomTemplateDir, os.path.splitext(job_list[entry_name]['project']['video_filename'])[0]+'.jpg' )
-            if template_list.get_active_filename() != TargetTemplateFile:
-                shutil.copyfile(template_list.get_active_filename(), TargetTemplateFile)
-            job_list[entry_name]['project']['custom_template_filename'] = TargetTemplateFile
+            target_template_file = os.path.join(custom_template_dir, os.path.splitext(job_list[entry_name]['project']['video_filename'])[0]+'.jpg' )
+            if template_list.get_active_filename() != target_template_file:
+                shutil.copyfile(template_list.get_active_filename(), target_template_file)
+            job_list[entry_name]['project']['custom_template_filename'] = target_template_file
         else:
             if 'custom_template_filename' in project_config:
                 del project_config['custom_template_filename']
@@ -1632,7 +1743,7 @@ def start_processing_job_list():
 def job_processing_loop():
     global job_list, job_list_treeview
     global project_config
-    global CurrentJobEntry
+    global current_job_entry
     global batch_job_running
     global project_config_from_file
     global suspend_on_completion
@@ -1654,7 +1765,7 @@ def job_processing_loop():
             item_id = search_job_name_in_job_treeview(entry)
             if item_id is not None:
                 job_list_treeview.item(item_id, tags=("ongoing","joblist_font",))
-            CurrentJobEntry = entry
+            current_job_entry = entry
             if 'frame_from' in job_list[entry]['project']:
                 # At some point frame_from and frame_to were saved to project file as strings, so just in case, convert them.
                 current_frame = int(job_list[entry]['project']['frame_from'])
@@ -1675,7 +1786,7 @@ def job_processing_loop():
             job_started = True
             break
     if not job_started:
-        CurrentJobEntry = -1
+        current_job_entry = -1
         generation_exit()
         if suspend_on_completion.get() == 'batch_completion':
             system_suspend()
@@ -2307,7 +2418,6 @@ def refresh_current_frame_ui_info(frame_num, frame_first):
 
 def cmd_settings_popup_dismiss():
     global options_dlg
-    global BaseFolder, CurrentDir
 
     options_dlg.grab_release()
     options_dlg.destroy()
@@ -2367,9 +2477,9 @@ def cmd_settings_popup():
 
     ### Add all controls here
     # Custom ffmpeg path
-    custom_ffmpeg_path_label = Label(options_dlg, text='FFmpeg path:', font=("Arial", FontSize))
+    custom_ffmpeg_path_label = Label(options_dlg, text='FFmpeg path:', font=("Arial", font_size))
     custom_ffmpeg_path_label.grid(row=options_row, column=0, sticky=W, padx=5, pady=(10,5))
-    custom_ffmpeg_path = Entry(options_dlg, width=10, borderwidth=1, font=("Arial", FontSize))
+    custom_ffmpeg_path = Entry(options_dlg, width=10, borderwidth=1, font=("Arial", font_size))
     custom_ffmpeg_path.grid(row=options_row, column=1, sticky=W, padx=5)
     custom_ffmpeg_path.delete(0, 'end')
     custom_ffmpeg_path.insert('end', ffmpeg_bin_name)
@@ -2379,9 +2489,9 @@ def cmd_settings_popup():
     options_row += 1
 
     # ffmpeg denoise filter parameters (hqdn3d=8:6:4:3) ffmpeg_denoise_param
-    ffmpeg_denoise_label = Label(options_dlg, text='FFmpeg hqdn3d parameter:', font=("Arial", FontSize))
+    ffmpeg_denoise_label = Label(options_dlg, text='FFmpeg hqdn3d parameter:', font=("Arial", font_size))
     ffmpeg_denoise_label.grid(row=options_row, column=0, sticky=W, padx=5, pady=(10,5))
-    ffmpeg_denoise_value = Entry(options_dlg, width=10, borderwidth=1, font=("Arial", FontSize))
+    ffmpeg_denoise_value = Entry(options_dlg, width=10, borderwidth=1, font=("Arial", font_size))
     ffmpeg_denoise_value.grid(row=options_row, column=1, sticky=W, padx=5)
     ffmpeg_denoise_value.delete(0, 'end')
     ffmpeg_denoise_value.insert('end', ffmpeg_denoise_param)
@@ -2396,7 +2506,7 @@ def cmd_settings_popup():
                                                          text='Add soundtrack to video',
                                                          variable=enable_soundtrack_value,
                                                          onvalue=True, offvalue=False,
-                                                         font=("Arial", FontSize), state=NORMAL if sound_file_available else DISABLED)
+                                                         font=("Arial", font_size), state=NORMAL if sound_file_available else DISABLED)
     enable_soundtrack_checkbox.grid(row=options_row, column=0, columnspan=2, sticky=W, padx=5, pady=5)
     as_tooltips.add(enable_soundtrack_checkbox, "Add soundtrack (projector sound) to generated videos")
     options_row += 1
@@ -2407,17 +2517,17 @@ def cmd_settings_popup():
                                                          text='Enable popups',
                                                          variable=enable_rectangle_popup_value,
                                                          onvalue=True, offvalue=False,
-                                                         font=("Arial", FontSize))
+                                                         font=("Arial", font_size))
     enable_rectangle_popup_checkbox.grid(row=options_row, column=0, sticky=W, padx=5, pady=5)
     as_tooltips.add(enable_rectangle_popup_checkbox, "Display popup window to define custom template and cropping rectangle (vs definition in main window)")
     options_row += 1
 
     # Left stripe width value
     left_stripe_width_value = tk.IntVar(value=int(user_defined_left_stripe_width_proportion*100))
-    left_stripe_width_label = Label(options_dlg, text='Left stripe width %:', font=("Arial", FontSize))
+    left_stripe_width_label = Label(options_dlg, text='Left stripe width %:', font=("Arial", font_size))
     left_stripe_width_label.grid(row=options_row, column=0, sticky=W, padx=5, pady=(10,5))
     left_stripe_width_spinbox = tk.Spinbox(options_dlg, width=3,
-        textvariable=left_stripe_width_value, from_=5, to=95, increment=5, font=("Arial", FontSize))
+        textvariable=left_stripe_width_value, from_=5, to=95, increment=5, font=("Arial", font_size))
     left_stripe_width_spinbox.grid(row=options_row, column=1, sticky=W, padx=5)
     as_tooltips.add(left_stripe_width_spinbox, "Left stripe width as percentage of frame width")
 
@@ -2425,10 +2535,10 @@ def cmd_settings_popup():
 
     # OK / Cancel buttons
     options_cancel_btn = tk.Button(options_dlg, text="Cancel", command=cmd_settings_popup_dismiss, width=8,
-                                   font=("Arial", FontSize))
+                                   font=("Arial", font_size))
     options_cancel_btn.grid(row=options_row, column=0, padx=5, pady=(5,10), sticky='w')
     options_ok_btn = tk.Button(options_dlg, text="OK", command=cmd_settings_popup_accept, width=8,
-                               font=("Arial", FontSize))
+                               font=("Arial", font_size))
     options_ok_btn.grid(row=options_row, column=1, padx=5, pady=(5,10), sticky='e')
 
 
@@ -3109,10 +3219,10 @@ def FrameSync_Viewer_popup():
     template_canvas.pack(side=TOP, anchor=N)
     as_tooltips.add(template_canvas, "Active template used to locate sprocket hole(s)")
 
-    DisplayableImage = ImageTk.PhotoImage(Image.fromarray(aux))
-    template_canvas.image_id = template_canvas.create_image(0, 0, anchor=NW, image=DisplayableImage)
+    displayable_image = ImageTk.PhotoImage(Image.fromarray(aux))
+    template_canvas.image_id = template_canvas.create_image(0, 0, anchor=NW, image=displayable_image)
     template_canvas.coords(template_canvas.image_id, 0, int((hole_template_pos[1] + stabilization_shift_y_value.get()) *frame_sync_images_factor))
-    template_canvas.image = DisplayableImage
+    template_canvas.image = displayable_image
     template_canvas.item_ids = []
 
     # Create Canvas to display image left stripe (stabilized)
@@ -3133,7 +3243,7 @@ def FrameSync_Viewer_popup():
 
     # Add a label with the film type
     film_type_text = tk.StringVar()
-    film_type_label = Label(right_frame, textvariable=film_type_text, font=("Arial", FontSize))
+    film_type_label = Label(right_frame, textvariable=film_type_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         film_type_label.forget()
     else:
@@ -3143,7 +3253,7 @@ def FrameSync_Viewer_popup():
 
     # Add a label with the cropping dimensions
     crop_text = tk.StringVar()
-    crop_label = Label(right_frame, textvariable=crop_text, font=("Arial", FontSize))
+    crop_label = Label(right_frame, textvariable=crop_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         crop_label.forget()
     else:
@@ -3153,7 +3263,7 @@ def FrameSync_Viewer_popup():
 
     # Add a label with the template type
     template_type_text = tk.StringVar()
-    template_type_label = Label(right_frame, textvariable=template_type_text, font=("Arial", FontSize))
+    template_type_label = Label(right_frame, textvariable=template_type_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         template_type_label.forget()
     else:
@@ -3163,7 +3273,7 @@ def FrameSync_Viewer_popup():
 
     # Add a label with the stabilization info
     hole_pos_text = tk.StringVar()
-    hole_pos_label = Label(right_frame, textvariable=hole_pos_text, font=("Arial", FontSize))
+    hole_pos_label = Label(right_frame, textvariable=hole_pos_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         hole_pos_label.forget()
     else:
@@ -3173,7 +3283,7 @@ def FrameSync_Viewer_popup():
 
     #Label with template size
     template_size_text = tk.StringVar()
-    template_size_label = Label(right_frame, textvariable=template_size_text, font=("Arial", FontSize))
+    template_size_label = Label(right_frame, textvariable=template_size_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         template_size_label.forget()
     else:
@@ -3184,7 +3294,7 @@ def FrameSync_Viewer_popup():
     '''
     #Label with template white on black proportion
     template_wb_proportion_text = tk.StringVar()
-    template_wb_proportion_label = Label(right_frame, textvariable=template_wb_proportion_text, font=("Arial", FontSize))
+    template_wb_proportion_label = Label(right_frame, textvariable=template_wb_proportion_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         template_wb_proportion_label.forget()
     else:
@@ -3194,7 +3304,7 @@ def FrameSync_Viewer_popup():
 
     #Label with template white on black proportion
     template_threshold_text = tk.StringVar()
-    template_threshold_label = Label(right_frame, textvariable=template_threshold_text, font=("Arial", FontSize))
+    template_threshold_label = Label(right_frame, textvariable=template_threshold_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         template_threshold_label.forget()
     else:
@@ -3204,7 +3314,7 @@ def FrameSync_Viewer_popup():
 
     #Label with search area
     search_area_text = tk.StringVar()
-    search_area_label = Label(right_frame, textvariable=search_area_text, font=("Arial", FontSize))
+    search_area_label = Label(right_frame, textvariable=search_area_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         search_area_label.forget()
     else:
@@ -3214,7 +3324,7 @@ def FrameSync_Viewer_popup():
 
     #Label with current Frame details
     current_frame_text = tk.StringVar()
-    current_frame_label = Label(right_frame, textvariable=current_frame_text, width=45, font=("Arial", FontSize))
+    current_frame_label = Label(right_frame, textvariable=current_frame_text, width=45, font=("Arial", font_size))
     if not dev_debug_enabled:
         current_frame_label.forget()
     else:
@@ -3224,14 +3334,14 @@ def FrameSync_Viewer_popup():
 
     #Label with bad Frame count
     bad_frame_text = tk.StringVar()
-    bad_frame_label = Label(right_frame, textvariable=bad_frame_text, width=45, font=("Arial", FontSize))
+    bad_frame_label = Label(right_frame, textvariable=bad_frame_text, width=45, font=("Arial", font_size))
     bad_frame_label.pack(pady=5, padx=10, anchor="center")
     bad_frame_text.set("Misaligned frames:")
     as_tooltips.add(bad_frame_label, "Number of frames that failed to be stabilized")
 
     #Label with bad Frames modified
     corrected_bad_frame_text = tk.StringVar()
-    corrected_bad_frame_label = Label(right_frame, textvariable=corrected_bad_frame_text, width=45, font=("Arial", FontSize))
+    corrected_bad_frame_label = Label(right_frame, textvariable=corrected_bad_frame_text, width=45, font=("Arial", font_size))
     corrected_bad_frame_label.pack(pady=5, padx=10, anchor="center")
     corrected_bad_frame_text.set("Corrected frames:")
     as_tooltips.add(corrected_bad_frame_label, "Number of frames not properly stabilized, that have been manually adjusted")
@@ -3243,7 +3353,7 @@ def FrameSync_Viewer_popup():
                                                          variable=precise_template_match_value,
                                                          command=set_precise_template_match,
                                                          onvalue=True, offvalue=False,
-                                                         width=40, font=("Arial", FontSize))
+                                                         width=40, font=("Arial", font_size))
     precise_template_match_checkbox.pack(pady=5, padx=10, anchor="center")
     as_tooltips.add(precise_template_match_checkbox, "Activate high accuracy template detection for better stabilization (implies slower encoding)")
 
@@ -3254,7 +3364,7 @@ def FrameSync_Viewer_popup():
                                                          variable=detect_minor_mismatches_value,
                                                          command=set_detect_minor_mismatches,
                                                          onvalue=True, offvalue=False,
-                                                         width=40, font=("Arial", FontSize))
+                                                         width=40, font=("Arial", font_size))
     detect_minor_mismatches_checkbox.pack(pady=5, padx=10, anchor="center")
     as_tooltips.add(detect_minor_mismatches_checkbox, "Besides frames clearly misaligned, detect also slightly misaligned frames")
 
@@ -3265,7 +3375,7 @@ def FrameSync_Viewer_popup():
                                                          variable=stabilization_bounds_alert_value,
                                                          command=set_stabilization_bounds_alert,
                                                          onvalue=True, offvalue=False,
-                                                         width=40, font=("Arial", FontSize))
+                                                         width=40, font=("Arial", font_size))
     stabilization_bounds_alert_checkbox.pack(pady=5, padx=10, anchor="center")
     as_tooltips.add(stabilization_bounds_alert_checkbox, "Beep each time a misaligned frame is detected")
 
@@ -3275,24 +3385,24 @@ def FrameSync_Viewer_popup():
 
     #Label with bad frames to the left
     bad_frames_on_left_value = tk.IntVar()
-    bad_frames_on_left_label = Label(frame_selection_frame, textvariable=bad_frames_on_left_value, font=("Arial", FontSize+6))
+    bad_frames_on_left_label = Label(frame_selection_frame, textvariable=bad_frames_on_left_value, font=("Arial", font_size+6))
     bad_frames_on_left_label.grid(pady=2, padx=10, row=0, column=0, rowspan = 2)
     bad_frames_on_left_value.set(0)
     as_tooltips.add(bad_frames_on_left_label, "Number of badly-stabilized frames before the one currently selected")
 
-    previous_frame_button_10 = Button(frame_selection_frame, text="◀◀", command=display_bad_frame_previous_10, font=("Arial", FontSize), width=3)
+    previous_frame_button_10 = Button(frame_selection_frame, text="◀◀", command=display_bad_frame_previous_10, font=("Arial", font_size), width=3)
     previous_frame_button_10.grid(pady=2, padx=2, row=0, column=1)
     as_tooltips.add(previous_frame_button_10, "Select previous badly-stabilized frame")
 
-    previous_frame_button_1 = Button(frame_selection_frame, text="◀", command=display_bad_frame_previous_1, font=("Arial", FontSize), width=3)
+    previous_frame_button_1 = Button(frame_selection_frame, text="◀", command=display_bad_frame_previous_1, font=("Arial", font_size), width=3)
     previous_frame_button_1.grid(pady=2, padx=2, row=0, column=2)
     as_tooltips.add(previous_frame_button_1, "Select previous badly-stabilized frame (or press PgUp, +Ctrl to previous frame with deviation > 5 pixels)")
 
-    next_frame_button_1 = Button(frame_selection_frame, text="▶", command=display_bad_frame_next_1, font=("Arial", FontSize), width=3)
+    next_frame_button_1 = Button(frame_selection_frame, text="▶", command=display_bad_frame_next_1, font=("Arial", font_size), width=3)
     next_frame_button_1.grid(pady=2, padx=2, row=0, column=3)
     as_tooltips.add(next_frame_button_1, "Select next badly-stabilized frame (or press PgDn, +Ctrl to find next frame with deviation > 5 pixels)")
 
-    next_frame_button_10 = Button(frame_selection_frame, text="▶▶", command=display_bad_frame_next_10, font=("Arial", FontSize), width=3)
+    next_frame_button_10 = Button(frame_selection_frame, text="▶▶", command=display_bad_frame_next_10, font=("Arial", font_size), width=3)
     next_frame_button_10.grid(pady=2, padx=2, row=0, column=4)
     as_tooltips.add(next_frame_button_10, "Select next badly-stabilized frame")
 
@@ -3302,7 +3412,7 @@ def FrameSync_Viewer_popup():
 
     #Label with bad frames to the left
     bad_frames_on_right_value = tk.IntVar()
-    bad_frames_on_right_label = Label(frame_selection_frame, textvariable=bad_frames_on_right_value, font=("Arial", FontSize+6))
+    bad_frames_on_right_label = Label(frame_selection_frame, textvariable=bad_frames_on_right_value, font=("Arial", font_size+6))
     bad_frames_on_right_label.grid(pady=2, padx=10, row=0, column=5, rowspan = 2)
     bad_frames_on_right_value.set(0)
     as_tooltips.add(bad_frames_on_right_label, "Number of badly-stabilized frames after the one currently selected")
@@ -3311,26 +3421,26 @@ def FrameSync_Viewer_popup():
     manual_threshold_frame = LabelFrame(right_frame, text="Manual threshold controls") #, width=50, height=50)
     manual_threshold_frame.pack(anchor="center", pady=5, padx=10)   # expand=True, fill="both", 
 
-    decrease_threshold_button_5 = Button(manual_threshold_frame, text="◀◀", command=bad_frames_decrease_threshold_5, font=("Arial", FontSize))
+    decrease_threshold_button_5 = Button(manual_threshold_frame, text="◀◀", command=bad_frames_decrease_threshold_5, font=("Arial", font_size))
     decrease_threshold_button_5.pack(pady=10, padx=10, side=LEFT, anchor="center")
     as_tooltips.add(decrease_threshold_button_5, "Decrease threshold value by 5 (or press home)")
 
-    decrease_threshold_button_1 = Button(manual_threshold_frame, text="◀", command=bad_frames_decrease_threshold_n, font=("Arial", FontSize))
+    decrease_threshold_button_1 = Button(manual_threshold_frame, text="◀", command=bad_frames_decrease_threshold_n, font=("Arial", font_size))
     decrease_threshold_button_1.pack(pady=10, padx=10, side=LEFT, anchor="center")
     as_tooltips.add(decrease_threshold_button_1, "Decrease threshold value by 1")
 
     #Label with threshold value
     threshold_value = tk.IntVar()
-    threshold_label = Label(manual_threshold_frame, textvariable=threshold_value, font=("Arial", FontSize+6))
+    threshold_label = Label(manual_threshold_frame, textvariable=threshold_value, font=("Arial", font_size+6))
     threshold_label.pack(pady=10, padx=10, side=LEFT, anchor="center")
     threshold_value.set(stabilization_threshold)
     as_tooltips.add(threshold_label, "Current threshold")
 
-    increase_threshold_button_1 = Button(manual_threshold_frame, text="▶", command=bad_frames_increase_threshold_n, font=("Arial", FontSize))
+    increase_threshold_button_1 = Button(manual_threshold_frame, text="▶", command=bad_frames_increase_threshold_n, font=("Arial", font_size))
     increase_threshold_button_1.pack(pady=10, padx=10, side=LEFT, anchor="center")
     as_tooltips.add(increase_threshold_button_1, "Increase threshold value by 1")
 
-    increase_threshold_button_5 = Button(manual_threshold_frame, text="▶▶", command=bad_frames_increase_threshold_5, font=("Arial", FontSize))
+    increase_threshold_button_5 = Button(manual_threshold_frame, text="▶▶", command=bad_frames_increase_threshold_5, font=("Arial", font_size))
     increase_threshold_button_5.pack(pady=10, padx=10, side=LEFT, anchor="center")
     as_tooltips.add(increase_threshold_button_1, "Increase threshold value by 5 (or press end)")
 
@@ -3347,7 +3457,7 @@ def FrameSync_Viewer_popup():
     values_before_frame.pack(side=LEFT, pady=5, padx=10)
     
     pos_before_text = tk.StringVar()
-    pos_before_text_label = Label(values_before_frame, textvariable=pos_before_text, font=("Arial", FontSize))
+    pos_before_text_label = Label(values_before_frame, textvariable=pos_before_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         pos_before_text_label.forget()
     else:
@@ -3355,7 +3465,7 @@ def FrameSync_Viewer_popup():
     pos_before_text.set("Pos: 0,0")
     # as_tooltips.add(pos_before_text_label, "TBD")
     threshold_before_text = tk.StringVar()
-    threshold_before_text_label = Label(values_before_frame, textvariable=threshold_before_text, font=("Arial", FontSize))
+    threshold_before_text_label = Label(values_before_frame, textvariable=threshold_before_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         threshold_before_text_label.forget()
     else:
@@ -3367,16 +3477,16 @@ def FrameSync_Viewer_popup():
     manual_position_frame = LabelFrame(before_after_frame, text="Manual frame shift controls")
     manual_position_frame.pack(side=LEFT, pady=5, padx=10)  
 
-    frame_up_button = Button(manual_position_frame, text="▲", command=shift_bad_frame_up, font=("Arial", FontSize), width=3)
+    frame_up_button = Button(manual_position_frame, text="▲", command=shift_bad_frame_up, font=("Arial", font_size), width=3)
     frame_up_button.grid(pady=2, padx=2, row=0, column=2)
     as_tooltips.add(frame_up_button, "Move current frame 1 pixel up (use cursor keys to move 20 pixels (10 with Ctrl, 5 with shift)")
-    frame_left_button = Button(manual_position_frame, text="◀", command=shift_bad_frame_left, font=("Arial", FontSize), width=3)
+    frame_left_button = Button(manual_position_frame, text="◀", command=shift_bad_frame_left, font=("Arial", font_size), width=3)
     frame_left_button.grid(pady=2, padx=2, row=1, column=1)
     as_tooltips.add(frame_left_button, "Move current frame 1 pixel to the left (use cursor keys to move 20 pixels (10 with Ctrl, 5 with shift))")
-    frame_down_button = Button(manual_position_frame, text="▼", command=shift_bad_frame_down, font=("Arial", FontSize), width=3)
+    frame_down_button = Button(manual_position_frame, text="▼", command=shift_bad_frame_down, font=("Arial", font_size), width=3)
     frame_down_button.grid(pady=2, padx=2, row=1, column=2)
     as_tooltips.add(frame_down_button, "Move current frame 1 pixel down (use cursor keys to move 20 pixels (10 with Ctrl, 5 with shift))")
-    frame_right_button = Button(manual_position_frame, text="▶", command=shift_bad_frame_right, font=("Arial", FontSize), width=3)
+    frame_right_button = Button(manual_position_frame, text="▶", command=shift_bad_frame_right, font=("Arial", font_size), width=3)
     frame_right_button.grid(pady=2, padx=2, row=1, column=3)
     as_tooltips.add(frame_right_button, "Move current frame 1 pixel to the right (use cursor keys to move 20 pixels (10 with Ctrl, 5 with shift)")
     template_popup_window.bind("<Up>", shift_bad_frame_up)
@@ -3389,7 +3499,7 @@ def FrameSync_Viewer_popup():
     values_after_frame.pack(side=LEFT, pady=5, padx=10)
 
     pos_after_text = tk.StringVar()
-    pos_after_text_label = Label(values_after_frame, textvariable=pos_after_text, font=("Arial", FontSize))
+    pos_after_text_label = Label(values_after_frame, textvariable=pos_after_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         pos_after_text_label.forget()
     else:
@@ -3397,7 +3507,7 @@ def FrameSync_Viewer_popup():
     pos_after_text.set("Pos: 0,0")
     # as_tooltips.add(pos_after_text_label, "TBD")
     threshold_after_text = tk.StringVar()
-    threshold_after_text_label = Label(values_after_frame, textvariable=threshold_after_text, font=("Arial", FontSize))
+    threshold_after_text_label = Label(values_after_frame, textvariable=threshold_after_text, font=("Arial", font_size))
     if not dev_debug_enabled:
         threshold_after_text_label.forget()
     else:
@@ -3410,12 +3520,12 @@ def FrameSync_Viewer_popup():
     delete_info_frame.pack(anchor="center", pady=5, padx=10)   # expand=True, fill="both", 
 
     # Frame info delete all button
-    delete_bad_frames_button = Button(delete_info_frame, text="Delete all collected frame info", command=delete_detected_bad_frames, font=("Arial", FontSize))
+    delete_bad_frames_button = Button(delete_info_frame, text="Delete all collected frame info", command=delete_detected_bad_frames, font=("Arial", font_size))
     delete_bad_frames_button.pack(pady=10, padx=10, side=LEFT, anchor="center")
     as_tooltips.add(delete_bad_frames_button, "Delete all the information collected about misaligned frames, along with any changes you have made.")
 
     # Frame info delete current button
-    delete_current_bad_frame_button = Button(delete_info_frame, text="Delete current frame info", command=delete_current_bad_frame_info, font=("Arial", FontSize))
+    delete_current_bad_frame_button = Button(delete_info_frame, text="Delete current frame info", command=delete_current_bad_frame_info, font=("Arial", font_size))
     delete_current_bad_frame_button.pack(pady=10, padx=10, side=RIGHT, anchor="center")
     as_tooltips.add(delete_current_bad_frame_button, "Delete the edited values for this frame.")
     template_popup_window.bind("<Delete>", delete_current_bad_frame_info)
@@ -3424,11 +3534,11 @@ def FrameSync_Viewer_popup():
     save_exit_frame = Frame(right_frame)
     save_exit_frame.pack(anchor="center", pady=5, padx=10)
 
-    save_button = Button(save_exit_frame, text="Re-generate corrected frames", command=save_corrected_frames, font=("Arial", FontSize))
+    save_button = Button(save_exit_frame, text="Re-generate corrected frames", command=save_corrected_frames, font=("Arial", font_size))
     save_button.pack(pady=10, padx=10, side=LEFT, anchor="center")
     as_tooltips.add(save_button, "Generate new frames, with user adjustments, to target folder. Beware!!! Make sure you select 'Skip FrameRegeneration' when generating the video, otherwise the manual adjustement will be lost.")
 
-    close_button = Button(save_exit_frame, text="Close", command=display_template_popup_closure, font=("Arial", FontSize))
+    close_button = Button(save_exit_frame, text="Close", command=display_template_popup_closure, font=("Arial", font_size))
     close_button.pack(pady=10, padx=10, side=RIGHT, anchor="center")
     as_tooltips.add(close_button, "Close this window")
 
@@ -3467,10 +3577,10 @@ def debug_template_display_info(frame_idx, threshold, top_left, move_x, move_y):
         template_threshold_text.set(f"Threshold: {threshold}")
         if convert_loop_running:
             if frame_idx-start_frame > 0:
-                BadFramesPercent = len(bad_frame_list) * 100 / (frame_idx-start_frame)
+                bad_frames_percent = len(bad_frame_list) * 100 / (frame_idx-start_frame)
             else:
-                BadFramesPercent = 0
-            bad_frame_text.set(f"Misaligned frames: {len(bad_frame_list)} ({BadFramesPercent:.1f})%")
+                bad_frames_percent = 0
+            bad_frame_text.set(f"Misaligned frames: {len(bad_frame_list)} ({bad_frames_percent:.1f})%")
 
 
 
@@ -3501,12 +3611,12 @@ def debug_template_refresh_template():
         aux = resize_image(template_list.get_active_template(), frame_sync_images_factor)
         _, top, bottom = get_target_position(0, aux, 'v')  # get positions to draw template limits
         template_canvas.config(width=int(template_list.get_active_size()[0]*frame_sync_images_factor), height=int(frame_height*frame_sync_images_factor))
-        DisplayableImage = ImageTk.PhotoImage(Image.fromarray(aux))
+        displayable_image = ImageTk.PhotoImage(Image.fromarray(aux))
         # Delete reference to previous image, if any
         aux_image = None
         if hasattr(template_canvas, 'image'):
             aux_image = template_canvas.image
-        template_canvas.image = DisplayableImage #keep reference
+        template_canvas.image = displayable_image #keep reference
         if aux_image is not None:
             del aux_image
         template_canvas.itemconfig(template_canvas.image_id, image=template_canvas.image)
@@ -3690,18 +3800,18 @@ def detect_film_type():
 
     # Create a list with 5 evenly distributed values between current_frame and len(source_dir_file_list) - current_frame
     num_frames = min(10,len(source_dir_file_list)-current_frame)
-    FramesToCheck = np.linspace(current_frame, len(source_dir_file_list) - current_frame - 1, num_frames).astype(int).tolist()
-    for frame_to_check in FramesToCheck:
+    frames_to_check = np.linspace(current_frame, len(source_dir_file_list) - current_frame - 1, num_frames).astype(int).tolist()
+    for frame_to_check in frames_to_check:
         img = cv2.imread(source_dir_file_list[frame_to_check], cv2.IMREAD_UNCHANGED)
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img_bw = cv2.threshold(img_gray, stabilization_threshold_default, 255, cv2.THRESH_BINARY)[1]
         search_img = get_image_left_stripe(img_bw, calculated=False)
         result = cv2.matchTemplate(search_img, template_1, cv2.TM_CCOEFF_NORMED)
-        (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
-        top_left_1 = (maxLoc[1], maxLoc[0])
+        (min_val, max_val, min_loc, max_loc) = cv2.minMaxLoc(result)
+        top_left_1 = (max_loc[1], max_loc[0])
         result = cv2.matchTemplate(search_img, template_2, cv2.TM_CCOEFF_NORMED)
-        (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
-        top_left_2 = (maxLoc[1], maxLoc[0])
+        (min_val, max_val, min_loc, max_loc) = cv2.minMaxLoc(result)
+        top_left_2 = (max_loc[1], max_loc[0])
         if top_left_1[0] > top_left_2[0]:
             count1 += 1
         else:
@@ -3760,6 +3870,7 @@ def interactive_rectangle_definition_cv2(image, is_cropping):
     global line_thickness
     global ix, iy
     global x_, y_
+    global area_select_image_factor
 
     original_image = image
     # Try to find best template
@@ -3875,9 +3986,9 @@ def interactive_rectangle_definition_cv2(image, is_cropping):
                 y_ += inc_y
                 w = x_ - ix
                 h = y_ - iy
-                if IsCropping and (force_4_3 or force_16_9) and (inc_x != 0 or inc_ix != 0):
+                if is_cropping and (force_4_3 or force_16_9) and (inc_x != 0 or inc_ix != 0):
                     y_ = iy + round(w/(1.33 if force_4_3 else 1.78))
-                if IsCropping and (force_4_3 or force_16_9) and (inc_y != 0 or inc_iy != 0):
+                if is_cropping and (force_4_3 or force_16_9) and (inc_y != 0 or inc_iy != 0):
                     x_ = ix + round(h*(1.33 if force_4_3 else 1.78))
                 rectangle_top_left = (ix, iy)
                 rectangle_bottom_right = (x_, y_)
@@ -3905,7 +4016,7 @@ def draw_rectangle(event, x, y, flags, param):
     global rectangle_top_left, rectangle_bottom_right
     global rectangle_refresh
     global line_thickness
-    global IsCropping
+    global is_cropping_global
 
     if event == cv2.EVENT_LBUTTONDOWN:
         if not rectangle_drawing:
@@ -3917,14 +4028,14 @@ def draw_rectangle(event, x, y, flags, param):
             x_, y_ = x, y
     elif event == cv2.EVENT_MOUSEMOVE and rectangle_drawing:
         copy = work_image.copy()
-        if force_4_3 and IsCropping:
+        if force_4_3 and is_cropping_global:
             w = x - ix
             h = y - iy
             if h * 1.33 > w:
                 x = int(h * 1.33) + ix
             else:
                 y = int(w / 1.33) + iy
-        elif force_16_9 and IsCropping:
+        elif force_16_9 and is_cropping_global:
             w = x - ix
             h = y - iy
             if h * 1.78 > w:
@@ -3938,14 +4049,14 @@ def draw_rectangle(event, x, y, flags, param):
     elif event == cv2.EVENT_LBUTTONUP:
         rectangle_drawing = False
         copy = work_image.copy()
-        if force_4_3 and IsCropping:
+        if force_4_3 and is_cropping_global:
             w = x - ix
             h = y - iy
             if h * 1.33 > w:
                 x = int(h * 1.33) + ix
             else:
                 y = int(w / 1.33) + iy
-        elif force_16_9 and IsCropping:
+        elif force_16_9 and is_cropping_global:
             w = x - ix
             h = y - iy
             if h * 1.78 > w:
@@ -3972,16 +4083,15 @@ def select_rectangle_area(is_cropping=False):
     global rectangle_drawing
     global ix, iy
     global x_, y_
-    global area_select_image_factor
     global rectangle_refresh
     global rectangle_top_left, rectangle_bottom_right
     global crop_top_left, crop_bottom_right
     global perform_stabilization, perform_cropping, perform_rotation
-    global IsCropping
+    global is_cropping_global
     global file_type
     global template_list
 
-    IsCropping = is_cropping
+    is_cropping_global = is_cropping
 
     if current_frame >= len(source_dir_file_list):
         return False
@@ -4162,18 +4272,18 @@ def select_custom_template():
 
             if enable_rectangle_popup:
                 # Display saved template for information
-                CustomTemplateWindowTitle = "Captured custom template. Press any key to continue."
+                custom_template_window_title = "Captured custom template. Press any key to continue."
                 win_x = int(img_final.shape[1] * area_select_image_factor)
                 win_y = int(img_final.shape[0] * area_select_image_factor)
-                cv2.namedWindow(CustomTemplateWindowTitle, flags=cv2.WINDOW_GUI_NORMAL)
-                cv2.imshow(CustomTemplateWindowTitle, img_final)
+                cv2.namedWindow(custom_template_window_title, flags=cv2.WINDOW_GUI_NORMAL)
+                cv2.imshow(custom_template_window_title, img_final)
 
                 # Cannot force window to be wider than required since in Windows image is expanded as well
-                cv2.resizeWindow(CustomTemplateWindowTitle, round(win_x / 2), round(win_y / 2))
-                cv2.moveWindow(CustomTemplateWindowTitle, win.winfo_x() + 100, win.winfo_y() + 30)
+                cv2.resizeWindow(custom_template_window_title, round(win_x / 2), round(win_y / 2))
+                cv2.moveWindow(custom_template_window_title, win.winfo_x() + 100, win.winfo_y() + 30)
                 window_visible = True
                 while cv2.waitKeyEx(100) == -1:
-                    window_visible = cv2.getWindowProperty(CustomTemplateWindowTitle, cv2.WND_PROP_VISIBLE)
+                    window_visible = cv2.getWindowProperty(custom_template_window_title, cv2.WND_PROP_VISIBLE)
                     if window_visible <= 0:
                         break
                 if window_visible > 0:
@@ -4333,24 +4443,24 @@ def match_template(frame_idx, img):
             #img_edges = cv2.Canny(image=img_bw, threshold1=100, threshold2=1)  # Canny Edge Detection
             if retry_with_padding:
                 logging.debug(f"Frame {frame_idx+1} stabilized with padding (Top left: {best_top_left})")
-                maxVal, top_left = cv2_matchTemplate_with_padding(img_final, template, cv2.TM_CCOEFF_NORMED)
+                max_val, top_left = cv2_matchTemplate_with_padding(img_final, template, cv2.TM_CCOEFF_NORMED)
                 Done = True
             else:
                 aux = cv2.matchTemplate(img_final, template, cv2.TM_CCOEFF_NORMED)
-                (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(aux)
-                top_left = maxLoc
+                (min_val, max_val, min_loc, max_loc) = cv2.minMaxLoc(aux)
+                top_left = max_loc
             pos_criteria = (ih - abs(template_pos[1] - top_left[1])) / ih   # New criteria: How close is the template to the expected position
-            if maxVal*pos_criteria >= best_match_level: # Keep best values in any case
-                best_match_level = maxVal*pos_criteria
+            if max_val*pos_criteria >= best_match_level: # Keep best values in any case
+                best_match_level = max_val*pos_criteria
                 best_thres = local_threshold
                 best_top_left = top_left
-                best_maxVal = maxVal
+                best_maxVal = max_val
                 best_img_final = img_final
             if precise_template_match:
-                if best_match_level >= 0.99 or (best_match_level >= 0.9 and maxVal * pos_criteria < best_match_level):  # originally 0.85 and 0.7
+                if best_match_level >= 0.99 or (best_match_level >= 0.9 and max_val * pos_criteria < best_match_level):  # originally 0.85 and 0.7
                     Done = True # If threshold if really good, or much worse than best so far (means match level started decreasing in this loop), then end
             else:
-                if best_match_level >= 0.8 or (best_match_level >= 0.7 and maxVal * pos_criteria < best_match_level):  # originally 0.5 and 0.4
+                if best_match_level >= 0.8 or (best_match_level >= 0.7 and max_val * pos_criteria < best_match_level):  # originally 0.5 and 0.4
                     Done = True # If threshold if really good, or much worse than best so far (means match level started decreasing in this loop), then end
             if not Done: # Quality not good enough, try another threshold
                 local_threshold += step_threshold
@@ -4480,7 +4590,7 @@ def display_image(img):
 
     img = resize_image(img, preview_ratio)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    DisplayableImage = ImageTk.PhotoImage(Image.fromarray(img))
+    displayable_image = ImageTk.PhotoImage(Image.fromarray(img))
 
     image_height = img.shape[0]
     image_width = img.shape[1]
@@ -4497,7 +4607,7 @@ def display_image(img):
     aux_image = None
     if hasattr(draw_capture_canvas, 'image'):
         aux_image = draw_capture_canvas.image
-    draw_capture_canvas.image = DisplayableImage
+    draw_capture_canvas.image = displayable_image
     if aux_image is not None:
         del aux_image
     draw_capture_canvas.itemconfig(draw_capture_canvas.image_id, image=draw_capture_canvas.image)
@@ -4510,10 +4620,10 @@ def display_output_frame_by_number(frame_number):
     global start_frame
     global target_dir_file_list, file_type_out
 
-    TargetFile = target_dir + '/' + frame_output_filename_pattern % (start_frame + frame_number, file_type_out)
+    target_file = target_dir + '/' + frame_output_filename_pattern % (start_frame + frame_number, file_type_out)
 
-    if TargetFile in target_dir_file_list:
-        img = cv2.imread(TargetFile, cv2.IMREAD_UNCHANGED)
+    if target_file in target_dir_file_list:
+        img = cv2.imread(target_file, cv2.IMREAD_UNCHANGED)
         display_image(img)
 
 
@@ -4557,9 +4667,9 @@ def get_image_left_stripe(img, calculated=True):
 
 
 def gamma_correct_image_old(src, gamma):
-    invGamma = 1 / gamma
+    inv_gamma = 1 / gamma
 
-    table = [((i / 255) ** invGamma) * 255 for i in range(256)]
+    table = [((i / 255) ** inv_gamma) * 255 for i in range(256)]
     table = np.array(table, np.uint8)
 
     return cv2.LUT(src, table)
@@ -4573,8 +4683,8 @@ def gamma_correct_image(src, gamma):
     if src.dtype != np.uint8:
         src = cv2.convertScaleAbs(src, alpha=(255.0/src.max()))
     
-    invGamma = 1 / gamma
-    table = np.array([((i / 255) ** invGamma) * 255 for i in range(256)], dtype=np.uint8)
+    inv_gamma = 1 / gamma
+    table = np.array([((i / 255) ** inv_gamma) * 255 for i in range(256)], dtype=np.uint8)
     
     return cv2.LUT(src, table)
 
@@ -4584,9 +4694,9 @@ def rotate_image(img):
     # grab the dimensions of the image and calculate the center of the
     # image
     (h, w) = img.shape[:2]
-    (cX, cY) = (w // 2, h // 2)
+    (c_x, c_y) = (w // 2, h // 2)
     # rotate our image by 45 degrees around the center of the image
-    M = cv2.getRotationMatrix2D((cX, cY), float(rotation_angle), 1.0)
+    M = cv2.getRotationMatrix2D((c_x, c_y), float(rotation_angle), 1.0)
     rotated = cv2.warpAffine(img, M, (w, h))
     return rotated
 
@@ -5040,56 +5150,56 @@ def get_source_dir_file_list():
         return 0
 
     # Try first with standard scan filename template
-    SourceDirFileList_jpg = list(glob(os.path.join(
+    source_dir_file_list_jpg = list(glob(os.path.join(
         source_dir,
         frame_input_filename_pattern_list_jpg)))
-    if len(SourceDirFileList_jpg) == 0:     # Only try to read if there are no JPG at all
-        SourceDirFileList_png = list(glob(os.path.join(
+    if len(source_dir_file_list_jpg) == 0:     # Only try to read if there are no JPG at all
+        source_dir_file_list_png = list(glob(os.path.join(
             source_dir,
             frame_input_filename_pattern_list_png)))
-        source_dir_file_list = sorted(SourceDirFileList_png)
+        source_dir_file_list = sorted(source_dir_file_list_png)
         file_type_out = 'png'  # If we have png files in the input, we default to png for the output
     else:
-        source_dir_file_list = sorted(SourceDirFileList_jpg)
+        source_dir_file_list = sorted(source_dir_file_list_jpg)
         file_type_out = 'jpg'
 
-    SourceDirHdrFileList_jpg = list(glob(os.path.join(
+    source_dir_hdr_file_list_jpg = list(glob(os.path.join(
         source_dir,
         hdr_input_filename_pattern_list_jpg)))
-    SourceDirHdrFileList_png = list(glob(os.path.join(
+    source_dir_hdr_file_list_png = list(glob(os.path.join(
         source_dir,
         hdr_input_filename_pattern_list_png)))
-    SourceDirHdrFileList = sorted(SourceDirHdrFileList_jpg + SourceDirHdrFileList_png)
-    if len(SourceDirHdrFileList_png) != 0:
+    source_dir_hdr_file_list = sorted(source_dir_hdr_file_list_jpg + source_dir_hdr_file_list_png)
+    if len(source_dir_hdr_file_list_png) != 0:
         file_type_out = 'png'   # If we have png files in the input, we default to png for the output
-    elif len(SourceDirHdrFileList_jpg) != 0:
+    elif len(source_dir_hdr_file_list_jpg) != 0:
         file_type_out = 'jpg'
 
-    SourceDirLegacyHdrFileList_jpg = list(glob(os.path.join(
+    source_dir_legacy_hdr_file_list_jpg = list(glob(os.path.join(
         source_dir,
         legacy_hdr_input_filename_pattern_list_jpg)))
-    SourceDirLegacyHdrFileList_png = list(glob(os.path.join(
+    source_dir_legacy_hdr_file_list_png = list(glob(os.path.join(
         source_dir,
         legacy_hdr_input_filename_pattern_list_png)))
-    SourceDirLegacyHdrFileList = sorted(SourceDirLegacyHdrFileList_jpg + SourceDirLegacyHdrFileList_png)
-    if len(SourceDirLegacyHdrFileList_png) != 0:
+    source_dir_legacy_hdr_file_list = sorted(source_dir_legacy_hdr_file_list_jpg + source_dir_legacy_hdr_file_list_png)
+    if len(source_dir_legacy_hdr_file_list_png) != 0:
         file_type_out = 'png'   # If we have png files in the input, we default to png for the output
-    elif len(SourceDirLegacyHdrFileList_jpg) != 0:
+    elif len(source_dir_legacy_hdr_file_list_jpg) != 0:
         file_type_out = 'jpg'
 
-    NumFiles = len(source_dir_file_list)
-    NumHdrFiles = len(SourceDirHdrFileList)
-    NumLegacyHdrFiles = len(SourceDirLegacyHdrFileList)
-    if NumFiles != 0 and NumLegacyHdrFiles != 0:
+    num_files = len(source_dir_file_list)
+    num_hdr_files = len(source_dir_hdr_file_list)
+    num_legacy_hdr_files = len(source_dir_legacy_hdr_file_list)
+    if num_files != 0 and num_legacy_hdr_files != 0:
         if tk.messagebox.askyesno(
                 "Frame conflict",
                 f"Found both standard and HDR files in source folder. "
-                f"There are {NumFiles} standard frames and {NumLegacyHdrFiles} HDR files.\r\n"
-                f"Do you want to continue using the {'standard' if NumFiles > NumLegacyHdrFiles else 'HDR'} files?.\r\n"
+                f"There are {num_files} standard frames and {num_legacy_hdr_files} HDR files.\r\n"
+                f"Do you want to continue using the {'standard' if num_files > num_legacy_hdr_files else 'HDR'} files?.\r\n"
                 f"You might want ot clean up that source folder, it is strongly recommended to have only a single type of frames in the source folder."):
-                    if NumLegacyHdrFiles > NumFiles:
-                        source_dir_file_list = SourceDirLegacyHdrFileList
-    elif NumFiles == 0 and NumHdrFiles == 0: # Only Legacy HDR
+                    if num_legacy_hdr_files > num_files:
+                        source_dir_file_list = source_dir_legacy_hdr_file_list
+    elif num_files == 0 and num_hdr_files == 0: # Only Legacy HDR
         source_dir_file_list = SourceDirLegacyHdrFileList
 
     if len(source_dir_file_list) == 0:
@@ -5099,7 +5209,7 @@ def get_source_dir_file_list():
         frames_target_dir.delete(0, 'end')
         return 0
     else:
-        hdr_files_only = NumLegacyHdrFiles > NumFiles
+        hdr_files_only = num_legacy_hdr_files > num_files
 
     # Sanity check for current_frame
     if current_frame >= len(source_dir_file_list):
@@ -5127,6 +5237,8 @@ def get_source_dir_file_list():
 
 def adjust_dimensions_based_on_frame():
     global crop_bottom_right, frame_height, frame_width, frame_sync_images_factor
+    global area_select_image_factor
+
 
     # In order to determine template dimensons, no not take the first frame, as often
     # it is not so good. Take a frame 10% ahead in the set
@@ -5211,7 +5323,7 @@ def valid_generated_frame_range():
 # Determine width of template search area based on the template used
 def define_template_search_area(img):
     global hole_search_top_left, hole_search_bottom_right
-    global TemplateTopLeft, template_list
+    global template_list
     global template_wb_proportion_text
     global extended_stabilization
     global calculated_left_stripe_width
@@ -5219,17 +5331,17 @@ def define_template_search_area(img):
     # Sproket hole corner to be detected in image, to adjust search area width
     aux_template = template_list.get_active_template()
     if aux_template.shape[1] > int(img.shape[1]*user_defined_left_stripe_width_proportion):
-        TemplateSearchAreaWidth = aux_template.shape[1]
+        template_search_area_width = aux_template.shape[1]
     else:
-        TemplateSearchAreaWidth = int(img.shape[1]*user_defined_left_stripe_width_proportion)
+        template_search_area_width = int(img.shape[1]*user_defined_left_stripe_width_proportion)
     # Adjust left stripe width (search area)
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_bw = cv2.threshold(img_gray, 240, 255, cv2.THRESH_BINARY)[1]
-    img_target = img_bw[:, :TemplateSearchAreaWidth]  # Search only in the left area of the image (user defined %)
+    img_target = img_bw[:, :template_search_area_width]  # Search only in the left area of the image (user defined %)
 
     result = cv2.matchTemplate(img_target, aux_template, cv2.TM_CCOEFF_NORMED)
-    (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(result)
-    calculated_left_stripe_width = maxLoc[0] + template_list.get_active_size()[0]
+    (min_val, max_val, min_loc, max_loc) = cv2.minMaxLoc(result)
+    calculated_left_stripe_width = max_loc[0] + template_list.get_active_size()[0]
     calculated_left_stripe_width += int(80 * img.shape[0]/1520)   # Increase width, proportional to the image size (250 pixels for default size 2028x1520)
     logging.debug(f"Calculated left stripe width: {calculated_left_stripe_width}")
     if extended_stabilization.get():
@@ -5270,7 +5382,7 @@ def start_convert():
     global frame_from_str, frame_to_str
     global project_name
     global batch_job_running
-    global job_list, CurrentJobEntry
+    global job_list, current_job_entry
     global csv_filename, csv_path_name
     global fps_last_minute_frame_times
     global current_bad_frame_index
@@ -5397,26 +5509,26 @@ def generation_exit(success = True):
     global convert_loop_running
     global Go_btn, save_bg, save_fg
     global batch_job_running
-    global job_list, CurrentJobEntry, job_list_treeview
+    global job_list, current_job_entry, job_list_treeview
 
     go_suspend = False
     stop_batch = False
 
     if batch_job_running:
-        if convert_loop_exit_requested or CurrentJobEntry == -1:
+        if convert_loop_exit_requested or current_job_entry == -1:
             stop_batch = True
-            if (CurrentJobEntry != -1):
-                item_id = search_job_name_in_job_treeview(CurrentJobEntry)
+            if (current_job_entry != -1):
+                item_id = search_job_name_in_job_treeview(current_job_entry)
                 if item_id != -1:
                     job_list_treeview.item(item_id, tags=("pending","joblist_font",))
         else:
             if success:
-                job_list[CurrentJobEntry]['done'] = True    # Flag as done
-                item_id = search_job_name_in_job_treeview(CurrentJobEntry)
+                job_list[current_job_entry]['done'] = True    # Flag as done
+                item_id = search_job_name_in_job_treeview(current_job_entry)
                 if item_id != -1:
                     job_list_treeview.item(item_id, tags=("done","joblist_font",))
             else:
-                item_id = search_job_name_in_job_treeview(CurrentJobEntry)
+                item_id = search_job_name_in_job_treeview(current_job_entry)
                 if item_id != -1:
                     job_list_treeview.item(item_id, tags=("pending","joblist_font",))
             if suspend_on_completion.get() == 'job_completion':
@@ -5809,8 +5921,8 @@ def video_create_title():
         title_num_frames = min(title_duration * video_fps, frames_to_encode-1)
         # Custom font style and font size
         img = Image.open(os.path.join(target_dir, frame_output_filename_pattern % (start_frame + first_absolute_frame, file_type_out)))
-        myFont, num_lines = get_adjusted_font(img, video_title_str.get())
-        if myFont == 0:
+        my_font, num_lines = get_adjusted_font(img, video_title_str.get())
+        if my_font == 0:
             return
         title_frame_idx = start_frame + first_absolute_frame
         title_first_frame = random.randint(start_frame + first_absolute_frame, start_frame + first_absolute_frame + frames_to_encode - title_num_frames - 1)
@@ -5823,7 +5935,7 @@ def video_create_title():
             # Call draw Method to add 2D graphics in an image
             #I1 = ImageDraw.Draw(img)
             # Add Text to an image
-            draw_multiple_line_text(img, video_title_str.get(), myFont, (255,255,255), num_lines)
+            draw_multiple_line_text(img, video_title_str.get(), my_font, (255,255,255), num_lines)
             # Display edited image
             #img.show()
 
@@ -6211,14 +6323,14 @@ def init_display():
 
 
 def init_logging():
-    global LogLevel
+    global log_level
     # Initialize logging
     log_path = logs_dir
     if log_path == "":
         log_path = os.getcwd()
     log_file_fullpath = log_path + "/AfterScan." + time.strftime("%Y%m%d") + ".log"
     logging.basicConfig(
-        level=LogLevel,
+        level=log_level,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
             logging.FileHandler(log_file_fullpath),
@@ -6260,13 +6372,13 @@ def verify_templates():
 
 def afterscan_init():
     global win, as_tooltips
-    global TopWinX
-    global TopWinY
-    global WinInitDone
+    global top_win_x
+    global top_win_y
+    global win_init_done
     global source_dir
     global preview_width, preview_height
     global screen_height
-    global big_size, FontSize
+    global big_size, font_size
     global merge_mertens, align_mtb
     global match_level_average, horizontal_offset_average, move_x_average, move_y_average
 
@@ -6277,14 +6389,14 @@ def afterscan_init():
     # Set dimensions of UI elements adapted to screen size
     if (screen_height >= 1000 and not force_small_size) or force_big_size:
         big_size = True
-        FontSize = 11
+        font_size = 11
         preview_width = 700
         preview_height = 525
         app_width = preview_width + 420
         app_height = preview_height + 330
     else:
         big_size = False
-        FontSize = 8
+        font_size = 8
         preview_width = 500
         preview_height = 375
         app_width = preview_width + 380
@@ -6301,7 +6413,7 @@ def afterscan_init():
     win.option_add("*font", "TkDefaultFont 10")
 
     # Init ToolTips
-    as_tooltips = Tooltips(FontSize)
+    as_tooltips = Tooltips(font_size)
 
     # Init rolling Averages
     match_level_average = RollingAverage(50)
@@ -6310,15 +6422,15 @@ def afterscan_init():
     move_y_average = RollingAverage(50)
 
     # Get Top window coordinates
-    TopWinX = win.winfo_x()
-    TopWinY = win.winfo_y()
+    top_win_x = win.winfo_x()
+    top_win_y = win.winfo_y()
 
     # Create merge_mertens Object for HDR
     merge_mertens = cv2.createMergeMertens()
     # Create Align MTB object for HDR
     align_mtb = cv2.createAlignMTB()
 
-    WinInitDone = True
+    win_init_done = True
 
     if not HAS_TEMPORAL_DENOISE:
         logging.info(f"Temporal denoise not available. OpenCV version is {cv2.__version__}")
@@ -6398,7 +6510,7 @@ def build_ui():
     global suspend_on_completion
     global perform_fill_none_rb, perform_fill_fake_rb, perform_fill_dumb_rb
     global expert_mode
-    global big_size, FontSize
+    global big_size, font_size
     global template_list
     global low_contrast_custom_template
     global display_template_popup_btn
@@ -6415,25 +6527,25 @@ def build_ui():
 
     # File menu
     file_menu = tk.Menu(menu_bar, tearoff=0)
-    menu_bar.add_cascade(label="File", menu=file_menu, font=("Arial", FontSize))
-    file_menu.add_command(label="Save job list", command=save_named_job_list, font=("Arial", FontSize))
-    file_menu.add_command(label="Load job list", command=load_named_job_list, font=("Arial", FontSize))
+    menu_bar.add_cascade(label="File", menu=file_menu, font=("Arial", font_size))
+    file_menu.add_command(label="Save job list", command=save_named_job_list, font=("Arial", font_size))
+    file_menu.add_command(label="Load job list", command=load_named_job_list, font=("Arial", font_size))
     file_menu.add_separator()  # Optional divider
-    file_menu.add_command(label="Exit", command=exit_app, font=("Arial", FontSize))
+    file_menu.add_command(label="Exit", command=exit_app, font=("Arial", font_size))
 
     # Help Menu
     help_menu = tk.Menu(menu_bar, tearoff=0)
-    menu_bar.add_cascade(label="Help", menu=help_menu, font=("Arial", FontSize))
-    help_menu.add_command(label="User Guide", font=("Arial", FontSize), 
+    menu_bar.add_cascade(label="Help", menu=help_menu, font=("Arial", font_size))
+    help_menu.add_command(label="User Guide", font=("Arial", font_size), 
                           command=lambda: webbrowser.open("https://github.com/jareff-g/AfterScan/wiki/AfterScan-user-interface-description"))
-    help_menu.add_command(label="Discord Server", font=("Arial", FontSize), 
+    help_menu.add_command(label="Discord Server", font=("Arial", font_size), 
                           command=lambda: webbrowser.open("https://discord.gg/r2UGkH7qg2"))
-    help_menu.add_command(label="AfterScan Wiki", font=("Arial", FontSize), 
+    help_menu.add_command(label="AfterScan Wiki", font=("Arial", font_size), 
                           command=lambda: webbrowser.open("https://github.com/jareff-g/AfterScan/wiki"))
     if user_consent == "no":
-        help_menu.add_command(label="Report AfterScan usage", font=("Arial", FontSize), 
+        help_menu.add_command(label="Report AfterScan usage", font=("Arial", font_size), 
                               command=lambda: get_consent(True))
-    help_menu.add_command(label="About AfterScan", font=("Arial", FontSize), 
+    help_menu.add_command(label="About AfterScan", font=("Arial", font_size), 
                           command=lambda: webbrowser.open("https://github.com/jareff-g/AfterScan/wiki/AfterScan:-8mm,-Super-8-film-post-scan-utility"))
 
     # Create a frame to add a border to the preview
@@ -6455,7 +6567,7 @@ def build_ui():
     frame_selected = IntVar()
     frame_slider = Scale(border_frame, orient=HORIZONTAL, from_=0, to=0, showvalue=False,
                          variable=frame_selected, highlightthickness=1,
-                         length=preview_width, takefocus=1, font=("Arial", FontSize))
+                         length=preview_width, takefocus=1, font=("Arial", font_size))
     frame_slider.bind("<ButtonRelease-1>", process_scale_value)
     frame_slider.bind("<KeyRelease>", process_scale_value)
     frame_slider.pack(side=BOTTOM, pady=4)
@@ -6473,31 +6585,31 @@ def build_ui():
 
     # Create frame to display current frame and slider
     frame_frame = LabelFrame(regular_top_section_frame, text='Current frame',
-                               width=35, height=10, font=("Arial", FontSize-2))
+                               width=35, height=10, font=("Arial", font_size-2))
     frame_frame.grid(row=1, column=0, sticky='nsew')
 
-    selected_frame_number = Label(frame_frame, width=12, text='Number:', font=("Arial", FontSize))
+    selected_frame_number = Label(frame_frame, width=12, text='Number:', font=("Arial", font_size))
     selected_frame_number.pack(side=TOP, pady=2)
     as_tooltips.add(selected_frame_number, "Frame number, as stated in the filename")
 
-    selected_frame_index = Label(frame_frame, width=12, text='Index:', font=("Arial", FontSize))
+    selected_frame_index = Label(frame_frame, width=12, text='Index:', font=("Arial", font_size))
     selected_frame_index.pack(side=TOP, pady=2)
     as_tooltips.add(selected_frame_index, "Sequential frame index, from 1 to n")
 
-    selected_frame_time = Label(frame_frame, width=12, text='Time:', font=("Arial", FontSize))
+    selected_frame_time = Label(frame_frame, width=12, text='Time:', font=("Arial", font_size))
     selected_frame_time.pack(side=TOP, pady=2)
     as_tooltips.add(selected_frame_time, "Time in the source film where this frame is located")
 
     # Application status label
     app_status_label = Label(regular_top_section_frame, width=46 if big_size else 46, borderwidth=2,
                              relief="groove", text='Status: Idle',
-                             highlightthickness=1, font=("Arial", FontSize))
+                             highlightthickness=1, font=("Arial", font_size))
     app_status_label.grid(row=2, column=0, columnspan=3, pady=5, sticky=EW)
 
     # Application Exit button
     Exit_btn = Button(regular_top_section_frame, text="Exit", width=10,
                       height=5, command=exit_app, activebackground='red',
-                      activeforeground='white', wraplength=80, font=("Arial", FontSize))
+                      activeforeground='white', wraplength=80, font=("Arial", font_size))
     Exit_btn.grid(row=0, column=1, rowspan=2, padx=10, sticky='nsew')
 
     as_tooltips.add(Exit_btn, "Exit AfterScan")
@@ -6505,7 +6617,7 @@ def build_ui():
     # Application start button
     Go_btn = Button(regular_top_section_frame, text="Start", width=12, height=5,
                     command=start_convert, activebackground='green',
-                    activeforeground='white', wraplength=80, font=("Arial", FontSize))
+                    activeforeground='white', wraplength=80, font=("Arial", font_size))
     Go_btn.grid(row=0, column=2, rowspan=2, sticky='nsew')
 
     as_tooltips.add(Go_btn, "Start post-processing using current settings")
@@ -6541,13 +6653,13 @@ def build_ui():
 
     # Create frame to select source and target folders *******************************
     folder_frame = LabelFrame(right_area_frame, text='Folder selection', width=30,
-                              height=8, font=("Arial", FontSize-2))
+                              height=8, font=("Arial", font_size-2))
     folder_frame.pack(padx=2, pady=2, ipadx=5, expand=True, fill="both")
 
     source_folder_frame = Frame(folder_frame)
     source_folder_frame.pack(side=TOP)
     frames_source_dir = Entry(source_folder_frame, width=34 if big_size else 34,
-                                    borderwidth=1, font=("Arial", FontSize))
+                                    borderwidth=1, font=("Arial", font_size))
     frames_source_dir.pack(side=LEFT)
     frames_source_dir.delete(0, 'end')
     frames_source_dir.insert('end', source_dir)
@@ -6559,7 +6671,7 @@ def build_ui():
     source_folder_btn = Button(source_folder_frame, text='Source', width=6,
                                height=1, command=set_source_folder,
                                activebackground='green',
-                               activeforeground='white', wraplength=80, font=("Arial", FontSize))
+                               activeforeground='white', wraplength=80, font=("Arial", font_size))
     source_folder_btn.pack(side=LEFT)
 
     as_tooltips.add(source_folder_btn, "Selects the directory where the source frames are located")
@@ -6567,7 +6679,7 @@ def build_ui():
     target_folder_frame = Frame(folder_frame)
     target_folder_frame.pack(side=TOP)
     frames_target_dir = Entry(target_folder_frame, width=34 if big_size else 34,
-                                    borderwidth=1, font=("Arial", FontSize))
+                                    borderwidth=1, font=("Arial", font_size))
     frames_target_dir.pack(side=LEFT)
     frames_target_dir.bind('<<Paste>>', lambda event, entry=frames_target_dir: on_paste_all_entries(event, entry))
     
@@ -6576,7 +6688,7 @@ def build_ui():
     target_folder_btn = Button(target_folder_frame, text='Target', width=6,
                                height=1, command=set_frames_target_folder,
                                activebackground='green',
-                               activeforeground='white', wraplength=80, font=("Arial", FontSize))
+                               activeforeground='white', wraplength=80, font=("Arial", font_size))
     target_folder_btn.pack(side=LEFT)
 
     as_tooltips.add(target_folder_btn, "Selects the directory where the generated frames will be stored")
@@ -6590,7 +6702,7 @@ def build_ui():
     # Define post-processing area *********************************************
     postprocessing_frame = LabelFrame(right_area_frame,
                                       text='Frame post-processing',
-                                      width=40, height=8, font=("Arial", FontSize-2))
+                                      width=40, height=8, font=("Arial", font_size-2))
     postprocessing_frame.pack(padx=2, pady=2, ipadx=5, expand=True, fill="both")
     postprocessing_row = 0
     postprocessing_frame.grid_columnconfigure(0, weight=1)
@@ -6600,11 +6712,11 @@ def build_ui():
     # Radio buttons to select R8/S8. Required to select adequate pattern, and match position
     film_type = StringVar()
     film_type_S8_rb = Radiobutton(postprocessing_frame, text="Super 8", variable=film_type, command=set_film_type,
-                                  width=11 if big_size else 11, value='S8', font=("Arial", FontSize))
+                                  width=11 if big_size else 11, value='S8', font=("Arial", font_size))
     film_type_S8_rb.grid(row=postprocessing_row, column=0, sticky=W)
     as_tooltips.add(film_type_S8_rb, "Handle as Super 8 film")
     film_type_R8_rb = Radiobutton(postprocessing_frame, text="Regular 8", variable=film_type, command=set_film_type,
-                                  width=11 if big_size else 11, value='R8', font=("Arial", FontSize))
+                                  width=11 if big_size else 11, value='R8', font=("Arial", font_size))
     film_type_R8_rb.grid(row=postprocessing_row, column=1, sticky=W)
     as_tooltips.add(film_type_R8_rb, "Handle as 8mm (Regular 8) film")
     film_type.set(project_config["film_type"])
@@ -6615,7 +6727,7 @@ def build_ui():
     encode_all_frames_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Encode all frames',
         variable=encode_all_frames, onvalue=True, offvalue=False,
-        command=encode_all_frames_selection, width=14, font=("Arial", FontSize))
+        command=encode_all_frames_selection, width=14, font=("Arial", font_size))
     encode_all_frames_checkbox.grid(row=postprocessing_row, column=0,
                                            columnspan=3, sticky=W)
     as_tooltips.add(encode_all_frames_checkbox, "If selected, all frames in source folder will be encoded")
@@ -6624,10 +6736,10 @@ def build_ui():
     # Entry to enter start/end frames
     frames_to_encode_label = tk.Label(postprocessing_frame,
                                       text='Frame range:',
-                                      width=12, font=("Arial", FontSize))
+                                      width=12, font=("Arial", font_size))
     frames_to_encode_label.grid(row=postprocessing_row, column=0, columnspan=2, sticky=W)
     frame_from_str = tk.StringVar(value=str(from_frame))
-    frame_from_entry = Entry(postprocessing_frame, textvariable=frame_from_str, width=5, borderwidth=1, font=("Arial", FontSize))
+    frame_from_entry = Entry(postprocessing_frame, textvariable=frame_from_str, width=5, borderwidth=1, font=("Arial", font_size))
     frame_from_entry.grid(row=postprocessing_row, column=1, sticky=W)
     frame_from_entry.config(state=NORMAL)
     frame_from_entry.bind("<Double - Button - 1>", update_frame_from)
@@ -6635,9 +6747,9 @@ def build_ui():
     frame_from_entry.bind('<<Paste>>', lambda event, entry=frame_from_entry: on_paste_all_entries(event, entry))
     as_tooltips.add(frame_from_entry, "First frame to be processed, if not encoding the entire set")
     frame_to_str = tk.StringVar(value=str(from_frame))
-    frames_separator_label = tk.Label(postprocessing_frame, text='to', width=2, font=("Arial", FontSize))
+    frames_separator_label = tk.Label(postprocessing_frame, text='to', width=2, font=("Arial", font_size))
     frames_separator_label.grid(row=postprocessing_row, column=1)
-    frame_to_entry = Entry(postprocessing_frame, textvariable=frame_to_str, width=5, borderwidth=1, font=("Arial", FontSize))
+    frame_to_entry = Entry(postprocessing_frame, textvariable=frame_to_str, width=5, borderwidth=1, font=("Arial", font_size))
     frame_to_entry.grid(row=postprocessing_row, column=1, sticky=E)
     frame_to_entry.config(state=NORMAL)
     frame_to_entry.bind("<Double - Button - 1>", update_frame_to)
@@ -6652,7 +6764,7 @@ def build_ui():
     perform_rotation_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Rotate image:',
         variable=perform_rotation, onvalue=True, offvalue=False, width=11,
-        command=perform_rotation_selection, font=("Arial", FontSize))
+        command=perform_rotation_selection, font=("Arial", font_size))
     perform_rotation_checkbox.grid(row=postprocessing_row, column=0,
                                         columnspan=1, sticky=W)
     perform_rotation_checkbox.config(state=NORMAL)
@@ -6665,14 +6777,14 @@ def build_ui():
         postprocessing_frame,
         command=rotation_angle_selection, width=5,
         textvariable=rotation_angle_str, from_=-5, to=5,
-        format="%.1f", increment=0.1, font=("Arial", FontSize))
+        format="%.1f", increment=0.1, font=("Arial", font_size))
     rotation_angle_spinbox.grid(row=postprocessing_row, column=1, sticky=W)
     rotation_angle_spinbox.bind("<FocusOut>", rotation_angle_spinbox_focus_out)
     as_tooltips.add(rotation_angle_spinbox, "Angle to use when rotating frames")
     #rotation_angle_selection('down')
     rotation_angle_label = tk.Label(postprocessing_frame,
                                       text='°',
-                                      width=1, font=("Arial", FontSize))
+                                      width=1, font=("Arial", font_size))
     rotation_angle_label.grid(row=postprocessing_row, column=1)
     rotation_angle_label.config(state=NORMAL)
     postprocessing_row += 1
@@ -6684,7 +6796,7 @@ def build_ui():
                                       width=18, height=1,
                                       command=select_custom_template,
                                       activebackground='green',
-                                      activeforeground='white', font=("Arial", FontSize))
+                                      activeforeground='white', font=("Arial", font_size))
     custom_stabilization_btn.config(relief=SUNKEN if template_list.get_active_type() == 'Custom' else RAISED)
     custom_stabilization_btn.grid(row=postprocessing_row, column=0, columnspan=2, padx=5, pady=5, sticky=W)
     as_tooltips.add(custom_stabilization_btn,
@@ -6694,7 +6806,7 @@ def build_ui():
     low_contrast_custom_template_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Low contrast helper',
         variable=low_contrast_custom_template, onvalue=True, offvalue=False, width=16,
-        command=low_contrast_custom_template_selection, font=("Arial", FontSize))
+        command=low_contrast_custom_template_selection, font=("Arial", font_size))
     low_contrast_custom_template_checkbox.grid(row=postprocessing_row, column=1,
                                         columnspan=2, sticky=E)
     as_tooltips.add(low_contrast_custom_template_checkbox, "Activate when defining a custom template using a low contrast frame")
@@ -6706,12 +6818,12 @@ def build_ui():
     perform_stabilization_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Stabilize',
         variable=perform_stabilization, onvalue=True, offvalue=False, width=7,
-        command=perform_stabilization_selection, font=("Arial", FontSize))
+        command=perform_stabilization_selection, font=("Arial", font_size))
     perform_stabilization_checkbox.grid(row=postprocessing_row, column=0,
                                         columnspan=1, sticky=W)
     as_tooltips.add(perform_stabilization_checkbox, "Stabilize generated frames. Sprocket hole is used as common reference, it needs to be clearly visible")
     # Label to display the match level of current frame to template
-    stabilization_threshold_match_label = Label(postprocessing_frame, width=4, borderwidth=1, relief='sunken', font=("Arial", FontSize))
+    stabilization_threshold_match_label = Label(postprocessing_frame, width=4, borderwidth=1, relief='sunken', font=("Arial", font_size))
     stabilization_threshold_match_label.grid(row=postprocessing_row, column=0, sticky=E)
     as_tooltips.add(stabilization_threshold_match_label, "Dynamically displays the match quality of the sprocket hole template. Green is good, orange acceptable, red is bad")
 
@@ -6720,7 +6832,7 @@ def build_ui():
     extended_stabilization_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Extend',
         variable=extended_stabilization, onvalue=True, offvalue=False, width=6,
-        command=extended_stabilization_selection, font=("Arial", FontSize))
+        command=extended_stabilization_selection, font=("Arial", font_size))
     #extended_stabilization_checkbox.grid(row=postprocessing_row, column=1, columnspan=1, sticky=W)
     extended_stabilization_checkbox.forget()
     as_tooltips.add(extended_stabilization_checkbox, "Extend the area where AfterScan looks for sprocket holes. In some cases this might help")
@@ -6728,12 +6840,12 @@ def build_ui():
     # Stabilization shift: Since film might not be centered around hole(s) this gives the option to move it up/down
     # Spinbox for gamma correction
     stabilization_shift_label = tk.Label(postprocessing_frame, text='Offset X/Y:',
-                                        width=14, font=("Arial", FontSize))
+                                        width=14, font=("Arial", font_size))
     stabilization_shift_label.grid(row=postprocessing_row, column=1, columnspan=1, sticky=E)
 
     stabilization_shift_x_value = tk.IntVar(value=0)
     stabilization_shift_x_spinbox = tk.Spinbox(postprocessing_frame, width=3, command=select_stabilization_shift_x,
-        textvariable=stabilization_shift_x_value, from_=-150, to=150, increment=-5, font=("Arial", FontSize))
+        textvariable=stabilization_shift_x_value, from_=-150, to=150, increment=-5, font=("Arial", font_size))
     stabilization_shift_x_spinbox.grid(row=postprocessing_row, column=2, sticky=W)
     as_tooltips.add(stabilization_shift_x_spinbox, "Allows to shift the frame left or right after stabilization "
                                 "(to compensate for films where the frame is not centered around the hole/holes)")
@@ -6741,7 +6853,7 @@ def build_ui():
 
     stabilization_shift_y_value = tk.IntVar(value=0)
     stabilization_shift_y_spinbox = tk.Spinbox(postprocessing_frame, width=3, command=select_stabilization_shift_y,
-        textvariable=stabilization_shift_y_value, from_=-150, to=150, increment=-5, font=("Arial", FontSize))
+        textvariable=stabilization_shift_y_value, from_=-150, to=150, increment=-5, font=("Arial", font_size))
     stabilization_shift_y_spinbox.grid(row=postprocessing_row, column=2, sticky=E)
     as_tooltips.add(stabilization_shift_y_spinbox, "Allows to shift the frame up or down after stabilization "
                                 "(to compensate for films where the frame is not centered around the hole/holes)")
@@ -6754,7 +6866,7 @@ def build_ui():
     cropping_btn = Button(postprocessing_frame, text='Define crop area',
                           width=12, height=1, command=select_cropping_area,
                           activebackground='green', activeforeground='white',
-                          wraplength=120, font=("Arial", FontSize))
+                          wraplength=120, font=("Arial", font_size))
     cropping_btn.grid(row=postprocessing_row, column=0, sticky=E)
     as_tooltips.add(cropping_btn, "Open popup window to define the cropping rectangle")
 
@@ -6762,7 +6874,7 @@ def build_ui():
     perform_cropping_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Crop', variable=perform_cropping,
         onvalue=True, offvalue=False, command=perform_cropping_selection,
-        width=4, font=("Arial", FontSize))
+        width=4, font=("Arial", font_size))
     perform_cropping_checkbox.grid(row=postprocessing_row, column=1, sticky=W)
     as_tooltips.add(perform_cropping_checkbox, "Crop generated frames to the user-defined limits ('Define crop area' button)")
 
@@ -6770,7 +6882,7 @@ def build_ui():
     force_4_3_crop_checkbox = tk.Checkbutton(
         postprocessing_frame, text='4:3', variable=force_4_3_crop,
         onvalue=True, offvalue=False, command=force_4_3_selection,
-        width=4, font=("Arial", FontSize))
+        width=4, font=("Arial", font_size))
     force_4_3_crop_checkbox.grid(row=postprocessing_row, column=1, sticky=E)
     as_tooltips.add(force_4_3_crop_checkbox, "Enforce 4:3 aspect ratio when defining the cropping rectangle")
 
@@ -6778,7 +6890,7 @@ def build_ui():
     force_16_9_crop_checkbox = tk.Checkbutton(
         postprocessing_frame, text='16:9', variable=force_16_9_crop,
         onvalue=True, offvalue=False, command=force_16_9_selection,
-        width=4, font=("Arial", FontSize))
+        width=4, font=("Arial", font_size))
     force_16_9_crop_checkbox.grid(row=postprocessing_row, column=2, sticky=W)
     as_tooltips.add(force_16_9_crop_checkbox, "Enforce 16:9 aspect ratio when defining the cropping rectangle")
 
@@ -6789,7 +6901,7 @@ def build_ui():
     perform_denoise_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Denoise', variable=perform_denoise,
         onvalue=True, offvalue=False, command=perform_denoise_selection,
-        font=("Arial", FontSize))
+        font=("Arial", font_size))
     perform_denoise_checkbox.grid(row=postprocessing_row, column=0, sticky=W)
     as_tooltips.add(perform_denoise_checkbox, "Apply denoise algorithm (using OpenCV's 'fastNlMeansDenoisingColored') to the generated frames")
 
@@ -6798,7 +6910,7 @@ def build_ui():
     perform_sharpness_checkbox = tk.Checkbutton(
         postprocessing_frame, text='Sharpen', variable=perform_sharpness,
         onvalue=True, offvalue=False, command=perform_sharpness_selection,
-        font=("Arial", FontSize))
+        font=("Arial", font_size))
     perform_sharpness_checkbox.grid(row=postprocessing_row, column=1, sticky=W)
     as_tooltips.add(perform_sharpness_checkbox, "Apply sharpen algorithm (using OpenCV's 'filter2D') to the generated frames")
 
@@ -6806,7 +6918,7 @@ def build_ui():
     perform_gamma_correction = tk.BooleanVar(value=False)
     perform_gamma_correction_checkbox = tk.Checkbutton(
         postprocessing_frame, text='GC:', variable=perform_gamma_correction, command=perform_gamma_correction_selection,
-        onvalue=True, offvalue=False, font=("Arial", FontSize))
+        onvalue=True, offvalue=False, font=("Arial", font_size))
     perform_gamma_correction_checkbox.grid(row=postprocessing_row, column=2, sticky=W)
     perform_gamma_correction_checkbox.config(state=NORMAL)
     as_tooltips.add(perform_gamma_correction_checkbox, "Apply gamma correction to the generated frames")
@@ -6814,7 +6926,7 @@ def build_ui():
     # Spinbox for gamma correction
     gamma_correction_str = tk.StringVar(value="2.2")
     gamma_correction_spinbox = tk.Spinbox(postprocessing_frame, width=3, command=select_gamma_correction_value,
-        textvariable=gamma_correction_str, from_=0.1, to=4, format="%.1f", increment=0.1, font=("Arial", FontSize))
+        textvariable=gamma_correction_str, from_=0.1, to=4, format="%.1f", increment=0.1, font=("Arial", font_size))
     gamma_correction_spinbox.grid(row=postprocessing_row, column=2, sticky=E)
     as_tooltips.add(gamma_correction_spinbox, "Gamma correction value (default is 2.2, has to be greater than zero)")
     # Bind focus-out event to enforce the minimum value
@@ -6831,15 +6943,15 @@ def build_ui():
     # captured without the required part.
     frame_fill_type = StringVar()
     perform_fill_none_rb = Radiobutton(postprocessing_frame, text='No frame fill',
-                                    variable=frame_fill_type, value='none', font=("Arial", FontSize))
+                                    variable=frame_fill_type, value='none', font=("Arial", font_size))
     perform_fill_none_rb.grid(row=postprocessing_row, column=0, sticky=W)
     as_tooltips.add(perform_fill_none_rb, "Badly aligned frames will be left with the missing part of the image black after stabilization")
     perform_fill_fake_rb = Radiobutton(postprocessing_frame, text='Fake fill',
-                                    variable=frame_fill_type, value='fake', font=("Arial", FontSize))
+                                    variable=frame_fill_type, value='fake', font=("Arial", font_size))
     perform_fill_fake_rb.grid(row=postprocessing_row, column=1, sticky=W)
     as_tooltips.add(perform_fill_fake_rb, "Badly aligned frames will have the missing part of the image completed with a fragment of the next/previous frame after stabilization")
     perform_fill_dumb_rb = Radiobutton(postprocessing_frame, text='Dumb fill',
-                                    variable=frame_fill_type, value='dumb', font=("Arial", FontSize))
+                                    variable=frame_fill_type, value='dumb', font=("Arial", font_size))
     perform_fill_dumb_rb.grid(row=postprocessing_row, column=2, sticky=W)
     as_tooltips.add(perform_fill_dumb_rb, "Badly aligned frames will have the missing part of the image filled with the adjacent pixel row after stabilization")
     frame_fill_type.set('fake')
@@ -6849,7 +6961,7 @@ def build_ui():
     # Define video generating area ************************************
     video_frame = LabelFrame(right_area_frame,
                              text='Video generation',
-                             width=30, height=8, font=("Arial", FontSize-2))
+                             width=30, height=8, font=("Arial", font_size-2))
     video_frame.pack(padx=2, pady=2, ipadx=5, expand=True, fill="both")
     video_row = 0
     video_frame.grid_columnconfigure(0, weight=1)
@@ -6863,7 +6975,7 @@ def build_ui():
                                              variable=generate_video,
                                              onvalue=True, offvalue=False,
                                              command=generate_video_selection,
-                                             width=5, font=("Arial", FontSize))
+                                             width=5, font=("Arial", font_size))
     generate_video_checkbox.grid(row=video_row, column=0, sticky=W, padx=5)
     generate_video_checkbox.config(state=NORMAL if ffmpeg_installed
                                    else DISABLED)
@@ -6874,7 +6986,7 @@ def build_ui():
     skip_frame_regeneration_cb = tk.Checkbutton(
         video_frame, text='Skip Frame regeneration',
         variable=skip_frame_regeneration, onvalue=True, offvalue=False,
-        width=20, font=("Arial", FontSize))
+        width=20, font=("Arial", font_size))
     skip_frame_regeneration_cb.grid(row=video_row, column=1,
                                     columnspan=2, sticky=W, padx=5)
     skip_frame_regeneration_cb.config(state=NORMAL if ffmpeg_installed
@@ -6885,7 +6997,7 @@ def build_ui():
 
     # Video target folder
     video_target_dir_str = StringVar()
-    video_target_dir_entry = Entry(video_frame, textvariable=video_target_dir_str, width=30, borderwidth=1, font=("Arial", FontSize))
+    video_target_dir_entry = Entry(video_frame, textvariable=video_target_dir_str, width=30, borderwidth=1, font=("Arial", font_size))
     video_target_dir_entry.grid(row=video_row, column=0, columnspan=2, sticky=W, padx=5)
     video_target_dir_entry.bind('<<Paste>>', lambda event, entry=video_target_dir_entry: on_paste_all_entries(event, entry))
     as_tooltips.add(video_target_dir_entry, "Directory where the generated video will be stored")
@@ -6893,18 +7005,18 @@ def build_ui():
     video_target_folder_btn = Button(video_frame, text='Target', width=6,
                                height=1, command=set_video_target_folder,
                                activebackground='green',
-                               activeforeground='white', wraplength=80, font=("Arial", FontSize))
+                               activeforeground='white', wraplength=80, font=("Arial", font_size))
     video_target_folder_btn.grid(row=video_row, column=2, columnspan=2, sticky=W, padx=5)
     as_tooltips.add(video_target_folder_btn, "Selects directory where the generated video will be stored")
     video_row += 1
 
     # Video filename
     video_filename_str = StringVar()
-    video_filename_label = Label(video_frame, text='Video filename:', font=("Arial", FontSize))
+    video_filename_label = Label(video_frame, text='Video filename:', font=("Arial", font_size))
     video_filename_label.grid(row=video_row, column=0, sticky=W, padx=5)
     video_filename_name = Entry(video_frame, textvariable=video_filename_str, name="video_filename", 
                                 validate="key", validatecommand=vcmd,
-                                width=26 if big_size else 26, borderwidth=1, font=("Arial", FontSize))
+                                width=26 if big_size else 26, borderwidth=1, font=("Arial", font_size))
     video_filename_name.grid(row=video_row, column=1, columnspan=2, sticky=W, padx=5)
     video_filename_name.bind('<<Paste>>', lambda event, entry=video_filename_name: on_paste_all_entries(event, entry))
     as_tooltips.add(video_filename_name, "Filename of video to be created")
@@ -6913,11 +7025,11 @@ def build_ui():
 
     # Video title (add title at the start of the video)
     video_title_str = StringVar()
-    video_title_label = Label(video_frame, text='Video title:', font=("Arial", FontSize))
+    video_title_label = Label(video_frame, text='Video title:', font=("Arial", font_size))
     video_title_label.grid(row=video_row, column=0, sticky=W, padx=5)
     video_title_name = Entry(video_frame, textvariable=video_title_str, name="video_title", 
                              validate="key", validatecommand=vcmd,
-                             width=26 if big_size else 26, borderwidth=1, font=("Arial", FontSize))
+                             width=26 if big_size else 26, borderwidth=1, font=("Arial", font_size))
     video_title_name.grid(row=video_row, column=1, columnspan=2, sticky=W, padx=5)
     video_title_name.bind('<<Paste>>', lambda event, entry=video_title_name: on_paste_all_entries(event, entry))
     as_tooltips.add(video_title_name, "Video title. If entered, a simple title sequence will be generated at the start of the video, using a sequence randomly selected from the same video, running at half speed")
@@ -6949,13 +7061,13 @@ def build_ui():
     # Create FPS Dropdown menu
     video_fps_frame = Frame(video_frame)
     video_fps_frame.grid(row=video_row, column=0, sticky=W)
-    video_fps_label = Label(video_fps_frame, text='FPS:', font=("Arial", FontSize))
+    video_fps_label = Label(video_fps_frame, text='FPS:', font=("Arial", font_size))
     video_fps_label.pack(side=LEFT, anchor=W, padx=5)
     video_fps_label.config(state=DISABLED)
     video_fps_dropdown = OptionMenu(video_fps_frame,
                                     video_fps_dropdown_selected, *fps_list,
                                     command=set_fps)
-    video_fps_dropdown.config(takefocus=1, font=("Arial", FontSize))
+    video_fps_dropdown.config(takefocus=1, font=("Arial", font_size))
     video_fps_dropdown.pack(side=LEFT, anchor=E, padx=5)
     video_fps_dropdown.config(state=DISABLED)
     as_tooltips.add(video_fps_dropdown, "Number of frames per second (FPS) of the video to be generated. Usually Super8 goes at 18 FPS, and Regular 8 at 16 FPS, although some cameras allowed to use other speeds (faster for smoother movement, slower for extended play time)")
@@ -6966,19 +7078,19 @@ def build_ui():
     ffmpeg_preset = StringVar()
     ffmpeg_preset_rb1 = Radiobutton(ffmpeg_preset_frame,
                                     text="Best quality (slow)",
-                                    variable=ffmpeg_preset, value='veryslow', font=("Arial", FontSize))
+                                    variable=ffmpeg_preset, value='veryslow', font=("Arial", font_size))
     ffmpeg_preset_rb1.pack(side=TOP, anchor=W, padx=5)
     ffmpeg_preset_rb1.config(state=DISABLED)
     as_tooltips.add(ffmpeg_preset_rb1, "Best quality, but very slow encoding. Maps to the same ffmpeg option")
 
     ffmpeg_preset_rb2 = Radiobutton(ffmpeg_preset_frame, text="Medium",
-                                    variable=ffmpeg_preset, value='medium', font=("Arial", FontSize))
+                                    variable=ffmpeg_preset, value='medium', font=("Arial", font_size))
     ffmpeg_preset_rb2.pack(side=TOP, anchor=W, padx=5)
     ffmpeg_preset_rb2.config(state=DISABLED)
     as_tooltips.add(ffmpeg_preset_rb2, "Compromise between quality and encoding speed. Maps to the same ffmpeg option")
     ffmpeg_preset_rb3 = Radiobutton(ffmpeg_preset_frame,
                                     text="Fast (low quality)",
-                                    variable=ffmpeg_preset, value='veryfast', font=("Arial", FontSize))
+                                    variable=ffmpeg_preset, value='veryfast', font=("Arial", font_size))
     ffmpeg_preset_rb3.pack(side=TOP, anchor=W, padx=5)
     ffmpeg_preset_rb3.config(state=DISABLED)
     as_tooltips.add(ffmpeg_preset_rb3, "Faster encoding speed, lower quality (but not so much IMHO). Maps to the same ffmpeg option")
@@ -6995,13 +7107,13 @@ def build_ui():
     # Create resolution Dropdown menu
     resolution_frame = Frame(video_frame)
     resolution_frame.grid(row=video_row, column=0, columnspan= 2, sticky=W)
-    resolution_label = Label(resolution_frame, text='Resolution:', font=("Arial", FontSize))
+    resolution_label = Label(resolution_frame, text='Resolution:', font=("Arial", font_size))
     resolution_label.pack(side=LEFT, anchor=W, padx=5)
     resolution_label.config(state=DISABLED)
     resolution_dropdown = OptionMenu(resolution_frame,
                                     resolution_dropdown_selected, *resolution_dict.keys(),
                                     command=set_resolution)
-    resolution_dropdown.config(takefocus=1, font=("Arial", FontSize))
+    resolution_dropdown.config(takefocus=1, font=("Arial", font_size))
     resolution_dropdown.pack(side=LEFT, anchor=E, padx=5)
     resolution_dropdown.config(state=DISABLED)
     as_tooltips.add(resolution_dropdown, "Resolution to be used when generating the video")
@@ -7010,7 +7122,7 @@ def build_ui():
     video_play_btn = Button(video_frame, text='▶', width=8,
                                height=1, command=play_video,
                                activebackground='green',
-                               activeforeground='white', wraplength=80, font=("Arial", FontSize))
+                               activeforeground='white', wraplength=80, font=("Arial", font_size))
     video_play_btn.grid(row=video_row, column=2, sticky=E, padx=5)
     as_tooltips.add(video_play_btn, "Play the generated video")
 
@@ -7020,7 +7132,7 @@ def build_ui():
     if expert_mode:
         extra_frame = LabelFrame(right_area_frame,
                                  text='Expert options',
-                                 width=50, height=8, font=("Arial", FontSize-2))
+                                 width=50, height=8, font=("Arial", font_size-2))
         extra_frame.pack(padx=5, pady=5, ipadx=5, ipady=5, expand=True, fill="both")
         extra_frame.grid_columnconfigure(0, weight=1)
         extra_frame.grid_columnconfigure(1, weight=1)
@@ -7030,7 +7142,7 @@ def build_ui():
         display_template_popup_btn = Button(extra_frame,
                                             text='FrameSync Editor',
                                             command=FrameSync_Viewer_popup,
-                                            width=15, font=("Arial", FontSize))
+                                            width=15, font=("Arial", font_size))
         display_template_popup_btn.config(relief=SUNKEN if frame_sync_viewer_opened else RAISED)
         display_template_popup_btn.grid(row=extra_row, column=0, padx=5, sticky="nsew")
         ### extra_frame.grid_columnconfigure(0, weight=1)
@@ -7038,7 +7150,7 @@ def build_ui():
 
         # Settings button, at the bottom of top left area
         options_btn = Button(extra_frame, text="Settings", command=cmd_settings_popup, width=15,
-                            relief=RAISED, font=("Arial", FontSize), name='options_btn')
+                            relief=RAISED, font=("Arial", font_size), name='options_btn')
         options_btn.widget_type = "general"
         options_btn.grid(row=extra_row, column=1, padx=5, sticky="nsew")
         as_tooltips.add(options_btn, "Set AfterScan options.")
@@ -7047,7 +7159,7 @@ def build_ui():
         # Spinbox to select stabilization threshold - Ignored, to be removed in the future
         stabilization_threshold_label = tk.Label(extra_frame,
                                                  text='Threshold:',
-                                                 width=11, font=("Arial", FontSize))
+                                                 width=11, font=("Arial", font_size))
         #stabilization_threshold_label.grid(row=extra_row, column=1, columnspan=1, sticky=E)
         stabilization_threshold_label.grid_forget()
         stabilization_threshold_str = tk.StringVar(value=str(stabilization_threshold))
@@ -7056,7 +7168,7 @@ def build_ui():
         stabilization_threshold_spinbox = tk.Spinbox(
             extra_frame,
             command=(stabilization_threshold_selection_aux, '%d'), width=6,
-            textvariable=stabilization_threshold_str, from_=0, to=255, font=("Arial", FontSize))
+            textvariable=stabilization_threshold_str, from_=0, to=255, font=("Arial", font_size))
         #stabilization_threshold_spinbox.grid(row=extra_row, column=2, sticky=W)
         stabilization_threshold_spinbox.grid_forget()
         stabilization_threshold_spinbox.bind("<FocusOut>", stabilization_threshold_spinbox_focus_out)
@@ -7068,7 +7180,7 @@ def build_ui():
     # Replace listbox with treeview
     # Define style for labelframe
     style = ttk.Style()
-    style.configure("TLabelframe.Label", font=("Arial", FontSize-2))
+    style.configure("TLabelframe.Label", font=("Arial", font_size-2))
     # Create a frame to hold Treeview and scrollbars
     job_list_frame = ttk.LabelFrame(left_area_frame,
                              text='Job List',
@@ -7079,7 +7191,7 @@ def build_ui():
     job_list_treeview = ttk.Treeview(job_list_frame, columns=("description"))
 
     # Define style for headings
-    style.configure("Treeview.Heading", font=("Arial", FontSize, "bold")) #Change header font.
+    style.configure("Treeview.Heading", font=("Arial", font_size, "bold")) #Change header font.
 
     # Define the single column
     name_width = 130 if force_small_size else 200
@@ -7104,7 +7216,7 @@ def build_ui():
     job_list_treeview.tag_configure("pending", foreground="black")
     job_list_treeview.tag_configure("ongoing", foreground="blue")
     job_list_treeview.tag_configure("done", foreground="green")
-    job_list_treeview.tag_configure("joblist_font", font=("Arial", FontSize))
+    job_list_treeview.tag_configure("joblist_font", font=("Arial", font_size))
 
     # Bind the keys to be used alog
     job_list_treeview.bind("<Delete>", job_list_delete_current)
@@ -7125,28 +7237,28 @@ def build_ui():
     # Add job button
     add_job_btn = Button(job_list_btn_frame, text="Add job", width=12, height=1,
                     command=job_list_add_current, activebackground='green',
-                    activeforeground='white', wraplength=100, font=("Arial", FontSize))
+                    activeforeground='white', wraplength=100, font=("Arial", font_size))
     add_job_btn.pack(side=TOP, padx=2, pady=2)
     as_tooltips.add(add_job_btn, "Add to job list a new job using the current settings defined on the right area of the AfterScan window")
 
     # Delete job button
     delete_job_btn = Button(job_list_btn_frame, text="Delete job", width=12, height=1,
                     command=job_list_delete_selected, activebackground='green',
-                    activeforeground='white', wraplength=100, font=("Arial", FontSize))
+                    activeforeground='white', wraplength=100, font=("Arial", font_size))
     delete_job_btn.pack(side=TOP, padx=2, pady=2)
     as_tooltips.add(delete_job_btn, "Delete currently selected job from list")
 
     # Rerun job button
     rerun_job_btn = Button(job_list_btn_frame, text="Rerun job", width=12, height=1,
                     command=job_list_rerun_selected, activebackground='green',
-                    activeforeground='white', wraplength=100, font=("Arial", FontSize))
+                    activeforeground='white', wraplength=100, font=("Arial", font_size))
     rerun_job_btn.pack(side=TOP, padx=2, pady=2)
     as_tooltips.add(rerun_job_btn, "Toggle 'run' state of currently selected job in list")
 
     # Start processing job button
     start_batch_btn = Button(job_list_btn_frame, text="Start batch", width=12, height=1,
                     command=start_processing_job_list, activebackground='green',
-                    activeforeground='white', wraplength=100, font=("Arial", FontSize))
+                    activeforeground='white', wraplength=100, font=("Arial", font_size))
     start_batch_btn.pack(side=TOP, padx=2, pady=2)
     as_tooltips.add(start_batch_btn, "Start processing jobs in list")
 
@@ -7158,19 +7270,19 @@ def build_ui():
     #     width=13)
     # suspend_on_joblist_end_cb.pack(side=TOP, padx=2, pady=2)
 
-    suspend_on_completion_label = Label(job_list_btn_frame, text='Suspend on:', font=("Arial", FontSize))
+    suspend_on_completion_label = Label(job_list_btn_frame, text='Suspend on:', font=("Arial", font_size))
     suspend_on_completion_label.pack(side=TOP, anchor=W, padx=2, pady=2)
     suspend_on_completion = StringVar()
     suspend_on_batch_completion_rb = Radiobutton(job_list_btn_frame, text="Job completion",
-                                  variable=suspend_on_completion, value='job_completion', font=("Arial", FontSize))
+                                  variable=suspend_on_completion, value='job_completion', font=("Arial", font_size))
     suspend_on_batch_completion_rb.pack(side=TOP, anchor=W, padx=2, pady=2)
     as_tooltips.add(suspend_on_batch_completion_rb, "Suspend computer when all jobs in list have been processed")
     suspend_on_job_completion_rb = Radiobutton(job_list_btn_frame, text="Batch completion",
-                                  variable=suspend_on_completion, value='batch_completion', font=("Arial", FontSize))
+                                  variable=suspend_on_completion, value='batch_completion', font=("Arial", font_size))
     suspend_on_job_completion_rb.pack(side=TOP, anchor=W, padx=2, pady=2)
     as_tooltips.add(suspend_on_batch_completion_rb, "Suspend computer when current job being processed is complete")
     no_suspend_rb = Radiobutton(job_list_btn_frame, text="No suspend",
-                                  variable=suspend_on_completion, value='no_suspend', font=("Arial", FontSize))
+                                  variable=suspend_on_completion, value='no_suspend', font=("Arial", font_size))
     no_suspend_rb.pack(side=TOP, anchor=W, padx=2, pady=2)
     as_tooltips.add(suspend_on_batch_completion_rb, "Do not suspend when done")
 
@@ -7289,7 +7401,7 @@ def report_usage():
 
 
 def main(argv):
-    global LogLevel, LoggingMode
+    global log_level, logging_mode
     global template_list
     global expert_mode
     global ffmpeg_bin_name
@@ -7309,7 +7421,7 @@ def main(argv):
     global use_simple_stabilization
     global dev_debug_enabled
     
-    LoggingMode = "INFO"
+    logging_mode = "INFO"
     go_disable_tooptips = False
     goanyway = False
 
@@ -7328,7 +7440,7 @@ def main(argv):
 
     for opt, arg in opts:
         if opt == '-l':
-            LoggingMode = arg
+            logging_mode = arg
         elif opt == '-c':
             generate_csv = True
         elif opt == '-e':
@@ -7376,9 +7488,9 @@ def main(argv):
     # Otherwise webbrowser failt to launch (cannot open path of the current working directory: Permission denied)
     os.chdir(script_dir) 
 
-    LogLevel = getattr(logging, LoggingMode.upper(), None)
-    if not isinstance(LogLevel, int):
-        raise ValueError('Invalid log level: %s' % LogLevel)
+    log_level = getattr(logging, logging_mode.upper(), None)
+    if not isinstance(log_level, int):
+        raise ValueError('Invalid log level: %s' % log_level)
     else:
         init_logging()
 
@@ -7415,30 +7527,30 @@ def main(argv):
         is_windows = True
         if ffmpeg_bin_name is None or ffmpeg_bin_name == "":
             ffmpeg_bin_name = 'C:\\ffmpeg\\bin\\ffmpeg.exe'
-        AltFfmpegBinName = 'ffmpeg.exe'
+        alt_ffmpeg_bin_name = 'ffmpeg.exe'
         logging.debug("Detected Windows OS")
     elif platform.system() == 'Linux':
         is_linux = True
         if ffmpeg_bin_name is None or ffmpeg_bin_name == "":
             ffmpeg_bin_name = 'ffmpeg'
-        AltFfmpegBinName = 'ffmpeg'
+        alt_ffmpeg_bin_name = 'ffmpeg'
         logging.debug("Detected Linux OS")
     elif platform.system() == 'Darwin':
         is_mac = True
         if ffmpeg_bin_name is None or ffmpeg_bin_name == "":
             ffmpeg_bin_name = 'ffmpeg'
-        AltFfmpegBinName = 'ffmpeg'
+        alt_ffmpeg_bin_name = 'ffmpeg'
         logging.debug("Detected Darwin (MacOS) OS")
     else:
         if ffmpeg_bin_name is None or ffmpeg_bin_name == "":
             ffmpeg_bin_name = 'ffmpeg'
-        AltFfmpegBinName = 'ffmpeg'
+        alt_ffmpeg_bin_name = 'ffmpeg'
         logging.debug("OS not recognized: " + platform.system())
 
     if is_ffmpeg_installed():
         ffmpeg_installed = True
     elif platform.system() == 'Windows':
-        ffmpeg_bin_name = AltFfmpegBinName
+        ffmpeg_bin_name = alt_ffmpeg_bin_name
         if is_ffmpeg_installed():
             ffmpeg_installed = True
     if not ffmpeg_installed:
