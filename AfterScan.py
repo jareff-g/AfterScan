@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.08"
+__version__ = "1.40.09"
 __data_version__ = "1.0"
 __date__ = "2025-12-06"
-__version_highlight__ = "Refactoring: Adaptations to use the new TemplateManager class facade"
+__version_highlight__ = "Refactoring: Adapt logging initialization so that out AfterScan classes log properly"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -63,8 +63,6 @@ import random
 import threading
 import queue
 from matplotlib import font_manager
-from tooltip import Tooltips
-from rolling_average import RollingAverage
 import hashlib
 import uuid
 import base64
@@ -77,8 +75,84 @@ try:
 except ImportError:
     requests_loaded = False
 
-from define_rectangle import DefineRectangle
+# Due to how python works, logging code needs to be initialized here, so that AfterScan classes all use the same logger
+# Global logger instance (used for the root logger)
+GLOBAL_LOGGER = logging.getLogger()
 
+def configure_logging():
+    """
+    Initializes the root logging system with custom handlers and format.
+    
+    This function sets up two handlers: one for the console (sys.stdout) 
+    and one for a log file (AfterScan.log).
+    """
+    logs_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Logs")
+    if not os.path.exists(logs_dir):
+        os.mkdir(logs_dir)
+    log_file_fullpath = logs_dir + "/AfterScan." + time.strftime("%Y%m%d") + ".log"
+
+    # CRITICAL: We avoid logging.basicConfig() to allow manual control.
+    
+    # Define the common format
+    formatter = logging.Formatter(
+        '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # --- 1. Console Handler (Existing) ---
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.DEBUG) # Root level to be the only filter
+    
+    # --- 2. File Handler (New) ---
+    # Create a handler to write logs to a file. We'll set it to capture all
+    # logs at the DEBUG level initially, as file logs often need more detail.
+    try:
+        file_handler = logging.FileHandler(log_file_fullpath, mode='a')
+        file_handler.setFormatter(formatter)
+        file_handler.setLevel(logging.DEBUG) # Root level to be the only filter
+        
+        # Add the File Handler
+        if not any(isinstance(h, logging.FileHandler) for h in GLOBAL_LOGGER.handlers):
+            print(f"Logs will be saved to {log_file_fullpath}")
+            
+    except Exception as e:
+        # Log this error to the console (via the console_handler)
+        print(f"Could not open log file '{log_file_fullpath}': {e}")
+    
+    # --- 3. Add Handlers to Root Logger ---
+    # Add the console handler UNCONDITIONALLY as it's required for terminal output.
+    GLOBAL_LOGGER.addHandler(console_handler)
+    
+    # Add the file handler only if creation succeeded.
+    if file_handler:
+        GLOBAL_LOGGER.addHandler(file_handler)
+        print("Log file: %s", log_file_fullpath) # Use the newly added handler to log success
+      
+    # 4. Set the initial, safe level on the root logger.
+    # This acts as the filter for ALL handlers attached to the root logger.
+    GLOBAL_LOGGER.setLevel(logging.DEBUG) 
+
+    print("Logging handler and format configured (initial level: INFO).")
+
+def set_log_level_from_args(logging_level):
+    if logging_level != GLOBAL_LOGGER.level:
+        # Set the level on the root logger. This instantly affects all imported modules.
+        # This new level determines what gets passed to the attached handlers.
+        GLOBAL_LOGGER.setLevel(logging_level)
+        logging.info(f"Root Log level dynamically set to: {logging_level}")
+        print(f"Root Log level dynamically set to: {logging_level}")
+
+    logging.info("AfterScann %s (%s)", __version__, __date__)
+    logging.info("Log level: %s", logging_level)
+
+# 1. CRITICAL: Call the configuration function in the global scope 
+#    to configure the handler BEFORE any custom imports.
+configure_logging()
+
+from tooltip import Tooltips
+from rolling_average import RollingAverage
+from define_rectangle import DefineRectangle
 from template_manager import TemplateManager
 
 # Check for temporalDenoise in OpenCV at startup
@@ -106,7 +180,6 @@ temp_denoise_frame_deque = deque(maxlen=denoise_window_size)
 
 # Configuration & support file vars
 script_dir = os.path.dirname(os.path.realpath(__file__))
-print(f"*** script_dir = {script_dir}")
 
 general_config_filename = os.path.join(script_dir, "AfterScan.json")
 project_settings_filename = os.path.join(script_dir, "AfterScan-projects.json")
@@ -760,11 +833,11 @@ def retrieve_dict_value_with_key_backward_compatibility(dict, old_key, new_key, 
         else:
             old_key_exists = True
     if (not old_key_exists and not new_key_exists):
-        print(f"******* No keys found: {old_key}, {new_key}")
+        logging.debug(f"No configuration keys found, adding default one: {old_key}, {new_key}")
         value = default_value  # Should not happen, but useful to allow recovery by caller
         dict[new_key] = default_value
     elif (old_key_exists and new_key_exists):
-        print(f"******* Both keys found, deletign old one: {old_key}")
+        logging.debug(f"Two configuration keys found, deleting legacy one: {old_key}")
         del dict[old_key]   # If both keys exists, delete the legacy one
     return value
 
@@ -893,7 +966,6 @@ def decode_project_config():
         aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateFilename', 'custom_template_filename', os.path.join(resources_dir, f"Pattern.custom.{template_name}.jpg"))
         full_path_template_filename = aux_value
         if not os.path.exists(full_path_template_filename):
-            print(f"*** template filename: {full_path_template_filename}")
             tk.messagebox.showwarning(
                 "Template in project invalid",
                 f"The custom template saved for project {template_name} is invalid."
@@ -3456,8 +3528,6 @@ def detect_film_type():
         template_1 = template_manager.get_template_image_by_key('aux','BW')
         template_2 = template_manager.get_template_image_by_key('aux','WB')
         other_film_type = 'R8'
-    print(f"type(template1): {type(template_1)}")
-    print(f"type(template2): {type(template_2)}")
     if template_1 is None or template_2 is None:
         logging.debug("Invalid detection templated, cannot determine film type.")
         tk.messagebox.showerror("Film detection failed",
@@ -7158,7 +7228,7 @@ def main(argv):
     if not isinstance(log_level, int):
         raise ValueError('Invalid log level: %s' % log_level)
     else:
-        init_logging()
+        set_log_level_from_args(logging_mode)
 
     # Add default templates to template list
     template_manager = TemplateManager.initialize()
