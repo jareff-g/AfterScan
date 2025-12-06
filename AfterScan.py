@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.12"
+__version__ = "1.40.13"
 __data_version__ = "1.0"
 __date__ = "2025-12-06"
-__version_highlight__ = "Refactoring: Migrate legacy keys in general config file."
+__version_highlight__ = "Refactoring: Update a few json keys (missing or changed)"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -277,7 +277,7 @@ default_general_config = {
     'enable_soundtrack': False,
     'ffmpeg_bin_name': 'ffmpeg',
     'ffmpeg_hqdn_3d': '8:6:4:3',
-    'general_config_date': '',
+    'last_config_save_date': '',
     'last_consent_date': '',
     'popup_pos': '',
     'precise_template_match': True,
@@ -578,7 +578,7 @@ def sort_nested_json(data):
 
 def save_general_config():
     # Write config data upon exit
-    general_config["general_config_date"] = str(datetime.now())
+    general_config["last_config_save_date"] = str(datetime.now())
     general_config["window_pos"] = win.geometry()
     general_config["version"] = __version__
 
@@ -727,7 +727,7 @@ KEY_MIGRATION_MAP = {
     'EnableSoundtrack': 'enable_soundtrack',
     'FfmpegBinName': 'ffmpeg_bin_name',
     'FFmpegHqdn3d': 'ffmpeg_hqdn_3d',
-    'GeneralConfigDate': 'general_config_date',
+    'GeneralConfigDate': 'last_config_save_date',
     'LastConsentDate': 'last_consent_date',
     'PopupPos': 'popup_pos',
     'PreciseTemplateMatch': 'precise_template_match',
@@ -736,6 +736,8 @@ KEY_MIGRATION_MAP = {
     'UserConsent': 'user_consent',
     'Version': 'version',
     'WindowPos': 'window_pos',
+    'AnonymousUuid': 'anonymous_uuid',
+    'JobListFilename': 'job_list_filename',
     # Project config keys
     'FillBorders': KEY_TO_DELETE,
     'FillBordersThickness': KEY_TO_DELETE,
