@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.07"
+__version__ = "1.40.08"
 __data_version__ = "1.0"
-__date__ = "2025-12-05"
-__version_highlight__ = "Refactoring: Move template classes to external file"
+__date__ = "2025-12-06"
+__version_highlight__ = "Refactoring: Adaptations to use the new TemplateManager class facade"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -79,7 +79,7 @@ except ImportError:
 
 from define_rectangle import DefineRectangle
 
-from template_manager import Template, TemplateList
+from template_manager import TemplateManager
 
 # Check for temporalDenoise in OpenCV at startup
 HAS_TEMPORAL_DENOISE = hasattr(cv2, 'temporalDenoising')
@@ -137,7 +137,7 @@ if os.path.isfile(soundtrack_file_path):
 else:
     sound_file_available = False
 
-template_list = None
+template_manager = TemplateManager.initialize()
 hole_template_filename_r8 = os.path.join(script_dir, "Pattern.R8.jpg")
 hole_template_filename_s8 = os.path.join(script_dir, "Pattern.S8.jpg")
 hole_template_filename_custom = os.path.join(script_dir, "Pattern.custom.jpg")
@@ -654,7 +654,7 @@ def load_project_settings():
 
 
 def save_project_config():
-    global template_list
+    global template_manager
     global skip_frame_regeneration
     global ffmpeg_preset
     global stabilize_area_defined
@@ -689,8 +689,8 @@ def save_project_config():
         project_config["stabilization_shift_y"] = stabilization_shift_y_value.get()
         project_config["stabilization_shift_x"] = stabilization_shift_x_value.get()
         if not encode_all_frames.get():
-            project_config["hole_pos"] = template_list.get_active_position()
-            project_config["hole_scale"] = template_list.get_active_scale()
+            project_config["hole_pos"] = template_manager.get_active_position()
+            project_config["hole_scale"] = template_manager.get_active_scale()
 
     if len(bad_frame_list) > 0:
         save_bad_frame_list()   # Bad frames need to be saved even in batch mode
@@ -771,7 +771,7 @@ def retrieve_dict_value_with_key_backward_compatibility(dict, old_key, new_key, 
 def decode_project_config():        
     global source_dir, target_dir
     global project_config
-    global template_list
+    global template_manager
     global project_config_basename, project_config_filename
     global current_frame, frame_slider
     global video_fps, video_fps_dropdown_selected
@@ -905,7 +905,7 @@ def decode_project_config():
             project_config["custom_template_defined"] = False
         else:
             logging.debug(f"Adding custom template {template_name} from configuration to template list (filename {full_path_template_filename})")
-            template_list.add(template_name, full_path_template_filename, "custom", custom_template_expected_pos)
+            template_manager.add(template_name, full_path_template_filename, "custom", custom_template_expected_pos)
             debug_template_refresh_template()
 
     aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformCropping', 'perform_cropping', False)
@@ -1038,7 +1038,7 @@ def job_list_process_selection(evt):
 
 
 def job_list_add_current():
-    global job_list, template_list
+    global job_list, template_manager
     global current_frame, start_frame, frames_to_encode
     global project_config, video_filename_str
     global job_list_treeview
@@ -1116,12 +1116,12 @@ def job_list_add_current():
         save_project_config()  # Make sure all current settings are in project_config
         job_list[entry_name] = {'project': project_config.copy(), 'done': False, 'attempted': False, 'description': description}
         # If a custom pattern is used, copy it with the name of the job, and change it in the joblist/project item
-        if template_list.get_active_type() == 'custom' and os.path.isfile(template_list.get_active_filename()):
-            custom_template_dir = os.path.dirname(template_list.get_active_filename())    # should be resources_dir, but better be safe
+        if template_manager.get_active_type() == 'custom' and os.path.isfile(template_manager.get_active_filename()):
+            custom_template_dir = os.path.dirname(template_manager.get_active_filename())    # should be resources_dir, but better be safe
             # Maybe we should check here if a video filename has been defined
             target_template_file = os.path.join(custom_template_dir, os.path.splitext(job_list[entry_name]['project']['video_filename'])[0]+'.jpg' )
-            if template_list.get_active_filename() != target_template_file:
-                shutil.copyfile(template_list.get_active_filename(), target_template_file)
+            if template_manager.get_active_filename() != target_template_file:
+                shutil.copyfile(template_manager.get_active_filename(), target_template_file)
             job_list[entry_name]['project']['custom_template_filename'] = target_template_file
         else:
             if 'custom_template_filename' in project_config:
@@ -1758,7 +1758,7 @@ def widget_status_update(widget_state=0, button_action=0):
     global perform_fill_none_rb, perform_fill_fake_rb, perform_fill_dumb_rb
     global extended_stabilization_checkbox
     global source_dir_file_list
-    global template_list
+    global template_manager
     global job_list_listbox_disabled
     global video_play_btn
 
@@ -1803,8 +1803,8 @@ def widget_status_update(widget_state=0, button_action=0):
         perform_sharpness_checkbox.config(state=widget_state)
         perform_gamma_correction_checkbox.config(state=widget_state)
         gamma_correction_spinbox.config(state=widget_state)
-        film_type_S8_rb.config(state=DISABLED if template_list.get_active_type() == 'custom' else widget_state)
-        film_type_R8_rb.config(state=DISABLED if template_list.get_active_type() == 'custom' else widget_state)
+        film_type_S8_rb.config(state=DISABLED if template_manager.get_active_type() == 'custom' else widget_state)
+        film_type_R8_rb.config(state=DISABLED if template_manager.get_active_type() == 'custom' else widget_state)
         generate_video_checkbox.config(state=widget_state if ffmpeg_installed else DISABLED)
         skip_frame_regeneration_cb.config(state=widget_state if project_config["generate_video"] else DISABLED)
         video_target_dir_entry.config(state=widget_state if project_config["generate_video"] else DISABLED)
@@ -1841,7 +1841,7 @@ def widget_status_update(widget_state=0, button_action=0):
         perform_sharpness_checkbox.config(state=DISABLED)
         perform_gamma_correction_checkbox.config(state=DISABLED)
         gamma_correction_spinbox.config(state=DISABLED)
-    custom_stabilization_btn.config(relief=SUNKEN if template_list.get_active_type() == 'custom' else RAISED)
+    custom_stabilization_btn.config(relief=SUNKEN if template_manager.get_active_type() == 'custom' else RAISED)
 
     if use_simple_stabilization:
         custom_stabilization_btn.config(state = DISABLED)
@@ -2804,7 +2804,7 @@ def FrameSync_Viewer_popup_update_widgets(status, except_save=False):
 
 def FrameSync_Viewer_popup():
     global win
-    global template_list
+    global template_manager
     global template_popup_window
     global crop_top_left, crop_bottom_right
     global frame_sync_viewer_opened, debug_template_width, debug_template_height
@@ -2870,13 +2870,13 @@ def FrameSync_Viewer_popup():
     #label.pack(pady=5, padx=10, anchor=W)
 
     # Frame sync image size factor precalculated when loading frames
-    active_template = template_list.get_active_template()
-    aux = resize_image(active_template, frame_sync_images_factor)
+    active_template_img = template_manager.get_active_template_image()
+    aux = resize_image(active_template_img, frame_sync_images_factor)
     template_canvas_height = int(frame_height*frame_sync_images_factor)
     debug_template_width = aux.shape[1]
     debug_template_height = aux.shape[0]
     # Set expected hole template pos
-    hole_template_pos = template_list.get_active_position()
+    hole_template_pos = template_manager.get_active_position()
 
     # Create Canvas to display template
     template_canvas = Canvas(left_frame, bg='dark grey',
@@ -2933,7 +2933,7 @@ def FrameSync_Viewer_popup():
         template_type_label.forget()
     else:
         template_type_label.pack(pady=5, padx=10, anchor="center")
-    template_type_text.set(f"Template type: {template_list.get_active_type()}")
+    template_type_text.set(f"Template type: {template_manager.get_active_type()}")
     as_tooltips.add(template_type_label, "Current template type being used to stabilize frames")
 
     # Add a label with the stabilization info
@@ -2953,7 +2953,7 @@ def FrameSync_Viewer_popup():
         template_size_label.forget()
     else:
         template_size_label.pack(pady=5, padx=10, anchor="center")
-    template_size_text.set(f"Template Size: {template_list.get_active_size()}")
+    template_size_text.set(f"Template Size: {template_manager.get_active_size()}")
     as_tooltips.add(template_size_label, "Size of current template")
 
     '''
@@ -2964,7 +2964,7 @@ def FrameSync_Viewer_popup():
         template_wb_proportion_label.forget()
     else:
         template_wb_proportion_label.pack(pady=5, padx=10, anchor="center")
-    template_wb_proportion_text.set(f"WoB proportion: {int(template_list.get_active_wb_proportion() * 100)}%")
+    template_wb_proportion_text.set(f"WoB proportion: {int(template_manager.get_active_wb_proportion() * 100)}%")
     '''
 
     #Label with template white on black proportion
@@ -3267,15 +3267,15 @@ def debug_template_display_frame_stabilized(img, x, y, width, height, color):
 
 
 def debug_template_refresh_template():
-    global template_canvas, template_list
+    global template_canvas, template_manager
     global hole_pos_text, template_type_text, template_size_text, template_wb_proportion_text, film_type_text
 
     if frame_sync_viewer_opened:
-        hole_template_pos = template_list.get_active_position()
+        hole_template_pos = template_manager.get_active_position()
         # Resize factor calculated when settign source folder
-        aux = resize_image(template_list.get_active_template(), frame_sync_images_factor)
+        aux = resize_image(template_manager.get_active_template_image(), frame_sync_images_factor)
         _, top, bottom = get_target_position(0, aux, 'v')  # get positions to draw template limits
-        template_canvas.config(width=int(template_list.get_active_size()[0]*frame_sync_images_factor), height=int(frame_height*frame_sync_images_factor))
+        template_canvas.config(width=int(template_manager.get_active_size()[0]*frame_sync_images_factor), height=int(frame_height*frame_sync_images_factor))
         displayable_image = ImageTk.PhotoImage(Image.fromarray(aux))
         # Delete reference to previous image, if any
         aux_image = None
@@ -3285,7 +3285,7 @@ def debug_template_refresh_template():
         if aux_image is not None:
             del aux_image
         template_canvas.itemconfig(template_canvas.image_id, image=template_canvas.image)
-        hole_template_pos = template_list.get_active_position()
+        hole_template_pos = template_manager.get_active_position()
         template_canvas.coords(template_canvas.image_id, 0, int((hole_template_pos[1] + stabilization_shift_y_value.get()) *frame_sync_images_factor))
 
         # Delete previous lines before drawing new ones
@@ -3302,9 +3302,9 @@ def debug_template_refresh_template():
             line_id = template_canvas.create_line(0, y + bottom, aux.shape[1], y + bottom, fill="cyan", width=1)
             template_canvas.item_ids.append(line_id)
         hole_pos_text.set(f"Expected template pos: {hole_template_pos}")
-        template_type_text.set(f"Template type: {template_list.get_active_type()}")
-        template_size_text.set(f"Template Size: {template_list.get_active_size()}")
-        # template_wb_proportion_text.set(f"WoB proportion: {template_list.get_active_wb_proportion()*100:2.1f}%")
+        template_type_text.set(f"Template type: {template_manager.get_active_type()}")
+        template_size_text.set(f"Template Size: {template_manager.get_active_size()}")
+        # template_wb_proportion_text.set(f"WoB proportion: {template_manager.get_active_wb_proportion()*100:2.1f}%")
         film_type_text.set(f"Film type: {film_type.get()}")
 
 
@@ -3441,7 +3441,7 @@ def get_stabilization_threshold():
 
 
 def detect_film_type():
-    global template_list
+    global template_manager
     global current_frame, source_dir_file_list
     global project_config
 
@@ -3449,14 +3449,15 @@ def detect_film_type():
     count1 = 0
     count2 = 0
     if project_config["film_type"] == 'R8':
-        template_1 = template_list.get_template('aux','WB')
-        template_2 = template_list.get_template('aux','BW')
+        template_1 = template_manager.get_template_image_by_key('aux','WB')
+        template_2 = template_manager.get_template_image_by_key('aux','BW')
         other_film_type = 'S8'
     else:  # S8 by default
-        template_1 = template_list.get_template('aux','BW')
-        template_2 = template_list.get_template('aux','WB')
+        template_1 = template_manager.get_template_image_by_key('aux','BW')
+        template_2 = template_manager.get_template_image_by_key('aux','WB')
         other_film_type = 'R8'
-
+    print(f"type(template1): {type(template_1)}")
+    print(f"type(template2): {type(template_2)}")
     if template_1 is None or template_2 is None:
         logging.debug("Invalid detection templated, cannot determine film type.")
         tk.messagebox.showerror("Film detection failed",
@@ -3539,7 +3540,7 @@ def interactive_rectangle_definition_cv2(image, is_cropping):
 
     original_image = image
     # Try to find best template
-    if not is_cropping and (template_list.get_active_position() == (0, 0) or template_list.get_active_size() == (0, 0)): # If no template defined,set default
+    if not is_cropping and (template_manager.get_active_position() == (0, 0) or template_manager.get_active_size() == (0, 0)): # If no template defined,set default
         ix = 0
         iy = 0
         x_ = 0
@@ -3636,10 +3637,10 @@ def interactive_rectangle_definition_cv2(image, is_cropping):
                     rectangle_top_left = crop_top_left
                     rectangle_bottom_right = crop_bottom_right
                     retvalue = True
-                if not is_cropping and template_list.get_active_position() != (0, 0) and template_list.get_active_size() != (0, 0):
-                    rectangle_top_left = template_list.get_active_position()
-                    rectangle_bottom_right = (template_list.get_active_position()[0] + template_list.get_active_size()[0],
-                                            template_list.get_active_position()[1] + template_list.get_active_size()[1])
+                if not is_cropping and template_manager.get_active_position() != (0, 0) and template_manager.get_active_size() != (0, 0):
+                    rectangle_top_left = template_manager.get_active_position()
+                    rectangle_bottom_right = (template_manager.get_active_position()[0] + template_manager.get_active_size()[0],
+                                            template_manager.get_active_position()[1] + template_manager.get_active_size()[1])
                     retvalue = True
                 break
             elif k == 46 or k == 120 or k == 32:     # Space, X or Supr (inNum keypad) delete selection
@@ -3754,7 +3755,7 @@ def select_rectangle_area(is_cropping=False):
     global perform_stabilization, perform_cropping, perform_rotation
     global is_cropping_global
     global file_type
-    global template_list
+    global template_manager
 
     is_cropping_global = is_cropping
 
@@ -3771,9 +3772,9 @@ def select_rectangle_area(is_cropping=False):
         rectangle_top_left = crop_top_left
         rectangle_bottom_right = crop_bottom_right
         rectangle_refresh = True
-    if not is_cropping and template_list.get_active_position() != (0, 0) and template_list.get_active_size() != (0, 0):  # Custom template definition
-        rectangle_top_left = template_list.get_active_position()
-        rectangle_bottom_right = (template_list.get_active_position()[0] + template_list.get_active_size()[0], template_list.get_active_position()[1] + template_list.get_active_size()[1])
+    if not is_cropping and template_manager.get_active_position() != (0, 0) and template_manager.get_active_size() != (0, 0):  # Custom template definition
+        rectangle_top_left = template_manager.get_active_position()
+        rectangle_bottom_right = (template_manager.get_active_position()[0] + template_manager.get_active_size()[0], template_manager.get_active_position()[1] + template_manager.get_active_size()[1])
         ix, iy = rectangle_top_left[0], rectangle_top_left[1]
         x_, y_ = rectangle_bottom_right[0], rectangle_bottom_right[1]
         rectangle_refresh = True
@@ -3864,7 +3865,7 @@ def select_cropping_area():
 
 
 def select_custom_template():
-    global template_list, film_type
+    global template_manager, film_type
     global rectangle_window_title
     global area_select_image_factor
     global low_contrast_custom_template
@@ -3876,9 +3877,9 @@ def select_custom_template():
     template_filename = f"Pattern.custom.{template_name}.jpg"
     full_path_template_filename = os.path.join(resources_dir, template_filename)
 
-    if template_list.get_active_type() == 'custom':
-        if os.path.isfile(template_list.get_active_filename()):
-            os.remove(template_list.get_active_filename())
+    if template_manager.get_active_type() == 'custom':
+        if os.path.isfile(template_manager.get_active_filename()):
+            os.remove(template_manager.get_active_filename())
         if not set_film_type():
             return
     else:
@@ -3924,14 +3925,14 @@ def select_custom_template():
             cv2.imwrite(full_path_template_filename, img_final)
 
             # Add template to list
-            template_list.add(template_name, full_path_template_filename, 'custom', rectangle_top_left)   # size and template automatically refreshed upon addition
-            logging.debug(f"Template top left-size: {template_list.get_active_position()} - {template_list.get_active_size()}")
+            template_manager.add(template_name, full_path_template_filename, 'custom', rectangle_top_left)   # size and template automatically refreshed upon addition
+            logging.debug(f"Template top left-size: {template_manager.get_active_position()} - {template_manager.get_active_size()}")
             widget_status_update(NORMAL, 0)
             FrameSync_Viewer_popup_update_widgets(NORMAL)
             custom_stabilization_btn.config(relief=SUNKEN)
 
-            project_config['custom_template_expected_pos'] = template_list.get_active_position()
-            project_config['custom_template_name'] = template_list.get_active_name()
+            project_config['custom_template_expected_pos'] = template_manager.get_active_position()
+            project_config['custom_template_name'] = template_manager.get_active_name()
 
             define_template_search_area(full_img)  # Adjust hole search area to new template
 
@@ -3962,7 +3963,7 @@ def select_custom_template():
             widget_status_update(DISABLED, 0)
             FrameSync_Viewer_popup_update_widgets(DISABLED)
 
-    project_config["custom_template_defined"] = True if template_list.get_active_type() == 'custom' else False
+    project_config["custom_template_defined"] = True if template_manager.get_active_type() == 'custom' else False
     debug_template_refresh_template()
 
     # Enable all buttons in main window
@@ -3973,9 +3974,9 @@ def select_custom_template():
 
 
 def set_film_type():
-    global film_type, template_list
+    global film_type, template_manager
 
-    if template_list.set_active(film_type.get(), film_type.get()):
+    if template_manager.set_active_template(film_type.get(), film_type.get()):
         project_config["film_type"] = film_type.get()
         debug_template_refresh_template()
         logging.debug(f"Setting {film_type.get()} template as active")
@@ -4016,8 +4017,8 @@ def match_level_color_bgr(t):
 
 
 def is_valid_template_size():
-    tw = template_list.get_active_size()[0]/template_list.get_scale()
-    th = template_list.get_active_size()[1]/template_list.get_scale()
+    tw = template_manager.get_active_size()[0]/template_manager.get_active_scale()
+    th = template_manager.get_active_size()[1]/template_manager.get_active_scale()
 
     file = source_dir_file_list[current_frame]
     img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
@@ -4051,13 +4052,13 @@ def cv2_matchTemplate_with_padding(image, template, algo):
 def match_template(frame_idx, img):
     global min_thres
 
-    template = template_list.get_active_template()
-    tw = template.shape[1]
-    th = template.shape[0]
+    template_img = template_manager.get_active_template_image()
+    tw = template_img.shape[1]
+    th = template_img.shape[0]
     iw = img.shape[1]
     ih = img.shape[0]
 
-    template_pos = template_list.get_active_position()
+    template_pos = template_manager.get_active_position()
 
     if (tw >= iw or th >= ih):
         logging.error("Template (%ix%i) bigger than search area (%ix%i)",
@@ -4108,10 +4109,10 @@ def match_template(frame_idx, img):
             #img_edges = cv2.Canny(image=img_bw, threshold1=100, threshold2=1)  # Canny Edge Detection
             if retry_with_padding:
                 logging.debug(f"Frame {frame_idx+1} stabilized with padding (Top left: {best_top_left})")
-                max_val, top_left = cv2_matchTemplate_with_padding(img_final, template, cv2.TM_CCOEFF_NORMED)
+                max_val, top_left = cv2_matchTemplate_with_padding(img_final, template_img, cv2.TM_CCOEFF_NORMED)
                 Done = True
             else:
-                aux = cv2.matchTemplate(img_final, template, cv2.TM_CCOEFF_NORMED)
+                aux = cv2.matchTemplate(img_final, template_img, cv2.TM_CCOEFF_NORMED)
                 (min_val, max_val, min_loc, max_loc) = cv2.minMaxLoc(aux)
                 top_left = max_loc
             pos_criteria = (ih - abs(template_pos[1] - top_left[1])) / ih   # New criteria: How close is the template to the expected position
@@ -4308,16 +4309,16 @@ def resize_image(img, ratio):
 # the image), it does not seem to cause any additional delay. We leav ethe old code here for the moment.
 def get_image_left_stripe_old(img):
     global hole_search_top_left, hole_search_bottom_right
-    global template_list
+    global template_manager
     # Get partial image where the hole should be (to facilitate template search
     # by OpenCV). We do the calculations inline instead of calling the function
     # since we need the intermediate values
     # Default values defined at display initialization time, after source
     # folder is defined
     # If template wider than search area, make search area bigger (including +100 to have some margin)
-    if template_list.get_active_size()[0] > hole_search_bottom_right[0] - hole_search_top_left[0]:
+    if template_manager.get_active_size()[0] > hole_search_bottom_right[0] - hole_search_top_left[0]:
         logging.debug(f"Making left stripe wider: {hole_search_bottom_right[0] - hole_search_top_left[0]}")
-        hole_search_bottom_right = (hole_search_bottom_right[0] + template_list.get_active_size()[0], hole_search_bottom_right[1])
+        hole_search_bottom_right = (hole_search_bottom_right[0] + template_manager.get_active_size()[0], hole_search_bottom_right[1])
         logging.debug(f"Making left stripe wider: {hole_search_bottom_right[0] - hole_search_top_left[0]}")
     horizontal_range = (hole_search_top_left[0], hole_search_bottom_right[0])
     vertical_range = (hole_search_top_left[1], hole_search_bottom_right[1])
@@ -4325,7 +4326,7 @@ def get_image_left_stripe_old(img):
 
 def get_image_left_stripe(img, calculated=True):
     global hole_search_top_left, hole_search_bottom_right
-    global template_list
+    global template_manager
 
     width = calculated_left_stripe_width if calculated else int(user_defined_left_stripe_width_proportion*img.shape[1])
     return np.copy(img[0:img.shape[1], 0:width])
@@ -4511,8 +4512,8 @@ def sanitize_displacement(frame_idx, img, match_level, move_x, move_y):
 # Extracted code to calculate displacement to use with the manual option
 def calculate_frame_displacement_with_templates(frame_idx, img_ref, img_ref_alt = None, id = -1):
     # Set hole template expected position
-    hole_template_pos = template_list.get_active_position()
-    film_hole_template = template_list.get_active_template()
+    hole_template_pos = template_manager.get_active_position()
+    film_hole_template_img = template_manager.get_active_template_image()
 
     # Search film hole pattern
     best_match_level = 0
@@ -4552,7 +4553,7 @@ def calculate_frame_displacement_with_templates(frame_idx, img_ref, img_ref_alt 
 
     if top_left is not None:
         logging.debug(log_line+f"Frame_idx: {frame_idx:5d}, Frame: {frame_idx+first_absolute_frame:5d}, threshold: {frame_treshold:3d}, match_level: {match_level}, template: ({hole_template_pos[0]:4d},{hole_template_pos[1]:4d}), top left: ({top_left[0]:4d},{top_left[1]:4d}), move_x:{move_x:4d}, move_y:{move_y:4d}")
-        debug_template_display_frame_raw(img_matched, top_left[0] - stabilization_shift_x_value.get(), top_left[1] - stabilization_shift_y_value.get(), film_hole_template.shape[1], film_hole_template.shape[0], match_level_color_bgr(match_level))
+        debug_template_display_frame_raw(img_matched, top_left[0] - stabilization_shift_x_value.get(), top_left[1] - stabilization_shift_y_value.get(), film_hole_template_img.shape[1], film_hole_template_img.shape[0], match_level_color_bgr(match_level))
         debug_template_display_info(frame_idx, frame_treshold, top_left, move_x, move_y)
     return move_x, move_y, top_left, match_level, frame_treshold, num_loops
 
@@ -4645,7 +4646,7 @@ def stabilize_image(frame_idx, img, img_ref, offset_x = 0, offset_y = 0, img_ref
     global csv_frames_off_percent
     global stabilization_threshold_match_label
     global perform_stabilization
-    global template_list
+    global template_manager
 
     if not perform_stabilization.get(): # Not really needed, stabilize_image only called when enabled but just in case
         return img, 1.0, 0, 0
@@ -4700,7 +4701,7 @@ def stabilize_image(frame_idx, img, img_ref, offset_x = 0, offset_y = 0, img_ref
         left_stripe_img = get_image_left_stripe(translated_image)
         # No need for a search area rectangle, since the image in the debug popup is already that rectangle
         debug_template_display_frame_stabilized(left_stripe_img, top_left[0] + move_x, top_left[1] + move_y,
-                                                template_list.get_active_size()[0], template_list.get_active_size()[1],
+                                                template_manager.get_active_size()[0], template_manager.get_active_size()[1],
                                                 match_level_color_bgr(match_level))
 
     return translated_image, match_level, move_x, move_y
@@ -4895,7 +4896,7 @@ def get_source_dir_file_list():
     # Set frame dimensions in global variable, for use everywhere
     frame_width = aux_image.shape[1]
     frame_height = aux_image.shape[0]
-    template_list.set_scale(aux_image)    # frame_width set by get_source_dir_file_list
+    template_manager.set_scale_and_refresh_all(aux_image)    # frame_width set by get_source_dir_file_list
 
     return len(source_dir_file_list)
 
@@ -4988,15 +4989,15 @@ def valid_generated_frame_range():
 # Determine width of template search area based on the template used
 def define_template_search_area(img):
     global hole_search_top_left, hole_search_bottom_right
-    global template_list
+    global template_manager
     global template_wb_proportion_text
     global extended_stabilization
     global calculated_left_stripe_width
 
     # Sproket hole corner to be detected in image, to adjust search area width
-    aux_template = template_list.get_active_template()
-    if aux_template.shape[1] > int(img.shape[1]*user_defined_left_stripe_width_proportion):
-        template_search_area_width = aux_template.shape[1]
+    aux_template_img = template_manager.get_active_template_image()
+    if aux_template_img.shape[1] > int(img.shape[1]*user_defined_left_stripe_width_proportion):
+        template_search_area_width = aux_template_img.shape[1]
     else:
         template_search_area_width = int(img.shape[1]*user_defined_left_stripe_width_proportion)
     # Adjust left stripe width (search area)
@@ -5004,9 +5005,9 @@ def define_template_search_area(img):
     img_bw = cv2.threshold(img_gray, 240, 255, cv2.THRESH_BINARY)[1]
     img_target = img_bw[:, :template_search_area_width]  # Search only in the left area of the image (user defined %)
 
-    result = cv2.matchTemplate(img_target, aux_template, cv2.TM_CCOEFF_NORMED)
+    result = cv2.matchTemplate(img_target, aux_template_img, cv2.TM_CCOEFF_NORMED)
     (min_val, max_val, min_loc, max_loc) = cv2.minMaxLoc(result)
-    calculated_left_stripe_width = max_loc[0] + template_list.get_active_size()[0]
+    calculated_left_stripe_width = max_loc[0] + template_manager.get_active_size()[0]
     calculated_left_stripe_width += int(80 * img.shape[0]/1520)   # Increase width, proportional to the image size (250 pixels for default size 2028x1520)
     logging.debug(f"Calculated left stripe width: {calculated_left_stripe_width}")
     if extended_stabilization.get():
@@ -6176,7 +6177,7 @@ def build_ui():
     global perform_fill_none_rb, perform_fill_fake_rb, perform_fill_dumb_rb
     global expert_mode
     global big_size, font_size
-    global template_list
+    global template_manager
     global low_contrast_custom_template
     global display_template_popup_btn
     global stabilization_shift_y_value, stabilization_shift_label, stabilization_shift_y_spinbox
@@ -6462,7 +6463,7 @@ def build_ui():
                                       command=select_custom_template,
                                       activebackground='green',
                                       activeforeground='white', font=("Arial", font_size))
-    custom_stabilization_btn.config(relief=SUNKEN if template_list.get_active_type() == 'Custom' else RAISED)
+    custom_stabilization_btn.config(relief=SUNKEN if template_manager.get_active_type() == 'Custom' else RAISED)
     custom_stabilization_btn.grid(row=postprocessing_row, column=0, columnspan=2, padx=5, pady=5, sticky=W)
     as_tooltips.add(custom_stabilization_btn,
                   "Define a custom template for this project (vs the automatic template defined by AfterScan)")
@@ -7067,7 +7068,7 @@ def report_usage():
 
 def main(argv):
     global log_level, logging_mode
-    global template_list
+    global template_manager
     global expert_mode
     global ffmpeg_bin_name
     global is_windows, is_linux, is_mac
@@ -7160,12 +7161,12 @@ def main(argv):
         init_logging()
 
     # Add default templates to template list
-    template_list = TemplateList()
-    template_list.add("S8", hole_template_filename_s8, "S8", (66, 838))     # New, smaller
-    template_list.add("R8", hole_template_filename_r8, "R8", (65, 1080)) # Default R8 (bottom hole)
-    template_list.add("BW", hole_template_filename_bw, "aux", (0, 0))
-    template_list.add("WB", hole_template_filename_wb, "aux", (0, 0))
-    template_list.add("Corner", hole_template_filename_corner, "aux", (0, 0))
+    template_manager = TemplateManager.initialize()
+    template_manager.add("S8", hole_template_filename_s8, "S8", (66, 838))     # New, smaller
+    template_manager.add("R8", hole_template_filename_r8, "R8", (65, 1080)) # Default R8 (bottom hole)
+    template_manager.add("BW", hole_template_filename_bw, "aux", (0, 0))
+    template_manager.add("WB", hole_template_filename_wb, "aux", (0, 0))
+    template_manager.add("Corner", hole_template_filename_corner, "aux", (0, 0))
 
     templates_ok, error_msg = verify_templates()
     if not templates_ok:
