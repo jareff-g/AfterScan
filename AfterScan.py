@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.11"
+__version__ = "1.40.12"
 __data_version__ = "1.0"
 __date__ = "2025-12-06"
-__version_highlight__ = "Refactoring: Add default_general_config. Fix two bugs in stabilization."
+__version_highlight__ = "Refactoring: Migrate legacy keys in general config file."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -601,7 +601,8 @@ def load_general_config():
     # Check if persisted data file exist: If it does, load it
     if not ignore_config and os.path.isfile(general_config_filename):
         persisted_data_file = open(general_config_filename)
-        general_config = json.load(persisted_data_file)
+        raw_config = json.load(persisted_data_file)
+        general_config = _migrate_keys(raw_config)
         persisted_data_file.close()
     else:   # No project config file. Set empty config to force defaults
         general_config = {}
@@ -720,6 +721,22 @@ KEY_TO_DELETE = "__DELETE_KEY_FROM_CONFIG__"
 # --- Key Migration Map ---
 # Maps old (legacy/camelCase) keys to new (snake_case) keys or to KEY_TO_DELETE.
 KEY_MIGRATION_MAP = {
+    # General config keys
+    'HighSensitiveBadFrameDetection': 'detect_minor_mismatches',
+    'EnablePopups': 'enable_rectangle_popup',
+    'EnableSoundtrack': 'enable_soundtrack',
+    'FfmpegBinName': 'ffmpeg_bin_name',
+    'FFmpegHqdn3d': 'ffmpeg_hqdn_3d',
+    'GeneralConfigDate': 'general_config_date',
+    'LastConsentDate': 'last_consent_date',
+    'PopupPos': 'popup_pos',
+    'PreciseTemplateMatch': 'precise_template_match',
+    'SourceDir': 'source_dir',
+    'TemplatePopupWindowPos': 'template_popup_window_pos',
+    'UserConsent': 'user_consent',
+    'Version': 'version',
+    'WindowPos': 'window_pos',
+    # Project config keys
     'FillBorders': KEY_TO_DELETE,
     'FillBordersThickness': KEY_TO_DELETE,
     'FillBordersMode': KEY_TO_DELETE,
@@ -4658,7 +4675,7 @@ def calculate_frame_displacement_simple(frame_idx, img, threshold=10, slice_widt
 
 # sanitize_displacement: if displacement too big, set it to zero
 def sanitize_displacement(frame_idx, img, match_level, move_x, move_y):
-    # Get imag edimensions
+    # Get image dimensions
     width = img.shape[1]
     height = img.shape[0]
 
