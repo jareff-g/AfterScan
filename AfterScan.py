@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.09"
+__version__ = "1.40.10"
 __data_version__ = "1.0"
 __date__ = "2025-12-06"
-__version_highlight__ = "Refactoring: Adapt logging initialization so that out AfterScan classes log properly"
+__version_highlight__ = "Refactoring: Remove retrieve_dict_value_with_key_backward_compatibility, conversion done at project load time."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -228,23 +228,47 @@ EXPECTED_HASHES = {
 }
 
 default_project_config = {
-    "source_dir": "",
-    "target_dir": "",
-    "video_target_dir": "",
-    "film_type": "S8",
-    "perform_cropping": False,
-    "perform_sharpness": False,
-    "perform_denoise": False,
-    "generate_video": False,
-    "video_fps": "18",
-    "current_frame": 0,
-    "encode_all_frames": True,
-    "frames_to_encode": "All",    # Unused
-    "stabilization_threshold": 220.0,
-    "perform_stabilization": False,
-    "skip_frame_regeneration": False,
-    "video_filename": "",
-    "video_title": ""
+    'source_dir': '',
+    'target_dir': '',
+    'video_target_dir': '',
+    'current_frame': 0,
+    'encode_all_frames': False,
+    'frame_from': 0,
+    'frame_to': 0,
+    'frames_to_encode': 0,
+    'film_type': 'S8',
+    'rotation_angle': 0,
+    'stabilization_threshold': 220.0,
+    'low_contrast_custom_template': False,
+    'extended_stabilization': False,
+    'custom_template_defined': False,
+    'custom_template_name': '',
+    'custom_template_expected_pos': [0, 0],
+    'custom_template_filename': '',
+    'perform_cropping': False,
+    'perform_denoise': False,
+    'perform_sharpness': False,
+    'perform_gamma_correction': False,
+    'gamma_correction_value': 2.2,
+    'crop_rectangle': [[0, 0], [0, 0]],
+    'force_4_3': False,
+    'force_16_9': False,
+    'frame_fill_type': 'fake',
+    'generate_video': False,
+    'video_filename': '',
+    'video_title': '',
+    'skip_frame_regeneration': False,
+    'ffmpeg_preset': 'veryfast',
+    'perform_stabilization': False,
+    'stabilization_shift_y': 0,
+    'stabilization_shift_x': 0,
+    'perform_rotation': False,
+    'video_fps': '18',
+    'video_resolution': '1920x1440 (1080P)',
+    'current_bad_frame_index': 0,
+    'user_defined_left_stripe_width_proportion': 0.25,
+    'project_config_date': '',
+    'precise_template_match': False
 }
 
 general_config = {
@@ -675,6 +699,97 @@ def save_project_settings():
         with open(project_settings_filename, 'w+') as f:
             json.dump(list_to_save, f, indent=4)
 
+# Handle migration from old JSON names (CamelCase) to new ones (snake_case)
+# --- Constants for Key Migration ---
+KEY_TO_DELETE = "__DELETE_KEY_FROM_CONFIG__"
+
+# --- Key Migration Map ---
+# Maps old (legacy/camelCase) keys to new (snake_case) keys or to KEY_TO_DELETE.
+KEY_MIGRATION_MAP = {
+    'FillBorders': KEY_TO_DELETE,
+    'FillBordersThickness': KEY_TO_DELETE,
+    'FillBordersMode': KEY_TO_DELETE,
+    'FakeFillType': KEY_TO_DELETE,
+    'StabilizationShift': KEY_TO_DELETE,
+    'SourceDir': 'source_dir',
+    'TargetDir': 'target_dir',
+    'VideoTargetDir': 'video_target_dir',
+    'CurrentFrame': 'current_frame',
+    'EncodeAllFrames': 'encode_all_frames',
+    'FrameFrom': 'frame_from',
+    'FrameTo': 'frame_to',
+    'FramesToEncode': 'frames_to_encode',
+    'FilmType': 'film_type',
+    'RotationAngle': 'rotation_angle',
+    'StabilizationThreshold': 'stabilization_threshold',
+    'LowContrastCustomTemplate': 'low_contrast_custom_template',
+    'ExtendedStabilization': 'extended_stabilization',
+    'CustomTemplateDefined': 'custom_template_defined',
+    'CustomTemplateName': 'custom_template_name',
+    'CustomTemplateExpectedPos': 'custom_template_expected_pos',
+    'CustomTemplateFilename': 'custom_template_filename',
+    'PerformCropping': 'perform_cropping',
+    'PerformDenoise': 'perform_denoise',
+    'PerformSharpness': 'perform_sharpness',
+    'PerformGammaCorrection': 'perform_gamma_correction',
+    'GammaCorrectionValue': 'gamma_correction_value',
+    'CropRectangle': 'crop_rectangle',
+    'Force_4/3': 'force_4_3',
+    'Force_16/9': 'force_16_9',
+    'FrameFillType': 'frame_fill_type',
+    'GenerateVideo': 'generate_video',
+    'VideoFilename': 'video_filename',
+    'VideoTitle': 'video_title',
+    'SkipFrameRegeneration': 'skip_frame_regeneration',
+    'FFmpegPreset': 'ffmpeg_preset',
+    'PerformStabilization': 'perform_stabilization',
+    'StabilizationShiftY': 'stabilization_shift_y',
+    'StabilizationShiftX': 'stabilization_shift_x',
+    'PerformRotation': 'perform_rotation',
+    'VideoFps': 'video_fps',
+    'VideoResolution': 'video_resolution',
+    'CurrentBadFrameIndex': 'current_bad_frame_index',
+    'UserDefinedLeftStripeWidthProportion': 'user_defined_left_stripe_width_proportion',
+    'ProjectConfigDate': 'project_config_date',
+    'HighSensitiveBadFrameDetection': 'precise_template_match',
+    'PreciseTemplateMatch': 'precise_template_match'
+}
+
+# --- Private Migration Helper ---
+def _migrate_keys(obj):
+    """
+    Recursively checks keys in dictionaries within a structure (dict or list) 
+    and converts legacy keys using the KEY_MIGRATION_MAP. Keys mapped to 
+    KEY_TO_DELETE are removed.
+    """
+    if isinstance(obj, dict):
+        new_dict = {}
+        for old_key, value in obj.items():
+            # Recursively process the value first
+            new_value = _migrate_keys(value)
+            
+            # Determine the target key (rename or delete)
+            new_key = KEY_MIGRATION_MAP.get(old_key, old_key)
+            
+            if new_key == KEY_TO_DELETE:
+                logging.debug(f"Deleting deprecated key: '{old_key}'")
+                continue # Skip adding this pair to new_dict
+                
+            if new_key != old_key:
+                logging.debug(f"Migrating key: '{old_key}' -> '{new_key}'")
+                
+            new_dict[new_key] = new_value
+        return new_dict
+        
+    elif isinstance(obj, list):
+        # Recursively process items in a list
+        return [_migrate_keys(item) for item in obj]
+        
+    else:
+        # Base case: return primitives unchanged
+        return obj
+
+
 
 def load_project_settings():
     global project_settings, project_settings_filename, default_project_config
@@ -687,7 +802,8 @@ def load_project_settings():
     if not ignore_config and os.path.isfile(project_settings_filename):
         f = open(project_settings_filename)
         try:
-            saved_list = json.load(f)
+            raw_list = json.load(f)
+            saved_list = _migrate_keys(raw_list)
         except Exception as e:
             logging.debug(f"Error while opening projects json file; {e}")
             error_while_loading = True
@@ -819,27 +935,6 @@ def delete_dict_key(dict, old_key):
     if old_key in dict:
         del dict[old_key]
 
-def retrieve_dict_value_with_key_backward_compatibility(dict, old_key, new_key, default_value):
-    new_key_exists = False
-    old_key_exists = False
-    if new_key in dict:  # Load new key if it exists, otherwise try with legacy
-        value = dict[new_key]
-        new_key_exists = True
-    if old_key in dict:
-        if not new_key_exists or (new_key_exists and type(value) is str and value == ''):
-            value = dict[old_key]
-            dict[new_key] = value
-            del dict[old_key]
-        else:
-            old_key_exists = True
-    if (not old_key_exists and not new_key_exists):
-        logging.debug(f"No configuration keys found, adding default one: {old_key}, {new_key}")
-        value = default_value  # Should not happen, but useful to allow recovery by caller
-        dict[new_key] = default_value
-    elif (old_key_exists and new_key_exists):
-        logging.debug(f"Two configuration keys found, deleting legacy one: {old_key}")
-        del dict[old_key]   # If both keys exists, delete the legacy one
-    return value
 
 def decode_project_config():        
     global source_dir, target_dir
@@ -868,7 +963,7 @@ def decode_project_config():
     global stabilization_shift_x, stabilization_shift_y
     global user_defined_left_stripe_width_proportion
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'SourceDir', 'source_dir', '')
+    aux_value = project_config['source_dir']
     source_dir = aux_value
     if source_dir != '':
         project_name = os.path.split(source_dir)[-1].replace(',', ';')
@@ -884,7 +979,7 @@ def decode_project_config():
         # Need to retrieve source file list at this point, since win.update at the end of thi sfunction will force a refresh of the preview
         # If we don't do it here, an oimage from the previou ssource folder will be displayed instead
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'TargetDir', 'target_dir', '')
+    aux_value = project_config['target_dir']
     target_dir = aux_value
     if target_dir != '':
         # If directory in configuration does not exist, set current working dir
@@ -896,7 +991,7 @@ def decode_project_config():
         frames_target_dir.insert('end', target_dir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'VideoTargetDir', 'video_target_dir', '')
+    aux_value = project_config['video_target_dir']
     video_target_dir_str.set(aux_value)
     if video_target_dir_str.get() != '':
         # If directory in configuration does not exist, set current working dir
@@ -905,24 +1000,24 @@ def decode_project_config():
         video_target_dir_entry.after(100, video_target_dir_entry.xview_moveto, 1)
     current_frame = 0
     if not batch_job_running: # only if project loaded by user, otherwise it alters start encoding frame in batch mode
-        aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CurrentFrame', 'current_frame', 0)
+        aux_value = project_config['current_frame']
         current_frame = aux_value
         # frame_slider.set(current_frame)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'EncodeAllFrames', 'encode_all_frames', True)
+    aux_value = project_config['encode_all_frames']
     encode_all_frames.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FrameFrom', 'frame_from', 0)
+    aux_value = project_config['frame_from']
     frame_from_str.set(str(aux_value))
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FrameTo', 'frame_to', 0)
+    aux_value = project_config['frame_to']
     frame_to_str.set(str(aux_value))
     if frame_to_str.get() != '' and frame_from_str.get() != '':
         frames_to_encode = int(frame_to_str.get()) - int(frame_from_str.get()) + 1
     else:
         frames_to_encode = 0
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FramesToEncode', 'frames_to_encode', frames_to_encode)
+    aux_value = project_config['frames_to_encode']
     if frames_to_encode != aux_value:
         project_config['frames_to_encode'] = frames_to_encode
     
@@ -932,38 +1027,38 @@ def decode_project_config():
     delete_dict_key(project_config, "FakeFillType")
     delete_dict_key(project_config, "StabilizationShift")
                     
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FilmType', 'film_type', 'S8')
+    aux_value = project_config['film_type']
     film_type.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'RotationAngle', 'rotation_angle', 0)
+    aux_value = project_config['rotation_angle']
     rotation_angle = aux_value
     rotation_angle_str.set(rotation_angle)
 
     if expert_mode:
-        aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'StabilizationThreshold', 'stabilization_threshold', 220.0)
+        aux_value = project_config['stabilization_threshold']
         stabilization_threshold = aux_value
         stabilization_threshold_str.set(stabilization_threshold)
     else:
         stabilization_threshold = 220.0
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'LowContrastCustomTemplate', 'low_contrast_custom_template', False)
+    aux_value = project_config['low_contrast_custom_template']
     low_contrast_custom_template.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'ExtendedStabilization', 'extended_stabilization', False)
+    aux_value = project_config['extended_stabilization']
     extended_stabilization.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateDefined', 'custom_template_defined', False)
+    aux_value = project_config['custom_template_defined']
     if not project_config["custom_template_defined"]:
         # No custom template defined, set default one
         set_film_type()
     else:
-        aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateName', 'custom_template_name', f"{os.path.split(source_dir)[-1]}")
+        aux_value = project_config['custom_template_name']
         template_name = aux_value
 
-        aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateExpectedPos', 'custom_template_expected_pos', (0, 0))
+        aux_value = project_config['custom_template_expected_pos']
         custom_template_expected_pos = aux_value
 
-        aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CustomTemplateFilename', 'custom_template_filename', os.path.join(resources_dir, f"Pattern.custom.{template_name}.jpg"))
+        aux_value = project_config['custom_template_filename']
         full_path_template_filename = aux_value
         if not os.path.exists(full_path_template_filename):
             tk.messagebox.showwarning(
@@ -980,87 +1075,87 @@ def decode_project_config():
             template_manager.add(template_name, full_path_template_filename, "custom", custom_template_expected_pos)
             debug_template_refresh_template()
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformCropping', 'perform_cropping', False)
+    aux_value = project_config['perform_cropping']
     perform_cropping.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformDenoise', 'perform_denoise', False)
+    aux_value = project_config['perform_denoise']
     perform_denoise.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformSharpness', 'perform_sharpness', False)
+    aux_value = project_config['perform_sharpness']
     perform_sharpness.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformGammaCorrection', 'perform_gamma_correction', False)
+    aux_value = project_config['perform_gamma_correction']
     perform_gamma_correction.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'GammaCorrectionValue', 'gamma_correction_value', "2.2")
+    aux_value = project_config['gamma_correction_value']
     gamma_correction_str.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CropRectangle', 'crop_rectangle', ((0, 0), (0, 0)))
+    aux_value = project_config['crop_rectangle']
     crop_top_left = aux_value[0]
     crop_bottom_right = aux_value[1]
     perform_cropping_selection()
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'Force_4/3', 'force_4_3', False)
+    aux_value = project_config['force_4_3']
     force_4_3_crop.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'Force_16/9', 'force_16_9', False)
+    aux_value = project_config['force_16_9']
     force_16_9_crop.set(aux_value)
     if force_4_3_crop.get():    # 4:3 has priority if both set
         force_16_9_crop.set(False)
     force_4_3 = force_4_3_crop.get()
     force_16_9 = force_16_9_crop.get()
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FrameFillType', 'frame_fill_type', 'fake')
+    aux_value = project_config['frame_fill_type']
     frame_fill_type.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'GenerateVideo', 'generate_video', False)
+    aux_value = project_config['generate_video']
     generate_video.set(aux_value)
     generate_video_selection()
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'VideoFilename', 'video_filename', '')
+    aux_value = project_config['video_filename']
     video_filename_str.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'VideoTitle', 'video_title', '')
+    aux_value = project_config['video_title']
     video_title_str.set(aux_value)
 
     # Snake case from the start
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'SkipFrameRegeneration', 'skip_frame_regeneration', False)
+    aux_value = project_config['skip_frame_regeneration']
     skip_frame_regeneration.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'FFmpegPreset', 'ffmpeg_preset', 'veryfast')
+    aux_value = project_config['ffmpeg_preset']
     ffmpeg_preset.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformStabilization', 'perform_stabilization', False)
+    aux_value = project_config['perform_stabilization']
     perform_stabilization.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'StabilizationShiftY', 'stabilization_shift_y', 0)
+    aux_value = project_config['stabilization_shift_y']
     stabilization_shift_y_value.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'StabilizationShiftX', 'stabilization_shift_x', 0)
+    aux_value = project_config['stabilization_shift_x']
     stabilization_shift_x_value.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PerformRotation', 'perform_rotation', False)
+    aux_value = project_config['perform_rotation']
     perform_rotation.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'VideoFps', 'video_fps', 18)
+    aux_value = project_config['video_fps']
     video_fps = eval(aux_value)
     video_fps_dropdown_selected.set(video_fps)
     set_fps(str(video_fps))
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'VideoResolution', 'video_resolution', '1920x1440 (1080P)')
+    aux_value = project_config['video_resolution']
     resolution_dropdown_selected.set(aux_value)
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'CurrentBadFrameIndex', 'current_bad_frame_index', 0)
+    aux_value = project_config['current_bad_frame_index']
     current_bad_frame_index = aux_value
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'UserDefinedLeftStripeWidthProportion', 'user_defined_left_stripe_width_proportion', 0.25)
+    aux_value = project_config['user_defined_left_stripe_width_proportion']
     user_defined_left_stripe_width_proportion = aux_value
     # Don't really need to retrieve the config date, this is intended only to be written. But anyhow...
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'ProjectConfigDate', 'project_config_date', str(datetime.now()))
+    aux_value = project_config['project_config_date']
 
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'HighSensitiveBadFrameDetection', 'precise_template_match', False)
-    aux_value = retrieve_dict_value_with_key_backward_compatibility(project_config, 'PreciseTemplateMatch', 'precise_template_match', False)
+    aux_value = project_config['precise_template_match']
+    aux_value = project_config['precise_template_match']
 
     if len(source_dir_file_list) > 0:
         adjust_dimensions_based_on_frame()
