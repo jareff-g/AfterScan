@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.10"
+__version__ = "1.40.11"
 __data_version__ = "1.0"
 __date__ = "2025-12-06"
-__version_highlight__ = "Refactoring: Remove retrieve_dict_value_with_key_backward_compatibility, conversion done at project load time."
+__version_highlight__ = "Refactoring: Add default_general_config. Fix two bugs in stabilization."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -271,10 +271,24 @@ default_project_config = {
     'precise_template_match': False
 }
 
-general_config = {
+default_general_config = {
+    'detect_minor_mismatches': False,
+    'enable_rectangle_popup': False,
+    'enable_soundtrack': False,
+    'ffmpeg_bin_name': 'ffmpeg',
+    'ffmpeg_hqdn_3d': '8:6:4:3',
+    'general_config_date': '',
+    'last_consent_date': '',
+    'popup_pos': '',
+    'precise_template_match': True,
+    'source_dir': '',
+    'template_popup_window_pos': '',
+    'user_consent': 'no',
+    'version': __version__,
+    'window_pos': ''
 }
 
-project_config = default_project_config.copy()
+general_config = default_general_config.copy()
 
 
 # Film hole search vars
@@ -4144,7 +4158,6 @@ def set_film_type():
     if template_manager.set_active_template(film_type.get(), film_type.get()):
         project_config["film_type"] = film_type.get()
         debug_template_refresh_template()
-        logging.debug(f"Setting {film_type.get()} template as active")
         video_fps_dropdown_selected.set('18' if film_type.get() == 'S8' else '16')
         return True
     else:
@@ -4653,12 +4666,12 @@ def sanitize_displacement(frame_idx, img, match_level, move_x, move_y):
     match_level_average.add_value(match_level)
     move_too_big = False
 
-    if len(move_x_average.window) > 10 and move_x_average.get_average() is not None and abs(move_x - move_x_average.get_average()) > width*0.03:
+    if len(move_x_average.window) > 10 and move_x_average.get_average() is not None and abs(move_x - move_x_average.get_average()) > width*0.20:
         move_too_big = True
     else:
         move_x_average.add_value(move_x)
 
-    if len(move_y_average.window) > 10 and move_y_average.get_average() is not None and abs(move_y - move_y_average.get_average()) > height*0.10:
+    if len(move_y_average.window) > 10 and move_y_average.get_average() is not None and abs(move_y - move_y_average.get_average()) > height*0.20:
         move_too_big = True
     else:
         move_y_average.add_value(move_y)
@@ -4706,7 +4719,7 @@ def calculate_frame_displacement_with_templates(frame_idx, img_ref, img_ref_alt 
             img_matched = best_img_matched
             break
 
-    if top_left is not None and top_left[1] != -1 and match_level > 0.5:
+    if top_left is not None and top_left[1] > 0 and match_level > 0.5:
         move_x = hole_template_pos[0] - top_left[0]
         move_y = hole_template_pos[1] - top_left[1]
     else:   # If match is not good, keep the frame where it is, will probably look better
@@ -6550,7 +6563,7 @@ def build_ui():
                                   width=11 if big_size else 11, value='R8', font=("Arial", font_size))
     film_type_R8_rb.grid(row=postprocessing_row, column=1, sticky=W)
     as_tooltips.add(film_type_R8_rb, "Handle as 8mm (Regular 8) film")
-    film_type.set(project_config["film_type"])
+    film_type.set('S8')
     postprocessing_row += 1
 
     # Check box to select encoding of all frames
@@ -7400,7 +7413,6 @@ def main(argv):
         project_config_filename = os.path.join(source_dir,
                                                project_config_basename)
     load_project_settings()
-    
     load_project_config()
     decode_project_config()
 

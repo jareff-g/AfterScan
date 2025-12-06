@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "afterscan_template_manager"
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __data_version__ = "1.0"
 __date__ = "2025-12-06"
-__version_highlight__ = "Implement facade pattern: Adding TemplateManager Class."
+__version_highlight__ = "Add debug log when activating tamplate."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -268,6 +268,7 @@ class TemplateManager:
         """Sets the active template by type and name."""
         template = self.template_list.get_template_by_key(type, name)
         if template:
+            logging.debug(f"Setting active template to: {template.name}")
             self.template_list.active_template = template
             return True
         return False
