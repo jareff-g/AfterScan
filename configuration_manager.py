@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "project_config"
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __data_version__ = "1.0"
 __date__ = "2025-12-07"
-__version_highlight__ = "WIP - Correct some field definitions an dcreate accessors."
+__version_highlight__ = "WIP - Renaming fields/functions for better readability."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -283,7 +283,7 @@ class ConfigurationManager:
     # they were intended to be saved as part of a larger container, but 
     # we handle them explicitly in _to_dict_recursive for the top-level structure.
     global_config: GlobalConfig = field(default_factory=GlobalConfig)
-    entries: Dict[str, ProjectConfigEntry] = field(default_factory=dict)
+    projects: Dict[str, ProjectConfigEntry] = field(default_factory=dict)
     
     @classmethod
     def initialize(cls) -> 'ConfigurationManager':
@@ -304,7 +304,7 @@ class ConfigurationManager:
         metadata flag.
         """
         if isinstance(obj, dict):
-            # Recursively handle dictionaries (e.g., self.entries)
+            # Recursively handle dictionaries (e.g., self.projects)
             return {k: self._to_dict_recursive(v) for k, v in obj.items()}
         
         if isinstance(obj, list):
@@ -320,9 +320,9 @@ class ConfigurationManager:
                 if not field_info.metadata.get('do_serialize', False):
                     
                     # Special exception: If the object is ConfigurationManager itself, 
-                    # we must explicitly include global_config and entries, 
+                    # we must explicitly include global_config and projects, 
                     # as they form the top-level structure.
-                    is_manager_field = isinstance(obj, ConfigurationManager) and field_info.name in ('global_config', 'entries')
+                    is_manager_field = isinstance(obj, ConfigurationManager) and field_info.name in ('global_config', 'projects')
                     
                     if not is_manager_field:
                         continue # Skip fields not marked for serialization (default behavior)
@@ -372,29 +372,29 @@ class ConfigurationManager:
 
     # --- Project-Specific Accessors ---
 
-    def get_active_config(self, project_dir: str) -> ProjectConfigEntry:
+    def get_project_config(self, project_dir: str) -> ProjectConfigEntry:
         """
         Retrieves the configuration entry matching the current source directory 
         from the registry, or returns a brand new default configuration if not found.
         """
-        if project_dir in self.entries:
+        if project_dir in self.projects:
             logging.debug(f"Project config found for directory: {project_dir}. Returning copy.")
             
             # CRITICAL: Return a deep copy to ensure the active config is independent.
-            active_config = self.entries[project_dir].copy()
+            project_config = self.projects[project_dir].copy()
             
         else:
             logging.info(f"No existing project config found for '{project_dir}'. Creating default entry.")
-            active_config = ProjectConfigEntry()
+            project_config = ProjectConfigEntry()
             
-        return active_config
+        return project_config
         
-    def save_active_config(self, project_dir: str, config: ProjectConfigEntry):
+    def save_project_config(self, project_dir: str, config: ProjectConfigEntry):
         """
         Updates the registry with the current configuration entry (in-memory).
         Actual disk I/O (to_json) is a separate future step.
         """
-        self.entries[project_dir] = config.copy()
+        self.projects[project_dir] = config.copy()
         logging.debug(f"Saved active project config for directory: {project_dir}")
 
     # --- Global Config Accessors (Simple pass-through) ---
@@ -409,7 +409,7 @@ class ConfigurationManager:
         logging.debug("Global configuration updated.")
 
     # --- GlobalConfig Specific Accessors (only those required, for now) ---
-    def set_window_pos(self, window_pos: str)
+    def set_window_pos(self, window_pos: str):
         self.global_config.window_pos = window_pos
         
     def set_anonymous_uuid(self, uuid: str):
@@ -448,6 +448,9 @@ class ConfigurationManager:
     def set_template_popup_window_pos(self, pos: str):
         self.global_config.template_popup_window_pos = pos
 
+    def set_version(self, version: str):
+        self.global_config.version 
+    
     def get_window_pos(self) -> str:
         return self.global_config.window_pos
 
@@ -491,249 +494,249 @@ class ConfigurationManager:
         return self.global_config.version
     
     # --- ProjectConfigEntry Specific Accessors (only those required, for now) ---
-    # self.entries[project_dir].copy()
+    # self.projects[project_dir].copy()
     def set_project_source_dir(self, project_dir: str, source_dir: str):
-        self.entries[project_dir].source_dir = source_dir
-        # If the source_dir changes, we need to update the key in the entries dictionary
+        self.projects[project_dir].source_dir = source_dir
+        # If the source_dir changes, we need to update the key in the projects dictionary
         if project_dir != source_dir:
-            self.entries[source_dir] = self.entries.pop(project_dir).source_dir = source_dir
-            del self.entries[project_dir]
+            self.projects[source_dir] = self.projects.pop(project_dir).source_dir = source_dir
+            del self.projects[project_dir]
 
     def set_project_target_dir(self, project_dir: str, target_dir: str):
-        self.entries[project_dir].target_dir = target_dir
+        self.projects[project_dir].target_dir = target_dir
 
     def set_project_video_target_dir(self, project_dir: str, video_target_dir: str):
-        self.entries[project_dir].video_target_dir = video_target_dir
+        self.projects[project_dir].video_target_dir = video_target_dir
 
     def set_project_film_type(self, project_dir: str, film_type: str):
-        self.entries[project_dir].film_type = film_type
+        self.projects[project_dir].film_type = film_type
 
     def set_project_perform_cropping(self, project_dir: str, perform: bool):
-        self.entries[project_dir].perform_cropping = perform
+        self.projects[project_dir].perform_cropping = perform
 
     def set_project_perform_sharpness(self, project_dir: str, perform: bool):
-        self.entries[project_dir].perform_sharpness = perform
+        self.projects[project_dir].perform_sharpness = perform
 
     def set_project_perform_denoise(self, project_dir: str, perform: bool):
-        self.entries[project_dir].perform_denoise = perform
+        self.projects[project_dir].perform_denoise = perform
 
     def set_project_perform_gamma_correction(self, project_dir: str, perform: bool):
-        self.entries[project_dir].perform_gamma_correction = perform
+        self.projects[project_dir].perform_gamma_correction = perform
 
     def set_project_generate_video(self, project_dir: str, generate: bool):
-        self.entries[project_dir].generate_video = generate
+        self.projects[project_dir].generate_video = generate
 
     def set_project_video_fps(self, project_dir: str, fps: str):
-        self.entries[project_dir].video_fps = fps
+        self.projects[project_dir].video_fps = fps
 
     def set_project_current_frame(self, project_dir: str, frame: int):
-        self.entries[project_dir].current_frame = frame
+        self.projects[project_dir].current_frame = frame
 
     def set_project_encode_all_frames(self, project_dir: str, encode_all: bool):
-        self.entries[project_dir].encode_all_frames = encode_all
+        self.projects[project_dir].encode_all_frames = encode_all
 
     def set_frames_to_encode(self, project_dir: str, frames: int):
-        self.entries[project_dir].frames_to_encode = frames
+        self.projects[project_dir].frames_to_encode = frames
 
     def set_stabilization_threshold(self, project_dir: str, threshold: float):
-        self.entries[project_dir].stabilization_threshold = threshold
+        self.projects[project_dir].stabilization_threshold = threshold
 
-    def set_perform_stabilization(self, project_dir: str, perform: bool)
-        self.entries[project_dir].perform_stabilization = perform
+    def set_perform_stabilization(self, project_dir: str, perform: bool):
+        self.projects[project_dir].perform_stabilization = perform
 
     def set_project_skip_frame_regeneration(self, project_dir: str, skip: bool):
-        self.entries[project_dir].skip_frame_regeneration = skip
+        self.projects[project_dir].skip_frame_regeneration = skip
 
     def set_project_video_filename(self, project_dir: str, filename: str):
-        self.entries[project_dir].video_filename = filename
+        self.projects[project_dir].video_filename = filename
 
     def set_project_video_title(self, project_dir: str, title: str):
-        self.entries[project_dir].video_title = title
+        self.projects[project_dir].video_title = title
 
     def set_project_frame_fill_type(self, project_dir: str, fill_type: str):
-        self.entries[project_dir].frame_fill_type = fill_type
+        self.projects[project_dir].frame_fill_type = fill_type
 
     def set_project_frame_from(self, project_dir: str, frame_from: int):
-        self.entries[project_dir].frame_from = frame_from
+        self.projects[project_dir].frame_from = frame_from
 
     def set_project_frame_to(self, project_dir: str, frame_to: int):
-        self.entries[project_dir].frame_to = frame_to
+        self.projects[project_dir].frame_to = frame_to
 
     def set_project_low_contrast_custom_template(self, project_dir: str, low_contrast: bool):
-        self.entries[project_dir].low_contrast_custom_template = low_contrast
+        self.projects[project_dir].low_contrast_custom_template = low_contrast
 
     def set_project_extended_stabilization(self, project_dir: str, extended: bool):
-        self.entries[project_dir].extended_stabilization = extended
+        self.projects[project_dir].extended_stabilization = extended
 
     def set_project_stabilization_shift_x(self, project_dir: str, shift_x: int):
-        self.entries[project_dir].stabilization_shift_x = shift_x
+        self.projects[project_dir].stabilization_shift_x = shift_x
 
     def set_project_stabilization_shift_y(self, project_dir: str, shift_y: int):
-        self.entries[project_dir].stabilization_shift_y = shift_y
+        self.projects[project_dir].stabilization_shift_y = shift_y
 
     def set_project_rotation_angle(self, project_dir: str, angle: int):
-        self.entries[project_dir].rotation_angle = angle
+        self.projects[project_dir].rotation_angle = angle
 
     def set_project_custom_template_defined(self, project_dir: str, defined: bool):
-        self.entries[project_dir].custom_template_defined = defined
+        self.projects[project_dir].custom_template_defined = defined
 
     def set_custom_template_expected_pos(self, project_dir: str, pos: List[int]):
-        self.entries[project_dir].custom_template_expected_pos = pos
+        self.projects[project_dir].custom_template_expected_pos = pos
 
     def set_custom_template_filename(self, project_dir: str, filename: str):
-        self.entries[project_dir].custom_template_filename = filename
+        self.projects[project_dir].custom_template_filename = filename
 
     def set_custom_template_name(self, project_dir: str, name: str):
-        self.entries[project_dir].custom_template_name = name
+        self.projects[project_dir].custom_template_name = name
 
     def set_gamma_correction_value(self, project_dir: str, value: float):
-        self.entries[project_dir].gamma_correction_value = value
+        self.projects[project_dir].gamma_correction_value = value
 
-    def set_crop_rectangle(self, project_dir: str, rectangle: List[List[int]])
-        self.entries[project_dir].crop_rectangle = rectangle
+    def set_crop_rectangle(self, project_dir: str, rectangle: List[List[int]]):
+        self.projects[project_dir].crop_rectangle = rectangle
 
-    def set_force_4_3(self, project_dir: str, force_4_3: bool)
-        self.entries[project_dir].force_4_3 = force_4_3
+    def set_force_4_3(self, project_dir: str, force_4_3: bool):
+        self.projects[project_dir].force_4_3 = force_4_3
 
-    def set_force_16_9(self, project_dir: str, force_16_9: bool)
-        self.entries[project_dir].force_16_9 = force_16_9
+    def set_force_16_9(self, project_dir: str, force_16_9: bool):
+        self.projects[project_dir].force_16_9 = force_16_9
     
-    def set_ffmpeg_preset(self, project_dir: str, preset: str)
-        self.entries[project_dir].ffmpeg_preset = preset
+    def set_ffmpeg_preset(self, project_dir: str, preset: str):
+        self.projects[project_dir].ffmpeg_preset = preset
 
-    def set_perform_rotation(self, project_dir: str, perform: bool)
-        self.entries[project_dir].perform_rotation = perform
+    def set_perform_rotation(self, project_dir: str, perform: bool):
+        self.projects[project_dir].perform_rotation = perform
 
-    def set_video_resolution(self, project_dir: str, video_resolution: str)
-        self.entries[project_dir].video_resolution = video_resolution
+    def set_video_resolution(self, project_dir: str, video_resolution: str):
+        self.projects[project_dir].video_resolution = video_resolution
 
-    def set_current_bad_frame_index(self, project_dir: str, current_bad_frame_index: int)
-        self.entries[project_dir].current_bad_frame_index = current_bad_frame_index
+    def set_current_bad_frame_index(self, project_dir: str, current_bad_frame_index: int):
+        self.projects[project_dir].current_bad_frame_index = current_bad_frame_index
 
-    def set_user_defined_left_stripe_width_proportion(self, project_dir: str, proportion: float)
-        self.entries[project_dir].user_defined_left_stripe_width_proportion = proportion
+    def set_user_defined_left_stripe_width_proportion(self, project_dir: str, proportion: float):
+        self.projects[project_dir].user_defined_left_stripe_width_proportion = proportion
     
     def get_project_source_dir(self, project_dir: str) -> str:
-        return self.entries[project_dir].source_dir
+        return self.projects[project_dir].source_dir
 
     def get_target_dir(self, project_dir: str) -> str:
-        return self.entries[project_dir].target_dir
+        return self.projects[project_dir].target_dir
 
     def get_video_target_dir(self, project_dir: str) -> str:
-        return self.entries[project_dir].video_target_dir
+        return self.projects[project_dir].video_target_dir
 
     def get_film_type(self, project_dir: str) -> str:
-        return self.entries[project_dir].film_type
+        return self.projects[project_dir].film_type
 
     def get_perform_cropping(self, project_dir: str) -> bool:
-        return self.entries[project_dir].perform_cropping
+        return self.projects[project_dir].perform_cropping
 
     def get_perform_sharpness(self, project_dir: str) -> bool:
-        return self.entries[project_dir].perform_sharpness
+        return self.projects[project_dir].perform_sharpness
 
     def get_perform_denoise(self, project_dir: str) -> bool:
-        return self.entries[project_dir].perform_denoise
+        return self.projects[project_dir].perform_denoise
 
     def get_perform_gamma_correction(self, project_dir: str) -> bool:
-        return self.entries[project_dir].perform_gamma_correction
+        return self.projects[project_dir].perform_gamma_correction
 
     def get_generate_video(self, project_dir: str) -> bool:
-        return self.entries[project_dir].generate_video
+        return self.projects[project_dir].generate_video
 
     def get_video_fps(self, project_dir: str) -> str:
-        return self.entries[project_dir].video_fps
+        return self.projects[project_dir].video_fps
 
     def get_current_frame(self, project_dir: str) -> int:
-        return self.entries[project_dir].current_frame
+        return self.projects[project_dir].current_frame
 
     def get_encode_all_frames(self, project_dir: str) -> bool:
-        return self.entries[project_dir].encode_all_frames
+        return self.projects[project_dir].encode_all_frames
 
     def get_frames_to_encode(self, project_dir: str) -> int:
-        return self.entries[project_dir].frames_to_encode
+        return self.projects[project_dir].frames_to_encode
 
     def get_stabilization_threshold(self, project_dir: str) -> float:
-        return self.entries[project_dir].stabilization_threshold
+        return self.projects[project_dir].stabilization_threshold
 
     def get_perform_stabilization(self, project_dir: str) -> bool:
-        return self.entries[project_dir].perform_stabilization
+        return self.projects[project_dir].perform_stabilization
 
     def get_skip_frame_regeneration(self, project_dir: str) -> bool:
-        return self.entries[project_dir].skip_frame_regeneration
+        return self.projects[project_dir].skip_frame_regeneration
 
     def get_video_filename(self, project_dir: str) -> str:
-        return self.entries[project_dir].video_filename
+        return self.projects[project_dir].video_filename
 
     def get_video_title(self, project_dir: str) -> str:
-        return self.entries[project_dir].video_title
+        return self.projects[project_dir].video_title
 
     def get_frame_fill_type(self, project_dir: str) -> str:
-        return self.entries[project_dir].frame_fill_type
+        return self.projects[project_dir].frame_fill_type
 
     def get_frame_from(self, project_dir: str) -> int:
-        return self.entries[project_dir].frame_from
+        return self.projects[project_dir].frame_from
 
     def get_frame_to(self, project_dir: str) -> int:
-        return self.entries[project_dir].frame_to
+        return self.projects[project_dir].frame_to
 
     def get_low_contrast_custom_template(self, project_dir: str) -> bool:
-        return self.entries[project_dir].low_contrast_custom_template
+        return self.projects[project_dir].low_contrast_custom_template
 
     def get_extended_stabilization(self, project_dir: str) -> bool:
-        return self.entries[project_dir].extended_stabilization
+        return self.projects[project_dir].extended_stabilization
 
     def get_stabilization_shift_x(self, project_dir: str) -> int:
-        return self.entries[project_dir].stabilization_shift_x
+        return self.projects[project_dir].stabilization_shift_x
 
     def get_stabilization_shift_y(self, project_dir: str) -> int:
-        return self.entries[project_dir].stabilization_shift_y
+        return self.projects[project_dir].stabilization_shift_y
 
     def get_rotation_angle(self, project_dir: str) -> int:
-        return self.entries[project_dir].rotation_angle
+        return self.projects[project_dir].rotation_angle
 
     def get_custom_template_defined(self, project_dir: str) -> bool:
-        return self.entries[project_dir].custom_template_defined
+        return self.projects[project_dir].custom_template_defined
 
     def get_custom_template_expected_pos(self, project_dir: str) -> List[int]:
-        return self.entries[project_dir].custom_template_expected_pos
+        return self.projects[project_dir].custom_template_expected_pos
 
     def get_custom_template_filename(self, project_dir: str) -> str:
-        return self.entries[project_dir].custom_template_filename
+        return self.projects[project_dir].custom_template_filename
 
     def get_custom_template_name(self, project_dir: str) -> str:
-        return self.entries[project_dir].custom_template_name
+        return self.projects[project_dir].custom_template_name
 
     def get_gamma_correction_value(self, project_dir: str) -> float:
-        return self.entries[project_dir].gamma_correction_value
+        return self.projects[project_dir].gamma_correction_value
 
     def get_crop_rectangle(self, project_dir: str) -> List[List[int]]:
-        return self.entries[project_dir].crop_rectangle
+        return self.projects[project_dir].crop_rectangle
 
     def get_force_4_3(self, project_dir: str) -> bool:
-        return self.entries[project_dir].force_4_3
+        return self.projects[project_dir].force_4_3
 
     def get_force_16_9(self, project_dir: str) -> bool:
-        return self.entries[project_dir].force_16_9
+        return self.projects[project_dir].force_16_9
 
     def get_ffmpeg_preset(self, project_dir: str) -> str:
-        return self.entries[project_dir].ffmpeg_preset
+        return self.projects[project_dir].ffmpeg_preset
 
     def get_perform_rotation(self, project_dir: str) -> bool:
-        return self.entries[project_dir].perform_rotation
+        return self.projects[project_dir].perform_rotation
 
     def get_video_resolution(self, project_dir: str) -> str:
-        return self.entries[project_dir].video_resolution
+        return self.projects[project_dir].video_resolution
 
     def get_current_bad_frame_index(self, project_dir: str) -> int:
-        return self.entries[project_dir].current_bad_frame_index
+        return self.projects[project_dir].current_bad_frame_index
 
     def get_user_defined_left_stripe_width_proportion(self, project_dir: str) -> float:
-        return self.entries[project_dir].user_defined_left_stripe_width_proportion
+        return self.projects[project_dir].user_defined_left_stripe_width_proportion
 
 
     # --- NEW I/O Methods ---
     
-    def load_single_file(self, file_path: str):
+    def load_configuration(self, file_path: str):
         """
         Loads the modern, unified config file format (dictionary-based)
         from a single path.
@@ -749,8 +752,8 @@ class ConfigurationManager:
             global_data = migrated_data.get('global_config', {})
             self.global_config = GlobalConfig.from_dict(global_data)
             
-            for path, entry_data in migrated_data.get('entries', {}).items():
-                self.entries[path] = ProjectConfigEntry.from_dict(entry_data)
+            for path, entry_data in migrated_data.get('projects', {}).items():
+                self.projects[path] = ProjectConfigEntry.from_dict(entry_data)
                 
             logging.info("Unified configuration loaded successfully.")
             
@@ -759,7 +762,7 @@ class ConfigurationManager:
         except Exception as e:
             logging.error(f"Error loading unified configuration: {e}")
             
-    def load_legacy_data(self, global_data: Dict[str, Any], entries_data: Dict[str, Any]):
+    def migrate_legacy_data(self, global_data: Dict[str, Any], entries_data: Dict[str, Any]):
         """
         Loads and merges data from the two legacy sources after they have 
         been individually read from disk.
@@ -775,12 +778,12 @@ class ConfigurationManager:
         
         # 3. Populate Project Entries
         for path, entry_data in migrated_entries.items():
-            self.entries[path] = ProjectConfigEntry.from_dict(entry_data)
+            self.projects[path] = ProjectConfigEntry.from_dict(entry_data)
             
         logging.info("Legacy data successfully loaded and migrated in-memory.")
 
 
-    def save_all(self, file_path: str):
+    def save_configuration(self, file_path: str):
         """
         Saves the entire ConfigurationManager state (global and projects) 
         to a single file in the modern dictionary format.

@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.14"
+__version__ = "1.40.15"
 __data_version__ = "1.0"
-__date__ = "2025-12-06"
-__version_highlight__ = "Refactoring - Prepare unified configuration: group together load_general_config and load_project_settings."
+__date__ = "2025-12-07"
+__version_highlight__ = "Refactoring - Started integration of Cnfiguration manager: New load/save/migration functions, using temporary global var for global config."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -154,6 +154,7 @@ from tooltip import Tooltips
 from rolling_average import RollingAverage
 from define_rectangle import DefineRectangle
 from template_manager import TemplateManager
+from configuration_manager import ConfigurationManager
 
 # Check for temporalDenoise in OpenCV at startup
 HAS_TEMPORAL_DENOISE = hasattr(cv2, 'temporalDenoising')
@@ -181,9 +182,12 @@ temp_denoise_frame_deque = deque(maxlen=denoise_window_size)
 # Configuration & support file vars
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
+config_filename = os.path.join(script_dir, "afterscan.json")
+config_backup_filename = os.path.join(script_dir, "afterscan.json.back")
 general_config_filename = os.path.join(script_dir, "AfterScan.json")
-project_settings_filename = os.path.join(script_dir, "AfterScan-projects.json")
-project_settings_backup_filename = os.path.join(script_dir, "AfterScan-projects.json.bak")
+general_config_backup_filename = os.path.join(script_dir, "AfterScan.json.bak")
+project_repository_filename = os.path.join(script_dir, "AfterScan-projects.json")
+project_repository_backup_filename = os.path.join(script_dir, "AfterScan-projects.json.bak")
 project_config_basename = "AfterScan-project.json"
 project_config_filename = ""
 project_config_from_file = True
@@ -288,8 +292,12 @@ default_general_config = {
     'window_pos': ''
 }
 
+""" delete_this
 general_config = default_general_config.copy()
-
+project_repository = {}
+project_config = default_project_config.copy()
+"""
+config_manager: ConfigurationManager = {}
 
 # Film hole search vars
 hole_search_top_left = (0, 0)
@@ -444,6 +452,7 @@ resolution_dict = {
 }
 # Miscellaneous vars
 win = None
+template_popup_window = None
 as_tooltips = None
 expert_mode = True
 is_windows = False
@@ -576,6 +585,103 @@ def sort_nested_json(data):
         return data
 
 
+def load_json_file(file_path: str) -> Dict[str, Any]:
+    """Helper to safely load a JSON file or return empty dict if not found."""
+    if not os.path.exists(file_path):
+        return {}
+    try:
+        with open(file_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logging.error(f"Error loading {file_path}: {e}")
+        return {}
+
+
+def load_configuration(manager: ConfigurationManager):
+    """
+    Implements the backward-compatibility file loading strategy:
+    1. Try new file.
+    2. If missing, try legacy files.
+    """
+
+    if os.path.exists(config_filename):
+        logging.info("Found NEW unified config file. Loading directly.")
+        manager.load_configuration(config_filename)
+        return
+
+    # --- Legacy Fallback Path ---
+    
+    if os.path.exists(general_config_filename) or os.path.exists(project_repository_filename):
+        logging.warning("NEW config file missing. Starting LEGACY MIGRATION.")
+        
+        # Load data from the two legacy sources
+        global_data = load_json_file(general_config_filename)
+        projects_data = load_json_file(project_repository_filename)
+        
+        # Merge, migrate keys, and load into the manager
+        manager.migrate_legacy_data(global_data, projects_data)
+        
+        return
+
+def save_configuration(manager: ConfigurationManager):
+    manager.set_version(__version__)
+    try:
+        if win is not None and win.winfo_exists():
+            manager.set_window_pos(win.geometry())
+    except Exception as e:
+        logging.error(f"Error while trying to save main window geometry: {e}")
+    if not ignore_config:
+        manager.save_configuration()
+
+
+def rename_legacy_configuration_files():
+    # CRITICAL: Rename/archive legacy files after successful in-memory load
+    # TODO: This renaming should only be done on application exit, since system shutdown (top right x) does not save the configuration
+    try:
+        # We must check if the file still exists before attempting to rename/move it, 
+        # as it might have been only one of the two that triggered the load.
+        if os.path.exists(general_config_filename):
+            os.rename(general_config_filename, general_config_backup_filename)
+        if os.path.exists(project_repository_filename):
+            os.rename(project_repository_filename, project_repository_backup_filename)
+        logging.info(f"Legacy files renamed to *.bak")
+    except Exception as e:
+            logging.error(f"Failed to rename legacy files: {e}. Migration successful, but cleanup failed.")
+        
+# To be used during refactoring, should dissapear in the long run
+def decode_general_config(manager: ConfigurationManager):
+    global source_dir
+    global project_name
+    global ffmpeg_bin_name, ffmpeg_denoise_param, enable_rectangle_popup, enable_soundtrack
+    global user_consent, anonymous_uuid, last_consent_date
+    global saved_with_version, job_list_filename
+    global precise_template_match, detect_minor_mismatches
+    global user_defined_left_stripe_width_proportion
+
+    source_dir = manager.get_source_dir()
+    # If directory in configuration does not exist, set current working dir
+    if not os.path.isdir(source_dir):
+        source_dir = ""
+        project_name = "No Project"
+    else:
+        # Create a project id (folder name) for the stats logging below
+        # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
+        project_name = os.path.split(source_dir)[-1].replace(',', ';')
+
+    ffmpeg_bin_name = manager.get_ffmpeg_bin_name()
+    user_consent = manager.get_user_consent()
+    anonymous_uuid = manager.get_anonymous_uuid()
+    last_consent_date = manager.get_last_consent_date()
+    saved_with_version = manager.get_version()  # global variable name does not match the key, but not important since it is unused
+    job_list_filename = manager.get_job_list_filename()
+    ffmpeg_denoise_param = manager.get_ffmpeg_hqdn_3d()
+    enable_rectangle_popup = manager.get_enable_rectangle_popup()
+    enable_soundtrack = manager.get_enable_soundtrack()
+    precise_template_match = manager.get_precise_template_match()
+    detect_minor_mismatches = manager.get_detect_minor_mismatches()
+
+
+""" delete_this
 def save_general_config():
     # Write config data upon exit
     general_config["last_config_save_date"] = str(datetime.now())
@@ -583,7 +689,7 @@ def save_general_config():
     general_config["version"] = __version__
 
     try:
-        if template_popup_window.winfo_exists():
+        if template_popup_window is not None and template_popup_window.winfo_exists():
             general_config["template_popup_window_pos"] = template_popup_window.geometry()
     except Exception as e:
         logging.debug(f"Error (expected) while trying to save template popup window geometry: {e}")
@@ -593,7 +699,7 @@ def save_general_config():
         with open(general_config_filename, 'w') as f:
             json.dump(sorted_data, f, indent=4)
 
-
+            
 def load_general_config():
     global general_config
     global general_config_filename
@@ -610,7 +716,6 @@ def load_general_config():
     logging.debug("Reading general config")
     for item in general_config:
         logging.debug("%s=%s", item, str(general_config[item]))
-
 
 def decode_general_config():
     global source_dir
@@ -684,34 +789,34 @@ def decode_general_config():
         precise_template_match = general_config["precise_template_match"]
     if 'detect_minor_mismatches' in general_config:
         detect_minor_mismatches = general_config["detect_minor_mismatches"]
+"""
 
 
-
-def update_project_settings():
-    global project_settings
+def update_project_repository():
+    global project_repository
     global source_dir
     # source_dir is the key for each project config inside the global project settings
-    if source_dir in project_settings:
-        project_settings.update({source_dir: project_config.copy()})
+    if source_dir in project_repository:
+        project_repository.update({source_dir: project_config.copy()})
     elif source_dir != '':
-        project_settings.update({source_dir: project_config.copy()})
-        # project_settings[project_config["source_dir"]] = project_config.copy()
+        project_repository.update({source_dir: project_config.copy()})
+        # project_repository[project_config["source_dir"]] = project_config.copy()
 
-def save_project_settings():
-    global project_settings, project_settings_filename, project_settings_backup_filename
+def save_project_repository():
+    global project_repository, project_repository_filename, project_repository_backup_filename
 
     if not ignore_config:
         # Delete existing backup file
-        if os.path.isfile(project_settings_backup_filename):
-            os.remove(project_settings_backup_filename)
+        if os.path.isfile(project_repository_backup_filename):
+            os.remove(project_repository_backup_filename)
         # Rename current project file as backup
-        if os.path.isfile(project_settings_filename):
-            os.rename(project_settings_filename, project_settings_backup_filename)
+        if os.path.isfile(project_repository_filename):
+            os.rename(project_repository_filename, project_repository_backup_filename)
             logging.debug("Saving project settings:")
         # Create list with global version info
         global_info = {'data_version': __data_version__, 'code_version': __version__, 'save_date': str(datetime.now())}
-        list_to_save = [global_info, project_settings]
-        with open(project_settings_filename, 'w+') as f:
+        list_to_save = [global_info, project_repository]
+        with open(project_repository_filename, 'w+') as f:
             json.dump(list_to_save, f, indent=4)
 
 # Handle migration from old JSON names (CamelCase) to new ones (snake_case)
@@ -825,16 +930,16 @@ def _migrate_keys(obj):
 
 
 
-def load_project_settings():
-    global project_settings, project_settings_filename, default_project_config
+def load_project_repository():
+    global project_repository, project_repository_filename, default_project_config
     global source_dir, files_to_delete
     global project_name
 
     projects_loaded = False
     error_while_loading = False
 
-    if not ignore_config and os.path.isfile(project_settings_filename):
-        f = open(project_settings_filename)
+    if not ignore_config and os.path.isfile(project_repository_filename):
+        f = open(project_repository_filename)
         try:
             raw_list = json.load(f)
             saved_list = _migrate_keys(raw_list)
@@ -847,23 +952,23 @@ def load_project_settings():
             if isinstance(saved_list, dict):   # Old version of json files were directly a dictionary
                 tk.messagebox.showerror(
                     "Invalid project file",
-                    f"The project file {project_settings_filename} saved in disk is invalid."
+                    f"The project file {project_repository_filename} saved in disk is invalid."
                     "Project defaults will be loaded and existing file will be overwritten upon exit "
                     "(and a backup file generated in case you want to recover information from it)")
             else:
                 # New version is a list
                 logging.info(f"Loading project file: {saved_list[0]['data_version']},  {saved_list[0]['code_version']},  {saved_list[0]['save_date']}")
-                project_settings = saved_list[1]
+                project_repository = saved_list[1]
                 projects_loaded = True
                 # Perform some cleanup, in case projects have been deleted
-                project_folders = list(project_settings.keys())  # freeze keys iterator into a list
+                project_folders = list(project_repository.keys())  # freeze keys iterator into a list
                 for folder in project_folders:
                     if not os.path.isdir(folder):   # If project folder no longer exists...
-                        if "custom_template_filename" in project_settings[folder]:
-                            aux_template_filename = os.path.join(source_dir, project_settings[folder]["custom_template_filename"])
+                        if "custom_template_filename" in project_repository[folder]:
+                            aux_template_filename = os.path.join(source_dir, project_repository[folder]["custom_template_filename"])
                             if os.path.isfile(aux_template_filename):
                                 os.remove(aux_template_filename)    # ...delete custom template, if it exists
-                        project_settings.pop(folder)
+                        project_repository.pop(folder)
                         logging.debug("Deleting %s from project settings, as it no longer exists", folder)
                     elif not os.path.isdir(source_dir) and os.path.isdir(folder):
                         source_dir = folder
@@ -872,8 +977,8 @@ def load_project_settings():
                         project_name = os.path.split(source_dir)[-1].replace(',', ';')
 
     if not projects_loaded:   # No project settings file. Set empty config to force defaults
-        project_settings = {source_dir: default_project_config.copy()}
-        project_settings[source_dir]["source_dir"] = source_dir
+        project_repository = {source_dir: default_project_config.copy()}
+        project_repository[source_dir]["source_dir"] = source_dir
 
 
 def save_project_config():
@@ -926,14 +1031,14 @@ def save_project_config():
     # with open(project_config_filename, 'w+') as f:
     #     json.dump(project_config, f)
 
-    update_project_settings()
-    save_project_settings()
+    update_project_repository()
+    save_project_repository()
 
 def load_project_config():
     global source_dir
     global project_config, project_config_from_file
     global project_config_basename, project_config_filename
-    global project_settings
+    global project_repository
     global default_project_config
 
     if not ignore_config:
@@ -941,9 +1046,9 @@ def load_project_config():
     # Check if persisted project data file exist: If it does, load it
     project_config = default_project_config.copy()  # set default config
 
-    if source_dir in project_settings:
+    if source_dir in project_repository:
         logging.debug("Loading project config from consolidated project settings")
-        project_config |= project_settings[source_dir].copy()
+        project_config |= project_repository[source_dir].copy()
     elif os.path.isfile(project_config_filename):
         logging.debug("Loading project config from dedicated project config file")
         persisted_data_file = open(project_config_filename)
@@ -1372,7 +1477,10 @@ def job_list_load_selected():
                 project_config = job_list[entry_name]['project']
                 decode_project_config()
 
+                config_manager.set_source_dir(source_dir)
+                """ delete_this
                 general_config["source_dir"] = source_dir
+                """
 
                 if encode_all_frames:
                     current_frame = first_absolute_frame + (last_absolute_frame - first_absolute_frame) // 2
@@ -1497,7 +1605,10 @@ def save_named_job_list():
         with open(aux_file, 'w+') as f:
             json.dump(job_list, f, indent=4)
         job_list_filename = aux_file
+        config_manager.set_job_list_filename(job_list_filename)
+        """ delete_this
         general_config["job_list_filename"] = job_list_filename
+        """
         display_window_title()
 
 
@@ -1520,7 +1631,10 @@ def load_named_job_list():
     if len(aux_file) > 0:
         load_job_list(aux_file)
         job_list_filename = aux_file
+        config_manager.set_job_list_filename(job_list_filename)
+        """ delete_this
         general_config["job_list_filename"] = job_list_filename
+        """
         job_list_hash = generate_dict_hash(job_list)
         display_window_title()
 
@@ -1845,7 +1959,10 @@ def set_source_folder():
         # Create a project id (folder name) for the stats logging below
         # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
         project_name = os.path.split(source_dir)[-1].replace(',', ';')
+        config_manager.set_source_dir(source_dir)
+        """ delete_this
         general_config["source_dir"] = source_dir
+        """
 
 
     load_project_config()  # Needs source_dir defined
@@ -2293,7 +2410,10 @@ def cmd_settings_popup_accept():
     global options_dlg, ffmpeg_bin_name, enable_rectangle_popup, ffmpeg_denoise_param
     global enable_soundtrack, user_defined_left_stripe_width_proportion
 
+    config_manager.set_template_popup_window_pos(options_dlg.geometry())
+    """ delete_this
     general_config["popup_pos"] = options_dlg.geometry()
+    """
 
     save_FfmpegBinName = ffmpeg_bin_name
     ffmpeg_bin_name = custom_ffmpeg_path.get()
@@ -2305,14 +2425,26 @@ def cmd_settings_popup_accept():
         ffmpeg_bin_name = save_FfmpegBinName
     else:
         ffmpeg_bin_name = custom_ffmpeg_path.get()
+        config_manager.set_ffmpeg_bin_name(ffmpeg_bin_name)
+        """ delete_this
         general_config["ffmpeg_bin_name"] = ffmpeg_bin_name
+        """
     ffmpeg_denoise_param = ffmpeg_denoise_value.get()
+    config_manager.set_ffmpeg_hqdn_3d(ffmpeg_denoise_param)
+    """ delete_this
     general_config["ffmpeg_hqdn_3d"] = ffmpeg_denoise_param
+    """
     enable_rectangle_popup = enable_rectangle_popup_value.get()
+    config_manager.set_enable_rectangle_popup(enable_rectangle_popup)
+    """ delete_this
     general_config["enable_rectangle_popup"] = enable_rectangle_popup
+    """
     if sound_file_available:
         enable_soundtrack = enable_soundtrack_value.get()
+        config_manager.set_enable_soundtrack(enable_soundtrack)
+        """ delete_this
         general_config["enable_soundtrack"] = enable_soundtrack
+        """
     user_defined_left_stripe_width_proportion = left_stripe_width_value.get() / 100
     project_config["user_defined_left_stripe_width_proportion"] = user_defined_left_stripe_width_proportion
 
@@ -2331,10 +2463,13 @@ def cmd_settings_popup():
 
     options_dlg = tk.Toplevel(win)
 
+    options_dlg.geometry(f"+{config_manager.get_template_popup_window_pos().split('+', 1)[1]}")
+    """ delete_this
     if 'popup_pos' in general_config:
         options_dlg.geometry(f"+{general_config['popup_pos'].split('+', 1)[1]}")
     elif 'PopupPos' in general_config:
         options_dlg.geometry(f"+{general_config['PopupPos'].split('+', 1)[1]}")
+    """
 
     options_dlg.title("AfterScan Settings")
     # options_dlg.geometry(f"300x100")
@@ -3033,7 +3168,10 @@ def FrameSync_Viewer_popup():
     if frame_sync_viewer_opened: # Already opened, user wants to close
         frame_sync_viewer_opened = False # Set to false first, to avoid interactions with deleted elements
         stabilization_threshold = stabilization_threshold_default   # Restore original value
+        config_manager.set_template_popup_window_pos(template_popup_window.geometry())
+        """ delete_this
         general_config["template_popup_window_pos"] = template_popup_window.geometry()
+        """
         template_canvas.destroy()
         left_stripe_canvas.destroy()
         left_stripe_stabilized_canvas.destroy()
@@ -3054,8 +3192,12 @@ def FrameSync_Viewer_popup():
 
     template_popup_window.minsize(width=300, height=template_popup_window.winfo_height())
 
+    
+    template_popup_window.geometry(f"+{config_manager.get_template_popup_window_pos().split('+', 1)[1]}")
+    """ delete_this
     if 'template_popup_window_pos' in general_config:
         template_popup_window.geometry(f"+{general_config['template_popup_window_pos'].split('+', 1)[1]}")
+    """
 
     # Create three vertical frames in the bottom horizontal frame
     left_frame = Frame(template_popup_window, width=60, height=8)
@@ -3430,9 +3572,15 @@ def FrameSync_Viewer_popup():
     template_popup_window.wait_window()
 
     precise_template_match = precise_template_match_value.get()
+    config_manager.set_precise_template_match(precise_template_match)
+    """ delete_this
     general_config["precise_template_match"] = precise_template_match
+    """
     detect_minor_mismatches = detect_minor_mismatches_value.get()
+    config_manager.set_detect_minor_mismatches(detect_minor_mismatches)
+    """ delete_this
     general_config["detect_minor_mismatches"] = detect_minor_mismatches
+    """
 
     frame_sync_viewer_opened = False
 
@@ -5266,8 +5414,11 @@ def start_convert():
         # Enforce minimum value for Gamma in case user clicks starts rigth after having manually entered a zero in GC box
         gamma_enforce_min_value()
         # Save current project status
+        save_configuration(config_manager)
+        """ delete_this
         save_general_config()
         save_project_config()
+        """
         save_job_list()
         # Empty FPS register list
         fps_last_minute_frame_times.clear()
@@ -6267,8 +6418,12 @@ def afterscan_init():
         app_height = preview_height + 330
 
     display_window_title()  # setting title of the window
+    
+    win.geometry(f"+{config_manager.get_window_pos().split('+', 1)[1]}")
+    """ delete_this
     if 'window_pos' in general_config:
          win.geometry(f"+{general_config['window_pos'].split('+', 1)[1]}")
+    """
 
     win.update_idletasks()
 
@@ -7198,8 +7353,12 @@ def exit_app():  # Exit Application
         logging.debug(f"Waiting for threads to exit, {active_threads} pending")
         time.sleep(0.2)
 
+    save_configuration(config_manager)
+    rename_legacy_configuration_files()
+    """ delete_this
     save_general_config()
     save_project_config()
+    """
     save_job_list()
     win.destroy()
 
@@ -7225,7 +7384,10 @@ def get_user_id():
         else:
             anonymous_uuid = hashlib.sha256(serial.encode()).hexdigest()
             logging.debug(f"Generating RPi uuid: {anonymous_uuid}")
+        config_manager.set_anonymous_uuid(anonymous_uuid)
+        """ delete_this
         general_config["anonymous_uuid"] = anonymous_uuid
+        """
         return anonymous_uuid
 
 
@@ -7239,9 +7401,15 @@ def get_consent(force = False):
                 "Help us count AfterScan users anonymously? Reports versions to track usage. No personal data is collected, just an anonymous hash plus AfterScan versions."
             )
             last_consent_date = datetime.today()
+            config_manager.set_last_consent_date(last_consent_date.isoformat())
+            """ delete_this
             general_config["last_consent_date"] = last_consent_date.isoformat()
+            """
             user_consent = "yes" if consent else "no"
+            config_manager.set_user_consent(user_consent)
+            """ delete_this
             general_config["user_consent"] = user_consent
+            """
 
 
 # Ping server if requests is available (call once at startup)
@@ -7275,7 +7443,7 @@ def main(argv):
     global ui_init_done
     global ignore_config
     global job_list
-    global project_settings
+    global project_repository
     global default_project_config
     global is_demo, force_small_size, force_big_size
     global generate_csv
@@ -7296,9 +7464,6 @@ def main(argv):
     # 'done': Job already completed
     # 'attempted': Job started but not completed
     job_list = {}
-
-    # Create project settings dictionary
-    project_settings = default_project_config.copy()
 
     opts, args = getopt.getopt(argv, "hiel:dcst:12nab", ["goanyway"])
 
@@ -7358,7 +7523,7 @@ def main(argv):
     else:
         set_log_level_from_args(logging_mode)
 
-    # Add default templates to template list
+    # Create and initialize TemplateManager: Add default templates to template list
     template_manager = TemplateManager.initialize()
     template_manager.add("S8", hole_template_filename_s8, "S8", (66, 838))     # New, smaller
     template_manager.add("R8", hole_template_filename_r8, "R8", (65, 1080)) # Default R8 (bottom hole)
@@ -7371,15 +7536,21 @@ def main(argv):
         logging.error(error_msg)
         return
 
+    config_manager: ConfigurationManager = ConfigurationManager.initialize()
+
+    load_configuration(config_manager)
+
+    """ delete_this
     load_general_config()
-    load_project_settings()
+    load_project_repository()
+    """
 
     afterscan_init()
 
     if go_disable_tooptips:
         as_tooltips.disable()
 
-    decode_general_config()
+    decode_general_config(config_manager)
 
     # Check reporting consent on first run
     get_consent()
