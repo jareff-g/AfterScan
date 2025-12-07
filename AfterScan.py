@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.13"
+__version__ = "1.40.14"
 __data_version__ = "1.0"
 __date__ = "2025-12-06"
-__version_highlight__ = "Refactoring: Update a few json keys (missing or changed)"
+__version_highlight__ = "Refactoring - Prepare unified configuration: group together load_general_config and load_project_settings."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -7372,6 +7372,7 @@ def main(argv):
         return
 
     load_general_config()
+    load_project_settings()
 
     afterscan_init()
 
@@ -7432,7 +7433,6 @@ def main(argv):
     if source_dir is not None:
         project_config_filename = os.path.join(source_dir,
                                                project_config_basename)
-    load_project_settings()
     load_project_config()
     decode_project_config()
 

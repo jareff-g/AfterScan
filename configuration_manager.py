@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "project_config"
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __data_version__ = "1.0"
 __date__ = "2025-12-07"
-__version_highlight__ = "WIP: ConfigurationManager mostly working: Load/save/migrate configuration file(s)"
+__version_highlight__ = "WIP - Correct some field definitions an dcreate accessors."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -209,7 +209,7 @@ class ProjectConfigEntry:
     video_fps: str = field(default="18", metadata={'do_serialize': True})
     current_frame: int = field(default=0, metadata={'do_serialize': True})
     encode_all_frames: bool = field(default=True, metadata={'do_serialize': True})
-    frames_to_encode: str = field(default="All", metadata={'do_serialize': True})
+    frames_to_encode: int = field(default=0, metadata={'do_serialize': True})
     stabilization_threshold: float = field(default=220.0, metadata={'do_serialize': True})
     perform_stabilization: bool = field(default=False, metadata={'do_serialize': True})
     skip_frame_regeneration: bool = field(default=False, metadata={'do_serialize': True})
@@ -222,13 +222,13 @@ class ProjectConfigEntry:
     extended_stabilization: bool = field(default=False, metadata={'do_serialize': True})
     stabilization_shift_x: int = field(default=0, metadata={'do_serialize': True})
     stabilization_shift_y: int = field(default=0, metadata={'do_serialize': True})
-    rotation_angle: str = field(default="0.0", metadata={'do_serialize': True})
+    rotation_angle: int = field(default=0, metadata={'do_serialize': True})
     custom_template_defined: bool = field(default=False, metadata={'do_serialize': True})
-    custom_template_expected_pos: List[int] = field(default_factory=lambda: (0, 0))
+    custom_template_expected_pos: List[int] = field(default_factory=lambda: (0, 0), metadata={'do_serialize': True})
     custom_template_filename: str = field(default="", metadata={'do_serialize': True})
     custom_template_name: str = field(default="", metadata={'do_serialize': True})
-    gamma_correction_value: float = field(default=1.0, metadata={'do_serialize': True})
-    crop_rectangle: List[List[int]] = field(default_factory=lambda: [[0, 0], [0, 0]])   # Top left first, bottom right second
+    gamma_correction_value: float = field(default=2.2, metadata={'do_serialize': True})
+    crop_rectangle: List[List[int]] = field(default_factory=lambda: [[0, 0], [0, 0]], metadata={'do_serialize': True})   # Top left first, bottom right second
     force_4_3: bool = field(default=False, metadata={'do_serialize': True})
     force_16_9: bool = field(default=False, metadata={'do_serialize': True})
     ffmpeg_preset: str = field(default="veryfast", metadata={'do_serialize': True})
@@ -372,30 +372,30 @@ class ConfigurationManager:
 
     # --- Project-Specific Accessors ---
 
-    def get_active_config(self, current_source_dir: str) -> ProjectConfigEntry:
+    def get_active_config(self, project_dir: str) -> ProjectConfigEntry:
         """
         Retrieves the configuration entry matching the current source directory 
         from the registry, or returns a brand new default configuration if not found.
         """
-        if current_source_dir in self.entries:
-            logging.debug(f"Project config found for directory: {current_source_dir}. Returning copy.")
+        if project_dir in self.entries:
+            logging.debug(f"Project config found for directory: {project_dir}. Returning copy.")
             
             # CRITICAL: Return a deep copy to ensure the active config is independent.
-            active_config = self.entries[current_source_dir].copy()
+            active_config = self.entries[project_dir].copy()
             
         else:
-            logging.info(f"No existing project config found for '{current_source_dir}'. Creating default entry.")
+            logging.info(f"No existing project config found for '{project_dir}'. Creating default entry.")
             active_config = ProjectConfigEntry()
             
         return active_config
         
-    def save_active_config(self, current_source_dir: str, config: ProjectConfigEntry):
+    def save_active_config(self, project_dir: str, config: ProjectConfigEntry):
         """
         Updates the registry with the current configuration entry (in-memory).
         Actual disk I/O (to_json) is a separate future step.
         """
-        self.entries[current_source_dir] = config.copy()
-        logging.debug(f"Saved active project config for directory: {current_source_dir}")
+        self.entries[project_dir] = config.copy()
+        logging.debug(f"Saved active project config for directory: {project_dir}")
 
     # --- Global Config Accessors (Simple pass-through) ---
     
@@ -407,6 +407,329 @@ class ConfigurationManager:
         """Updates the internal global configuration instance."""
         self.global_config = config.copy()
         logging.debug("Global configuration updated.")
+
+    # --- GlobalConfig Specific Accessors (only those required, for now) ---
+    def set_window_pos(self, window_pos: str)
+        self.global_config.window_pos = window_pos
+        
+    def set_anonymous_uuid(self, uuid: str):
+        self.global_config.anonymous_uuid = uuid
+
+    def set_last_consent_date(self, date: str):
+        self.global_config.last_consent_date = date
+
+    def set_user_consent(self, consent: str):
+        self.global_config.user_consent = consent
+
+    def set_job_list_filename(self, filename: str):
+        self.global_config.job_list_filename = filename
+
+    def set_ffmpeg_bin_name(self, name: str):
+        self.global_config.ffmpeg_bin_name = name
+
+    def set_ffmpeg_hqdn_3d(self, param: str):
+        self.global_config.ffmpeg_hqdn_3d = param
+
+    def set_enable_rectangle_popup(self, enable: bool):
+        self.global_config.enable_popups = enable
+
+    def set_enable_soundtrack(self, enable: bool):
+        self.global_config.enable_soundtrack = enable
+
+    def set_precise_template_match(self, precise: bool):
+        self.global_config.precise_template_match = precise
+
+    def set_detect_minor_mismatches(self, detect: bool):
+        self.global_config.detect_minor_mismatches = detect
+
+    def set_source_dir(self, source_dir: str):
+        self.global_config.source_dir = source_dir
+
+    def set_template_popup_window_pos(self, pos: str):
+        self.global_config.template_popup_window_pos = pos
+
+    def get_window_pos(self) -> str:
+        return self.global_config.window_pos
+
+    def get_anonymous_uuid(self) -> str:
+        return self.global_config.anonymous_uuid
+
+    def get_last_consent_date(self) -> str:
+        return self.global_config.last_consent_date
+
+    def get_user_consent(self) -> str:
+        return self.global_config.user_consent
+
+    def get_job_list_filename(self) -> str:
+        return self.global_config.job_list_filename    
+    
+    def get_ffmpeg_bin_name(self) -> str:
+        return self.global_config.ffmpeg_bin_name
+
+    def get_ffmpeg_hqdn_3d(self) -> str:
+        return self.global_config.ffmpeg_hqdn_3d
+
+    def get_enable_rectangle_popup(self) -> bool:
+        return self.global_config.enable_popups
+
+    def get_enable_soundtrack(self) -> bool:
+        return self.global_config.enable_soundtrack
+
+    def get_precise_template_match(self) -> bool:
+        return self.global_config.precise_template_match
+
+    def get_detect_minor_mismatches(self) -> bool:
+        return self.global_config.detect_minor_mismatches
+
+    def get_source_dir(self) -> str:
+        return self.global_config.source_dir
+
+    def get_template_popup_window_pos(self) -> str:
+        return self.global_config.template_popup_window_pos
+
+    def get_version(self) -> str:
+        return self.global_config.version
+    
+    # --- ProjectConfigEntry Specific Accessors (only those required, for now) ---
+    # self.entries[project_dir].copy()
+    def set_project_source_dir(self, project_dir: str, source_dir: str):
+        self.entries[project_dir].source_dir = source_dir
+        # If the source_dir changes, we need to update the key in the entries dictionary
+        if project_dir != source_dir:
+            self.entries[source_dir] = self.entries.pop(project_dir).source_dir = source_dir
+            del self.entries[project_dir]
+
+    def set_project_target_dir(self, project_dir: str, target_dir: str):
+        self.entries[project_dir].target_dir = target_dir
+
+    def set_project_video_target_dir(self, project_dir: str, video_target_dir: str):
+        self.entries[project_dir].video_target_dir = video_target_dir
+
+    def set_project_film_type(self, project_dir: str, film_type: str):
+        self.entries[project_dir].film_type = film_type
+
+    def set_project_perform_cropping(self, project_dir: str, perform: bool):
+        self.entries[project_dir].perform_cropping = perform
+
+    def set_project_perform_sharpness(self, project_dir: str, perform: bool):
+        self.entries[project_dir].perform_sharpness = perform
+
+    def set_project_perform_denoise(self, project_dir: str, perform: bool):
+        self.entries[project_dir].perform_denoise = perform
+
+    def set_project_perform_gamma_correction(self, project_dir: str, perform: bool):
+        self.entries[project_dir].perform_gamma_correction = perform
+
+    def set_project_generate_video(self, project_dir: str, generate: bool):
+        self.entries[project_dir].generate_video = generate
+
+    def set_project_video_fps(self, project_dir: str, fps: str):
+        self.entries[project_dir].video_fps = fps
+
+    def set_project_current_frame(self, project_dir: str, frame: int):
+        self.entries[project_dir].current_frame = frame
+
+    def set_project_encode_all_frames(self, project_dir: str, encode_all: bool):
+        self.entries[project_dir].encode_all_frames = encode_all
+
+    def set_frames_to_encode(self, project_dir: str, frames: int):
+        self.entries[project_dir].frames_to_encode = frames
+
+    def set_stabilization_threshold(self, project_dir: str, threshold: float):
+        self.entries[project_dir].stabilization_threshold = threshold
+
+    def set_perform_stabilization(self, project_dir: str, perform: bool)
+        self.entries[project_dir].perform_stabilization = perform
+
+    def set_project_skip_frame_regeneration(self, project_dir: str, skip: bool):
+        self.entries[project_dir].skip_frame_regeneration = skip
+
+    def set_project_video_filename(self, project_dir: str, filename: str):
+        self.entries[project_dir].video_filename = filename
+
+    def set_project_video_title(self, project_dir: str, title: str):
+        self.entries[project_dir].video_title = title
+
+    def set_project_frame_fill_type(self, project_dir: str, fill_type: str):
+        self.entries[project_dir].frame_fill_type = fill_type
+
+    def set_project_frame_from(self, project_dir: str, frame_from: int):
+        self.entries[project_dir].frame_from = frame_from
+
+    def set_project_frame_to(self, project_dir: str, frame_to: int):
+        self.entries[project_dir].frame_to = frame_to
+
+    def set_project_low_contrast_custom_template(self, project_dir: str, low_contrast: bool):
+        self.entries[project_dir].low_contrast_custom_template = low_contrast
+
+    def set_project_extended_stabilization(self, project_dir: str, extended: bool):
+        self.entries[project_dir].extended_stabilization = extended
+
+    def set_project_stabilization_shift_x(self, project_dir: str, shift_x: int):
+        self.entries[project_dir].stabilization_shift_x = shift_x
+
+    def set_project_stabilization_shift_y(self, project_dir: str, shift_y: int):
+        self.entries[project_dir].stabilization_shift_y = shift_y
+
+    def set_project_rotation_angle(self, project_dir: str, angle: int):
+        self.entries[project_dir].rotation_angle = angle
+
+    def set_project_custom_template_defined(self, project_dir: str, defined: bool):
+        self.entries[project_dir].custom_template_defined = defined
+
+    def set_custom_template_expected_pos(self, project_dir: str, pos: List[int]):
+        self.entries[project_dir].custom_template_expected_pos = pos
+
+    def set_custom_template_filename(self, project_dir: str, filename: str):
+        self.entries[project_dir].custom_template_filename = filename
+
+    def set_custom_template_name(self, project_dir: str, name: str):
+        self.entries[project_dir].custom_template_name = name
+
+    def set_gamma_correction_value(self, project_dir: str, value: float):
+        self.entries[project_dir].gamma_correction_value = value
+
+    def set_crop_rectangle(self, project_dir: str, rectangle: List[List[int]])
+        self.entries[project_dir].crop_rectangle = rectangle
+
+    def set_force_4_3(self, project_dir: str, force_4_3: bool)
+        self.entries[project_dir].force_4_3 = force_4_3
+
+    def set_force_16_9(self, project_dir: str, force_16_9: bool)
+        self.entries[project_dir].force_16_9 = force_16_9
+    
+    def set_ffmpeg_preset(self, project_dir: str, preset: str)
+        self.entries[project_dir].ffmpeg_preset = preset
+
+    def set_perform_rotation(self, project_dir: str, perform: bool)
+        self.entries[project_dir].perform_rotation = perform
+
+    def set_video_resolution(self, project_dir: str, video_resolution: str)
+        self.entries[project_dir].video_resolution = video_resolution
+
+    def set_current_bad_frame_index(self, project_dir: str, current_bad_frame_index: int)
+        self.entries[project_dir].current_bad_frame_index = current_bad_frame_index
+
+    def set_user_defined_left_stripe_width_proportion(self, project_dir: str, proportion: float)
+        self.entries[project_dir].user_defined_left_stripe_width_proportion = proportion
+    
+    def get_project_source_dir(self, project_dir: str) -> str:
+        return self.entries[project_dir].source_dir
+
+    def get_target_dir(self, project_dir: str) -> str:
+        return self.entries[project_dir].target_dir
+
+    def get_video_target_dir(self, project_dir: str) -> str:
+        return self.entries[project_dir].video_target_dir
+
+    def get_film_type(self, project_dir: str) -> str:
+        return self.entries[project_dir].film_type
+
+    def get_perform_cropping(self, project_dir: str) -> bool:
+        return self.entries[project_dir].perform_cropping
+
+    def get_perform_sharpness(self, project_dir: str) -> bool:
+        return self.entries[project_dir].perform_sharpness
+
+    def get_perform_denoise(self, project_dir: str) -> bool:
+        return self.entries[project_dir].perform_denoise
+
+    def get_perform_gamma_correction(self, project_dir: str) -> bool:
+        return self.entries[project_dir].perform_gamma_correction
+
+    def get_generate_video(self, project_dir: str) -> bool:
+        return self.entries[project_dir].generate_video
+
+    def get_video_fps(self, project_dir: str) -> str:
+        return self.entries[project_dir].video_fps
+
+    def get_current_frame(self, project_dir: str) -> int:
+        return self.entries[project_dir].current_frame
+
+    def get_encode_all_frames(self, project_dir: str) -> bool:
+        return self.entries[project_dir].encode_all_frames
+
+    def get_frames_to_encode(self, project_dir: str) -> int:
+        return self.entries[project_dir].frames_to_encode
+
+    def get_stabilization_threshold(self, project_dir: str) -> float:
+        return self.entries[project_dir].stabilization_threshold
+
+    def get_perform_stabilization(self, project_dir: str) -> bool:
+        return self.entries[project_dir].perform_stabilization
+
+    def get_skip_frame_regeneration(self, project_dir: str) -> bool:
+        return self.entries[project_dir].skip_frame_regeneration
+
+    def get_video_filename(self, project_dir: str) -> str:
+        return self.entries[project_dir].video_filename
+
+    def get_video_title(self, project_dir: str) -> str:
+        return self.entries[project_dir].video_title
+
+    def get_frame_fill_type(self, project_dir: str) -> str:
+        return self.entries[project_dir].frame_fill_type
+
+    def get_frame_from(self, project_dir: str) -> int:
+        return self.entries[project_dir].frame_from
+
+    def get_frame_to(self, project_dir: str) -> int:
+        return self.entries[project_dir].frame_to
+
+    def get_low_contrast_custom_template(self, project_dir: str) -> bool:
+        return self.entries[project_dir].low_contrast_custom_template
+
+    def get_extended_stabilization(self, project_dir: str) -> bool:
+        return self.entries[project_dir].extended_stabilization
+
+    def get_stabilization_shift_x(self, project_dir: str) -> int:
+        return self.entries[project_dir].stabilization_shift_x
+
+    def get_stabilization_shift_y(self, project_dir: str) -> int:
+        return self.entries[project_dir].stabilization_shift_y
+
+    def get_rotation_angle(self, project_dir: str) -> int:
+        return self.entries[project_dir].rotation_angle
+
+    def get_custom_template_defined(self, project_dir: str) -> bool:
+        return self.entries[project_dir].custom_template_defined
+
+    def get_custom_template_expected_pos(self, project_dir: str) -> List[int]:
+        return self.entries[project_dir].custom_template_expected_pos
+
+    def get_custom_template_filename(self, project_dir: str) -> str:
+        return self.entries[project_dir].custom_template_filename
+
+    def get_custom_template_name(self, project_dir: str) -> str:
+        return self.entries[project_dir].custom_template_name
+
+    def get_gamma_correction_value(self, project_dir: str) -> float:
+        return self.entries[project_dir].gamma_correction_value
+
+    def get_crop_rectangle(self, project_dir: str) -> List[List[int]]:
+        return self.entries[project_dir].crop_rectangle
+
+    def get_force_4_3(self, project_dir: str) -> bool:
+        return self.entries[project_dir].force_4_3
+
+    def get_force_16_9(self, project_dir: str) -> bool:
+        return self.entries[project_dir].force_16_9
+
+    def get_ffmpeg_preset(self, project_dir: str) -> str:
+        return self.entries[project_dir].ffmpeg_preset
+
+    def get_perform_rotation(self, project_dir: str) -> bool:
+        return self.entries[project_dir].perform_rotation
+
+    def get_video_resolution(self, project_dir: str) -> str:
+        return self.entries[project_dir].video_resolution
+
+    def get_current_bad_frame_index(self, project_dir: str) -> int:
+        return self.entries[project_dir].current_bad_frame_index
+
+    def get_user_defined_left_stripe_width_proportion(self, project_dir: str) -> float:
+        return self.entries[project_dir].user_defined_left_stripe_width_proportion
+
 
     # --- NEW I/O Methods ---
     
