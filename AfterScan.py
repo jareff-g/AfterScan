@@ -722,6 +722,7 @@ KEY_TO_DELETE = "__DELETE_KEY_FROM_CONFIG__"
 # Maps old (legacy/camelCase) keys to new (snake_case) keys or to KEY_TO_DELETE.
 KEY_MIGRATION_MAP = {
     # General config keys
+    'general_config_date': KEY_TO_DELETE,
     'HighSensitiveBadFrameDetection': 'detect_minor_mismatches',
     'EnablePopups': 'enable_rectangle_popup',
     'EnableSoundtrack': 'enable_soundtrack',

@@ -12,16 +12,16 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "project_config"
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __data_version__ = "1.0"
-__date__ = "2025-12-06"
-__version_highlight__ = "Isolate AfterScan project + general configuration in dedicated manager class (using Facade pattern)"
+__date__ = "2025-12-07"
+__version_highlight__ = "WIP: ConfigurationManager mostly working: Load/save/migrate configuration file(s)"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
 
-from dataclasses import dataclass, field, fields, asdict
-from typing import Dict, Any, List
+from dataclasses import dataclass, field, fields, asdict, Field
+from typing import Dict, Any, List, Callable, Tuple
 import copy
 import logging
 import os 
@@ -36,6 +36,7 @@ KEY_TO_DELETE = "__DELETE_KEY_FROM_CONFIG__"
 # Maps old (legacy/camelCase) keys to new (snake_case) keys or to KEY_TO_DELETE.
 KEY_MIGRATION_MAP = {
     # General config keys
+    'general_config_date': KEY_TO_DELETE,
     'HighSensitiveBadFrameDetection': 'detect_minor_mismatches',
     'EnablePopups': 'enable_rectangle_popup',
     'EnableSoundtrack': 'enable_soundtrack',
@@ -122,7 +123,7 @@ class GlobalConfig:
     enable_soundtrack: bool = field(default=False, metadata={'do_serialize': True})
     ffmpeg_hqdn_3d: str = field(default="8:6:4:3", metadata={'do_serialize': True})
     ffmpeg_bin_name: str = field(default="ffmpeg", metadata={'do_serialize': True})
-    general_config_date: str = field(default="", metadata={'do_serialize': True})
+    last_config_save_date: str = field(default="", metadata={'do_serialize': True})
     job_list_filename: str = field(default="", metadata={'do_serialize': True})
     last_consent_date: str = field(default="", metadata={'do_serialize': True})
     popup_pos: str = field(default="", metadata={'do_serialize': True})
@@ -148,7 +149,7 @@ class GlobalConfig:
     
     project_settings_filename: str = field(default="")
     project_settings_backup_filename: str = field(default="")
-    project_config_basename: str = field(default="AfterScan-project.json") # Static basename
+    project_config_basename: str = field(default="AfterScan-projects.json") # Static basename
     project_config_filename: str = field(default="")
     
     temp_dir: str = field(default="")
@@ -165,6 +166,7 @@ class GlobalConfig:
     hole_template_filename: str = field(default="")
     
     # --- Calculated State Attributes (New) ---
+    """
     copy_templates_from_temp: bool = field(default=False)
     sound_file_available: bool = field(default=False)
     project_config_from_file: bool = field(default=True)
@@ -172,6 +174,7 @@ class GlobalConfig:
     job_list_hash: Optional[str] = field(default=None) # None is a fine default
     template_list: list["Template"] = field(default=None) # None is a fine default. Template set as string to avoid circular import dependency
     left_stripe_width_pixels: int = field(default=100)
+    """
 
     # Helper methods for GlobalConfig
     def copy(self) -> 'GlobalConfig':
@@ -194,19 +197,58 @@ class ProjectConfigEntry:
     Represents the configuration settings for a single project directory.
     Fields must be explicitly marked with metadata={'do_serialize': True} to be persisted.
     """
-    # PERSISTENT FIELDS
-    project_name: str = field(default="Default Project", metadata={'do_serialize': True})
-    active_template_type: str = field(default="default", metadata={'do_serialize': True})
-    active_template_name: str = field(default="Pattern.S8", metadata={'do_serialize': True})
-    custom_template_expected_pos: List[int] = field(default_factory=lambda: [0, 0], metadata={'do_serialize': True})
-    custom_template_expected_size: List[int] = field(default_factory=lambda: [200, 200], metadata={'do_serialize': True})
-    crop_rectangle: List[int] = field(default_factory=list, metadata={'do_serialize': True}) 
-    is_template: bool = field(default=False, metadata={'do_serialize': True})
-    job_list: List[Dict[str, Any]] = field(default_factory=list, metadata={'do_serialize': True})
-
+    source_dir: str = field(default="", metadata={'do_serialize': True})
+    target_dir: str = field(default="", metadata={'do_serialize': True})
+    video_target_dir: str = field(default="", metadata={'do_serialize': True})
+    film_type: str = field(default="S8", metadata={'do_serialize': True})
+    perform_cropping: bool = field(default=False, metadata={'do_serialize': True})
+    perform_sharpness: bool = field(default=False, metadata={'do_serialize': True})
+    perform_denoise: bool = field(default=False, metadata={'do_serialize': True})
+    perform_gamma_correction: bool = field(default=False, metadata={'do_serialize': True})
+    generate_video: bool = field(default=False, metadata={'do_serialize': True})
+    video_fps: str = field(default="18", metadata={'do_serialize': True})
+    current_frame: int = field(default=0, metadata={'do_serialize': True})
+    encode_all_frames: bool = field(default=True, metadata={'do_serialize': True})
+    frames_to_encode: str = field(default="All", metadata={'do_serialize': True})
+    stabilization_threshold: float = field(default=220.0, metadata={'do_serialize': True})
+    perform_stabilization: bool = field(default=False, metadata={'do_serialize': True})
+    skip_frame_regeneration: bool = field(default=False, metadata={'do_serialize': True})
+    video_filename: str = field(default="", metadata={'do_serialize': True})
+    video_title: str = field(default="", metadata={'do_serialize': True})
+    frame_fill_type: str = field(default="none", metadata={'do_serialize': True})
+    frame_from: int = field(default=0, metadata={'do_serialize': True})
+    frame_to: int = field(default=0, metadata={'do_serialize': True})
+    low_contrast_custom_template: bool = field(default=False, metadata={'do_serialize': True})
+    extended_stabilization: bool = field(default=False, metadata={'do_serialize': True})
+    stabilization_shift_x: int = field(default=0, metadata={'do_serialize': True})
+    stabilization_shift_y: int = field(default=0, metadata={'do_serialize': True})
+    rotation_angle: str = field(default="0.0", metadata={'do_serialize': True})
+    custom_template_defined: bool = field(default=False, metadata={'do_serialize': True})
+    custom_template_expected_pos: List[int] = field(default_factory=lambda: (0, 0))
+    custom_template_filename: str = field(default="", metadata={'do_serialize': True})
+    custom_template_name: str = field(default="", metadata={'do_serialize': True})
+    gamma_correction_value: float = field(default=1.0, metadata={'do_serialize': True})
+    crop_rectangle: List[List[int]] = field(default_factory=lambda: [[0, 0], [0, 0]])   # Top left first, bottom right second
+    force_4_3: bool = field(default=False, metadata={'do_serialize': True})
+    force_16_9: bool = field(default=False, metadata={'do_serialize': True})
+    ffmpeg_preset: str = field(default="veryfast", metadata={'do_serialize': True})
+    perform_rotation: bool = field(default=False, metadata={'do_serialize': True})
+    video_resolution: str = field(default="", metadata={'do_serialize': True})
+    current_bad_frame_index: int = field(default=-1, metadata={'do_serialize': True})
+    user_defined_left_stripe_width_proportion: float = field(default=0.25, metadata={'do_serialize': True})
     # --- NON-PERSISTENT FIELD (Default behavior: NOT serialized) ---
     # Since it lacks the 'do_serialize' metadata, it will be skipped.
-    cache_id: str = field(default="") 
+    # !!!!! TODO
+    # Probably should be in AppStatus manager class
+    first_absolute_frame: int = field(default=0)
+    last_absolute_frame: int = field(default=0)
+    crop_area_defined: bool = field(default=False)
+    from_file: bool = field(default=True)
+    ignore_config: bool = field(default=False)
+    ############################################
+
+    # PERSISTENT FIELDS - Maybe shoudl go is AppStateManager???
+    project_name: str = field(default="No Project")
 
     def copy(self) -> 'ProjectConfigEntry':
         """Returns a deep copy of the instance."""
@@ -366,70 +408,69 @@ class ConfigurationManager:
         self.global_config = config.copy()
         logging.debug("Global configuration updated.")
 
-    # --- Placeholder for I/O methods ---
+    # --- NEW I/O Methods ---
     
-    def load_all(self, global_file_path: str, project_file_path: str): 
+    def load_single_file(self, file_path: str):
         """
-        Placeholder demonstrating the load and migration sequence.
-        Supports the new dictionary format and the simplified legacy list format.
+        Loads the modern, unified config file format (dictionary-based)
+        from a single path.
         """
-        logging.info(f"Attempting to load config from {project_file_path}")
+        logging.info(f"Attempting to load unified config from {file_path}")
         try:
-            # --- SIMULATION OF RAW LOADED DATA (Legacy list format, with removed header) ---
-            # NOTE: Index 0 is now GlobalConfig, Index 1 is Project Entries
-            raw_data = [
-                {'log_level': 'INFO', 'ui_theme': 'Dark'}, # Index 0: Global Config 
-                { # Index 1: Project Entries
-                    '/some/old/path': {
-                        'project_name': 'Legacy List Project',
-                        'ActiveTemplateName': 'Pattern.Super8', 
-                        'LegacyDeprecatedSetting': True, 
-                        'job_list': [
-                            {'id': 1, 'CropRectangle': [50, 50, 150, 150]}, 
-                        ]
-                    }
-                }
-            ]
-            # ----------------------------------------------------
+            with open(file_path, 'r') as f:
+                raw_data = json.load(f)
             
-            # 1. Migrate keys immediately on the raw data structure
             migrated_data = self._migrate_keys(raw_data)
             
-            # 2. Determine the source format and normalize data into a dictionary structure
-            if isinstance(migrated_data, list):
-                logging.warning("Loading legacy list-based configuration file structure (Header removed).")
-                normalized_data = {}
-                
-                # Assume list is now [GlobalConfig, Entries]
-                if len(migrated_data) >= 1:
-                    normalized_data['global_config'] = migrated_data[0]
-                if len(migrated_data) >= 2:
-                    normalized_data['entries'] = migrated_data[1]
-                
-            elif isinstance(migrated_data, dict):
-                logging.debug("Loading modern dictionary-based configuration file structure.")
-                normalized_data = migrated_data
-            else:
-                raise ValueError("Unsupported configuration file format: must be a list or dictionary.")
-
-            # 3. Use the normalized dictionary to populate the manager properties
-            
-            # Global Config
-            global_data = normalized_data.get('global_config', {})
+            # Use the migrated dictionary to populate the manager properties
+            global_data = migrated_data.get('global_config', {})
             self.global_config = GlobalConfig.from_dict(global_data)
             
-            # Project Entries
-            for path, entry_data in normalized_data.get('entries', {}).items():
+            for path, entry_data in migrated_data.get('entries', {}).items():
                 self.entries[path] = ProjectConfigEntry.from_dict(entry_data)
                 
-            logging.info("Configuration loaded and migrated successfully.")
+            logging.info("Unified configuration loaded successfully.")
             
         except FileNotFoundError:
-            logging.warning(f"Configuration file not found at {project_file_path}. Starting with defaults.")
+            logging.warning(f"Unified configuration file not found at {file_path}. Starting with defaults.")
         except Exception as e:
-            logging.error(f"Error loading configuration: {e}")
+            logging.error(f"Error loading unified configuration: {e}")
             
-    # def save_all(self, global_file_path: str, project_file_path: str):
-    #     # Implementation note: This would save self.to_dict() which now excludes the header
-    #     with open(project_file_path, 'w') as f:
-    #         json.dump(self.to_dict(), f, indent=4)
+    def load_legacy_data(self, global_data: Dict[str, Any], entries_data: Dict[str, Any]):
+        """
+        Loads and merges data from the two legacy sources after they have 
+        been individually read from disk.
+        """
+        logging.info("Starting legacy data migration and merge.")
+        
+        # 1. Migrate keys on both structures
+        migrated_global = self._migrate_keys(global_data)
+        migrated_entries = self._migrate_keys(entries_data[1])
+
+        # 2. Populate Global Config
+        self.global_config = GlobalConfig.from_dict(migrated_global)
+        
+        # 3. Populate Project Entries
+        for path, entry_data in migrated_entries.items():
+            self.entries[path] = ProjectConfigEntry.from_dict(entry_data)
+            
+        logging.info("Legacy data successfully loaded and migrated in-memory.")
+
+
+    def save_all(self, file_path: str):
+        """
+        Saves the entire ConfigurationManager state (global and projects) 
+        to a single file in the modern dictionary format.
+        """
+        logging.info(f"Saving configuration to {file_path}")
+        try:
+            self.global_config.last_config_save_date = str(datetime.now())
+            output_dict = self.to_dict()
+            with open(file_path, 'w') as f:
+                json.dump(output_dict, f, indent=4)
+            logging.info("Configuration saved successfully.")
+        except Exception as e:
+            logging.error(f"Error saving configuration to {file_path}: {e}")
+
+    # The old load_all is removed as the responsibility for path decision 
+    # now belongs to the external app orchestrator.
