@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.15"
+__version__ = "1.40.16"
 __data_version__ = "1.0"
-__date__ = "2025-12-07"
-__version_highlight__ = "Refactoring - Started integration of Cnfiguration manager: New load/save/migration functions, using temporary global var for global config."
+__date__ = "2025-12-08"
+__version_highlight__ = "WIP Refactoring - project_config wrongly migrated to project_instance (ProjectConfigEntry), changed to config_manager (Configuration manager, the facade)."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -543,22 +543,22 @@ def set_project_defaults():
     global project_instance
 
     # Initialize TkInter variables with default values
-    perform_cropping.set(project_instance.get_perform_cropping())
-    perform_denoise.set(project_instance.get_perform_denoise())
-    perform_sharpness.set(project_instance.get_perform_sharpness())
-    perform_gamma_correction.set(project_instance.get_perform_gamma_correction())
-    frame_fill_type.set(project_instance.get_frame_fill_type())
-    generate_video.set(project_instance.get_generate_video())
-    frame_slider.set(project_instance.get_current_frame())
-    encode_all_frames.set(project_instance.get_encode_all_frames())
-    frame_from_str.set(project_instance.get_frame_from())
-    frame_to_str.set(project_instance.get_frame_to())
-    perform_stabilization.set(project_instance.get_perform_stabilization())
-    low_contrast_custom_template.set(project_instance.get_low_contrast_custom_template())
-    extended_stabilization.set(project_instance.get_extended_stabilization())
-    skip_frame_regeneration.set(project_instance.get_skip_frame_regeneration())
-    video_filename_str.set(project_instance.get_video_filename())
-    video_title_str.set(project_instance.get_video_title())
+    perform_cropping.set(config_manager.get_perform_cropping())
+    perform_denoise.set(config_manager.get_perform_denoise())
+    perform_sharpness.set(config_manager.get_perform_sharpness())
+    perform_gamma_correction.set(config_manager.get_perform_gamma_correction())
+    frame_fill_type.set(config_manager.get_frame_fill_type())
+    generate_video.set(config_manager.get_generate_video())
+    frame_slider.set(config_manager.get_current_frame())
+    encode_all_frames.set(config_manager.get_encode_all_frames())
+    frame_from_str.set(config_manager.get_frame_from())
+    frame_to_str.set(config_manager.get_frame_to())
+    perform_stabilization.set(config_manager.get_perform_stabilization())
+    low_contrast_custom_template.set(config_manager.get_low_contrast_custom_template())
+    extended_stabilization.set(config_manager.get_extended_stabilization())
+    skip_frame_regeneration.set(config_manager.get_skip_frame_regeneration())
+    video_filename_str.set(config_manager.get_video_filename())
+    video_title_str.set(config_manager.get_video_title())
 
 
 """ delete_this
@@ -1029,37 +1029,37 @@ def save_project_config():
     global perform_denoise, perform_sharpness, perform_gamma_correction
 
     # Write project data upon exit. TODO, get rid of global variables
-    project_instance.set_project_source_dir(source_dir)
-    project_instance.set_project_target_dir(target_dir)
-    project_instance.set_current_frame(current_frame)
-    project_instance.set_skip_frame_regeneration(skip_frame_regeneration.get())
-    project_instance.set_ffmpeg_preset(ffmpeg_preset.get())
-    project_instance.set_project_config_date(str(datetime.now()))
-    project_instance.set_perform_cropping(perform_cropping.get())
-    project_instance.set_perform_denoise(perform_denoise.get())
-    project_instance.set_perform_sharpness(perform_sharpness.get())
-    project_instance.set_perform_gamma_correction(perform_gamma_correction.get())
-    project_instance.set_gamma_correction_value(float(gamma_correction_str.get()))
-    project_instance.set_frame_fill_type(frame_fill_type.get())
-    project_instance.set_extended_stabilization(extended_stabilization.get())
-    project_instance.set_low_contrast_custom_template(low_contrast_custom_template.get())
-    project_instance.set_video_title(video_title_str.get())
-    project_instance.set_video_filename(video_filename_str.get())
-    project_instance.set_frame_from(int(frame_from_str.get()))
-    project_instance.set_frame_to(int(frame_to_str.get()))
+    config_manager.set_project_source_dir(source_dir)
+    config_manager.set_project_target_dir(target_dir)
+    config_manager.set_current_frame(current_frame)
+    config_manager.set_skip_frame_regeneration(skip_frame_regeneration.get())
+    config_manager.set_ffmpeg_preset(ffmpeg_preset.get())
+    config_manager.set_project_config_date(str(datetime.now()))
+    config_manager.set_perform_cropping(perform_cropping.get())
+    config_manager.set_perform_denoise(perform_denoise.get())
+    config_manager.set_perform_sharpness(perform_sharpness.get())
+    config_manager.set_perform_gamma_correction(perform_gamma_correction.get())
+    config_manager.set_gamma_correction_value(float(gamma_correction_str.get()))
+    config_manager.set_frame_fill_type(frame_fill_type.get())
+    config_manager.set_extended_stabilization(extended_stabilization.get())
+    config_manager.set_low_contrast_custom_template(low_contrast_custom_template.get())
+    config_manager.set_video_title(video_title_str.get())
+    config_manager.set_video_filename(video_filename_str.get())
+    config_manager.set_frame_from(int(frame_from_str.get()))
+    config_manager.set_frame_to(int(frame_to_str.get()))
 
-    project_instance.set_current_bad_frame_index(current_bad_frame_index)
+    config_manager.set_current_bad_frame_index(current_bad_frame_index)
     if stabilize_area_defined:
-        project_instance.set_perform_stabilization(perform_stabilization.get())
-        project_instance.set_stabilization_shift_y(stabilization_shift_y_value.get())
-        project_instance.set_stabilization_shift_x(stabilization_shift_x_value.get())
+        config_manager.set_perform_stabilization(perform_stabilization.get())
+        config_manager.set_stabilization_shift_y(stabilization_shift_y_value.get())
+        config_manager.set_stabilization_shift_x(stabilization_shift_x_value.get())
 
-    project_instance.set_perform_rotation(perform_rotation.get())
-    project_instance.set_video_resolution(video_resolution.get())
-    project_instance.set_video_fps(video_fps.get())
-    project_instance.set_generate_video(generate_video.get())
-    project_instance.set_video_target_dir(video_target_dir_str.get())
-    project_instance.set_frame_fill_type(frame_fill_type.get())
+    config_manager.set_perform_rotation(perform_rotation.get())
+    config_manager.set_video_resolution(video_resolution.get())
+    config_manager.set_video_fps(video_fps.get())
+    config_manager.set_generate_video(generate_video.get())
+    config_manager.set_video_target_dir(video_target_dir_str.get())
+    config_manager.set_frame_fill_type(frame_fill_type.get())
     
     if len(bad_frame_list) > 0:
         save_bad_frame_list()   # Bad frames need to be saved even in batch mode
@@ -1218,7 +1218,7 @@ def decode_project_config():
     global user_defined_left_stripe_width_proportion
     global project_instance
 
-    aux_value = project_config['source_dir']
+    aux_value = config_manager.get_source_dir()
     source_dir = aux_value
     if source_dir != '':
         project_name = os.path.split(source_dir)[-1].replace(',', ';')
@@ -1234,7 +1234,7 @@ def decode_project_config():
         # Need to retrieve source file list at this point, since win.update at the end of thi sfunction will force a refresh of the preview
         # If we don't do it here, an oimage from the previou ssource folder will be displayed instead
 
-    aux_value = project_instance.get_target_dir()
+    aux_value = config_manager.get_target_dir()
     target_dir = aux_value
     if target_dir != '':
         # If directory in configuration does not exist, set current working dir
@@ -1246,7 +1246,7 @@ def decode_project_config():
         frames_target_dir.insert('end', target_dir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
 
-    aux_value = project_instance.get_video_target_dir()
+    aux_value = config_manager.get_video_target_dir()
     video_target_dir_str.set(aux_value)
     if video_target_dir_str.get() != '':
         # If directory in configuration does not exist, set current working dir
@@ -1255,154 +1255,154 @@ def decode_project_config():
         video_target_dir_entry.after(100, video_target_dir_entry.xview_moveto, 1)
     current_frame = 0
     if not batch_job_running: # only if project loaded by user, otherwise it alters start encoding frame in batch mode
-        aux_value = project_instance.get_current_frame()
+        aux_value = config_manager.get_current_frame()
         current_frame = aux_value
         # frame_slider.set(current_frame)
 
-    aux_value = project_instance.get_encode_all_frames()
+    aux_value = config_manager.get_encode_all_frames()
     encode_all_frames.set(aux_value)
 
-    aux_value = project_instance.get_frame_from()
+    aux_value = config_manager.get_frame_from()
     frame_from_str.set(str(aux_value))
 
-    aux_value = project_instance.get_frame_to()
+    aux_value = config_manager.get_frame_to()
     frame_to_str.set(str(aux_value))
     if frame_to_str.get() != '' and frame_from_str.get() != '':
         frames_to_encode = int(frame_to_str.get()) - int(frame_from_str.get()) + 1
     else:
         frames_to_encode = 0
 
-    aux_value = project_instance.get_frames_to_encode()
+    aux_value = config_manager.get_frames_to_encode()
     if frames_to_encode != aux_value:
-        project_instance.set_frames_to_encode(frames_to_encode)
+        config_manager.set_frames_to_encode(frames_to_encode)
     
-    aux_value = project_instance.get_film_type()
+    aux_value = config_manager.get_film_type()
     film_type.set(aux_value)
 
-    aux_value = project_instance.get_rotation_angle()
+    aux_value = config_manager.get_rotation_angle()
     rotation_angle = aux_value
     rotation_angle_str.set(rotation_angle)
 
     if expert_mode:
-        aux_value = project_instance.get_stabilization_threshold()
+        aux_value = config_manager.get_stabilization_threshold()
         stabilization_threshold = aux_value
         stabilization_threshold_str.set(stabilization_threshold)
     else:
         stabilization_threshold = 220.0
 
-    aux_value = project_instance.get_low_contrast_custom_template()
+    aux_value = config_manager.get_low_contrast_custom_template()
     low_contrast_custom_template.set(aux_value)
 
-    aux_value = project_instance.get_extended_stabilization()
+    aux_value = config_manager.get_extended_stabilization()
     extended_stabilization.set(aux_value)
 
-    aux_value = project_instance.get_custom_template_defined()
-    if not project_instance.get_custom_template_defined():
+    aux_value = config_manager.get_custom_template_defined()
+    if not config_manager.get_custom_template_defined():
         # No custom template defined, set default one
         set_film_type()
     else:
-        aux_value = project_instance.get_custom_template_name()
+        aux_value = config_manager.get_custom_template_name()
         template_name = aux_value
 
-        aux_value = project_instance.get_custom_template_expected_pos()
+        aux_value = config_manager.get_custom_template_expected_pos()
         custom_template_expected_pos = aux_value
 
-        aux_value = project_instance.get_custom_template_filename()
+        aux_value = config_manager.get_custom_template_filename()
         full_path_template_filename = aux_value
         if not os.path.exists(full_path_template_filename):
             tk.messagebox.showwarning(
                 "Template in project invalid",
                 f"The custom template saved for project {template_name} is invalid."
                 "Please redefine custom template for this project.")
-            project_instance.set_custom_template_filename('')   # Normally item should be removed from dictionary. Need a method in ConfigurationManager for that
+            config_manager.set_custom_template_filename('')   # Normally item should be removed from dictionary. Need a method in ConfigurationManager for that
             # Invalid custom template defined, set default one
             set_film_type()
-            project_instance.set_custom_template_defined(False)
+            config_manager.set_custom_template_defined(False)
         else:
             logging.debug(f"Adding custom template {template_name} from configuration to template list (filename {full_path_template_filename})")
             template_manager.add(template_name, full_path_template_filename, "custom", custom_template_expected_pos)
             debug_template_refresh_template()
 
-    aux_value = project_instance.get_perform_cropping()
+    aux_value = config_manager.get_perform_cropping()
     perform_cropping.set(aux_value)
 
-    aux_value = project_instance.get_perform_denoise()
+    aux_value = config_manager.get_perform_denoise()
     perform_denoise.set(aux_value)
 
-    aux_value = project_instance.get_perform_sharpness()
+    aux_value = config_manager.get_perform_sharpness()
     perform_sharpness.set(aux_value)
 
-    aux_value = project_instance.get_perform_gamma_correction()
+    aux_value = config_manager.get_perform_gamma_correction()
     perform_gamma_correction.set(aux_value)
 
-    aux_value = project_instance.get_gamma_correction_value()
+    aux_value = config_manager.get_gamma_correction_value()
     gamma_correction_str.set(aux_value)
 
-    aux_value = project_instance.get_crop_rectangle()
+    aux_value = config_manager.get_crop_rectangle()
     crop_top_left = aux_value[0]
     crop_bottom_right = aux_value[1]
     perform_cropping_selection()
 
-    aux_value = project_instance.get_force_4_3()
+    aux_value = config_manager.get_force_4_3()
     force_4_3_crop.set(aux_value)
 
-    aux_value = project_instance.get_force_16_9()
+    aux_value = config_manager.get_force_16_9()
     force_16_9_crop.set(aux_value)
     if force_4_3_crop.get():    # 4:3 has priority if both set
         force_16_9_crop.set(False)
     force_4_3 = force_4_3_crop.get()
     force_16_9 = force_16_9_crop.get()
 
-    aux_value = project_instance.get_frame_fill_type()
+    aux_value = config_manager.get_frame_fill_type()
     frame_fill_type.set(aux_value)
 
-    aux_value = project_instance.get_generate_video()
+    aux_value = config_manager.get_generate_video()
     generate_video.set(aux_value)
     generate_video_selection()
 
-    aux_value = project_instance.get_video_filename()
+    aux_value = config_manager.get_video_filename()
     video_filename_str.set(aux_value)
 
-    aux_value = project_instance.get_video_title()
+    aux_value = config_manager.get_video_title()
     video_title_str.set(aux_value)
 
     # Snake case from the start
-    aux_value = project_instance.get_skip_frame_regeneration()
+    aux_value = config_manager.get_skip_frame_regeneration()
     skip_frame_regeneration.set(aux_value)
 
-    aux_value = project_instance.get_ffmpeg_preset()
+    aux_value = config_manager.get_ffmpeg_preset()
     ffmpeg_preset.set(aux_value)
 
-    aux_value = project_instance.get_perform_stabilization()
+    aux_value = config_manager.get_perform_stabilization()
     perform_stabilization.set(aux_value)
 
-    aux_value = project_instance.get_stabilization_shift_y()
+    aux_value = config_manager.get_stabilization_shift_y()
     stabilization_shift_y_value.set(aux_value)
 
-    aux_value = project_instance.get_stabilization_shift_x()
+    aux_value = config_manager.get_stabilization_shift_x()
     stabilization_shift_x_value.set(aux_value)
 
-    aux_value = project_instance.get_perform_rotation()
+    aux_value = config_manager.get_perform_rotation()
     perform_rotation.set(aux_value)
 
-    aux_value = project_instance.get_video_fps()
+    aux_value = config_manager.get_video_fps()
     video_fps = eval(aux_value)
     video_fps_dropdown_selected.set(video_fps)
     set_fps(str(video_fps))
 
-    aux_value = project_instance.get_video_resolution()
+    aux_value = config_manager.get_video_resolution()
     resolution_dropdown_selected.set(aux_value)
 
-    aux_value = project_instance.get_current_bad_frame_index()
+    aux_value = config_manager.get_current_bad_frame_index()
     current_bad_frame_index = aux_value
 
-    aux_value = project_instance.get_user_defined_left_stripe_width_proportion()
+    aux_value = config_manager.get_user_defined_left_stripe_width_proportion()
     user_defined_left_stripe_width_proportion = aux_value
     # Don't really need to retrieve the config date, this is intended only to be written. But anyhow...
 
-    aux_value = project_instance.get_project_config_daten()
+    aux_value = config_manager.get_project_config_daten()
 
-    aux_value = project_instance.get_precise_template_match()
+    aux_value = config_manager.get_precise_template_match()
 
     if len(source_dir_file_list) > 0:
         adjust_dimensions_based_on_frame()
@@ -1700,7 +1700,7 @@ def job_list_add_current():
         tk.messagebox.showerror("Cannot add new job", "Please fill 'Video filename' field, as it is used to identify the job.")
         return
 
-    if project_instance.get_film_type() == 'R8':
+    if config_manager.get_film_type() == 'R8':
     ### if project_config["film_type"] == 'R8': # delete_this
         description = "R8, "
     else:
@@ -1734,7 +1734,7 @@ def job_list_add_current():
         description = description + f", GC:{gamma_correction_str.get()}"
     description = description + f", fill: {frame_fill_type.get()}"
     ### if project_config["generate_video"]: # delete_this
-    if project_instance.get_generate_video():
+    if config_manager.get_generate_video():
         description = description + ", "
         if ffmpeg_preset.get() == 'veryslow':
             description = description + "HQ video"
@@ -1777,7 +1777,7 @@ def job_list_add_current():
             if 'custom_template_filename' in project_config:
                 del project_config['custom_template_filename']
             """
-            project_instance.set_custom_template_filename('')   # better remove it, but no method for now
+            config_manager.set_custom_template_filename('')   # better remove it, but no method for now
 
         if item_id is None:
             item_id = job_list_treeview.insert('', 'end', text=entry_name, values=(description,), 
@@ -1801,6 +1801,7 @@ def job_list_load_selected():
     global resolution_dropdown_selected
     global job_list_listbox_disabled
     global current_bad_frame_index
+    global project_instance
 
     if job_list_listbox_disabled:
         return
@@ -1821,7 +1822,10 @@ def job_list_load_selected():
                 bad_frame_list.clear()
                 current_bad_frame_index = -1
                 # Copy job settings as current project settings
+                project_instance = job_list[entry_name]['project']
+                """ delete_this
                 project_config = job_list[entry_name]['project']
+                """
                 decode_project_config()
 
                 config_manager.set_source_dir(source_dir)
@@ -1833,7 +1837,10 @@ def job_list_load_selected():
                     current_frame = first_absolute_frame + (last_absolute_frame - first_absolute_frame) // 2
                 else:
                     # Set current_frame in the middle of the project frame range
+                    current_frame = config_manager.get_frame_from() + (config_manager.get_frame_to() - config_manager.get_frame_from()) // 2
+                    """delete_this
                     current_frame = project_config["frame_from"] + (project_config["frame_to"] - project_config["frame_from"]) // 2
+                    """
 
                 # Enable Start and Crop buttons, plus slider, once we have files to handle
                 cropping_btn.config(state=NORMAL)
@@ -2075,6 +2082,7 @@ def job_processing_loop():
     global project_config_from_file
     global suspend_on_completion
     global current_frame, current_bad_frame_index
+    global project_instance
 
     logging.debug(f"Starting batch loop")
     job_started = False
@@ -2101,7 +2109,10 @@ def job_processing_loop():
                 current_frame = 0
             logging.debug(f"Processing {entry}, starting from frame {current_frame}, {job_list[entry]['project']['frames_to_encode']} frames")
             project_config_from_file = False
+            project_instance = job_list[entry]['project'].copy()
+            """ delete_this
             project_config = job_list[entry]['project'].copy()
+            """
             decode_project_config()
 
             # Load matching file list from target dir (source dir list retrieved in decode_project_config)
@@ -2326,7 +2337,10 @@ def set_source_folder():
         frames_target_dir.insert('end', target_dir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
         set_project_defaults()
+        config_manager.set_target_dir(target_dir)
+        """ delete_this
         project_config["target_dir"] = target_dir
+        """
 
     # Enable Start and Crop buttons, plus slider, once we have files to handle
     cropping_btn.config(state=NORMAL)
@@ -2364,7 +2378,10 @@ def set_frames_target_folder():
         frames_target_dir.insert('end', target_dir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
         set_project_defaults()
+        config_manager.set_target_dir(target_dir)
+        """ delete_this
         project_config["target_dir"] = target_dir
+        """
 
 
 def set_video_target_folder():
@@ -2385,8 +2402,10 @@ def set_video_target_folder():
         video_target_dir_str.set(video_target_dir)
         video_target_dir_entry.after(100, video_target_dir_entry.xview_moveto, 1)
 
+    config_manager.set_video_target_dir(video_target_dir_str.get())
+    """ delete_this
     project_config["video_target_dir"] = video_target_dir_str.get()
-
+    """
 
 """
 ###############################
@@ -2471,6 +2490,23 @@ def widget_status_update(widget_state=0, button_action=0):
         film_type_S8_rb.config(state=DISABLED if template_manager.get_active_type() == 'custom' else widget_state)
         film_type_R8_rb.config(state=DISABLED if template_manager.get_active_type() == 'custom' else widget_state)
         generate_video_checkbox.config(state=widget_state if ffmpeg_installed else DISABLED)
+
+        skip_frame_regeneration_cb.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        video_target_dir_entry.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        video_target_folder_btn.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        video_filename_label.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        video_title_label.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        video_title_name.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        video_fps_dropdown.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        resolution_dropdown.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        video_fps_label.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        resolution_label.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        video_filename_name.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        ffmpeg_preset_rb1.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        ffmpeg_preset_rb2.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        ffmpeg_preset_rb3.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        video_play_btn.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
+        """ delete_this
         skip_frame_regeneration_cb.config(state=widget_state if project_config["generate_video"] else DISABLED)
         video_target_dir_entry.config(state=widget_state if project_config["generate_video"] else DISABLED)
         video_target_folder_btn.config(state=widget_state if project_config["generate_video"] else DISABLED)
@@ -2485,8 +2521,9 @@ def widget_status_update(widget_state=0, button_action=0):
         ffmpeg_preset_rb1.config(state=widget_state if project_config["generate_video"] else DISABLED)
         ffmpeg_preset_rb2.config(state=widget_state if project_config["generate_video"] else DISABLED)
         ffmpeg_preset_rb3.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        start_batch_btn.config(state=widget_state if button_action != start_batch_btn else NORMAL)
         video_play_btn.config(state=widget_state if project_config["generate_video"] else DISABLED)
+        """
+        start_batch_btn.config(state=widget_state if button_action != start_batch_btn else NORMAL)
         add_job_btn.config(state=widget_state)
         delete_job_btn.config(state=widget_state)
         rerun_job_btn.config(state=widget_state)
@@ -2550,7 +2587,10 @@ def perform_rotation_selection():
         state=NORMAL if perform_rotation.get() else DISABLED)
     rotation_angle_label.config(
         state=NORMAL if perform_rotation.get() else DISABLED)
+    config_manager.set_perform_rotation(perform_rotation.get())
+    """ delete_this
     project_config["perform_rotation"] = perform_rotation.get()
+    """
     win.after(5, scale_display_update)
 
 
@@ -2558,7 +2598,10 @@ def rotation_angle_selection():
     global rotation_angle_spinbox, rotation_angle_str
     global rotation_angle
     rotation_angle = rotation_angle_spinbox.get()
+    config_manager.set_rotation_angle(rotation_angle)
+    """ delete_this
     project_config["rotation_angle"] = rotation_angle
+    """
     win.after(5, scale_display_update)
 
 
@@ -2566,7 +2609,10 @@ def rotation_angle_spinbox_focus_out(event):
     global rotation_angle_spinbox, rotation_angle_str
     global rotation_angle
     rotation_angle = rotation_angle_spinbox.get()
+    config_manager.set_rotation_angle(rotation_angle)
+    """ delete_this
     project_config["rotation_angle"] = rotation_angle
+    """
     win.after(5, scale_display_update)
 
 
@@ -2576,7 +2622,10 @@ def perform_stabilization_selection():
     if expert_mode:
         stabilization_threshold_spinbox.config(
             state=NORMAL if perform_stabilization.get() else DISABLED)
+    config_manager.set_perform_stabilization(perform_stabilization.get())
+    """ delete_this
     project_config["perform_stabilization"] = perform_stabilization.get()
+    """
     win.after(5, scale_display_update)
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
@@ -2585,14 +2634,20 @@ def perform_stabilization_selection():
 def low_contrast_custom_template_selection():
     global low_contrast_custom_template
 
+    config_manager.set_low_contrast_custom_template(low_contrast_custom_template.get())
+    """ delete_this
     project_config["low_contrast_custom_template"] = low_contrast_custom_template.get()
+    """
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
 
 def extended_stabilization_selection():
     global extended_stabilization, hole_search_area_adjustment_pending
+    config_manager.set_extended_stabilization(extended_stabilization.get())
+    """ delete_this
     project_config["extended_stabilization"] = extended_stabilization.get()
+    """
     hole_search_area_adjustment_pending = True
     win.after(5, scale_display_update)
     widget_status_update(NORMAL)
@@ -2602,7 +2657,10 @@ def extended_stabilization_selection():
 def select_stabilization_shift_y(even=None):
     global stabilization_shift_y
     stabilization_shift_y = stabilization_shift_y_value.get()
+    config_manager.set_stabilization_shift_y(stabilization_shift_y)
+    """ delete_this
     project_config["stabilization_shift_y"] = stabilization_shift_y
+    """
     win.after(5, scale_display_update)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
@@ -2610,7 +2668,10 @@ def select_stabilization_shift_y(even=None):
 def select_stabilization_shift_x(even=None):
     global stabilization_shift_x
     stabilization_shift_x = stabilization_shift_x_value.get()
+    config_manager.set_stabilization_shift_x(stabilization_shift_x)
+    """ delete_this
     project_config["stabilization_shift_x"] = stabilization_shift_x
+    """
     win.after(5, scale_display_update)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
@@ -2619,14 +2680,20 @@ def stabilization_threshold_selection(updown):
     global stabilization_threshold_spinbox, stabilization_threshold_str
     global stabilization_threshold
     stabilization_threshold = stabilization_threshold_spinbox.get()
+    config_manager.set_stabilization_threshold(stabilization_threshold)
+    """ delete_this
     project_config["stabilization_threshold"] = stabilization_threshold
+    """
 
 
 def stabilization_threshold_spinbox_focus_out(event):
     global stabilization_threshold_spinbox, stabilization_threshold_str
     global stabilization_threshold
     stabilization_threshold = stabilization_threshold_spinbox.get()
+    config_manager.set_stabilization_threshold(stabilization_threshold)
+    """ delete_this
     project_config["stabilization_threshold"] = stabilization_threshold
+    """
 
 
 def perform_cropping_selection():
@@ -2637,7 +2704,10 @@ def perform_cropping_selection():
 
     generate_video_checkbox.config(state=NORMAL if ffmpeg_installed
                                    else DISABLED)
+    config_manager.set_perform_cropping(perform_cropping.get())
+    """ delete_this
     project_config["perform_cropping"] = perform_cropping.get()
+    """
     if ui_init_done:
         win.after(5, scale_display_update)
 
@@ -2645,7 +2715,10 @@ def perform_cropping_selection():
 def perform_sharpness_selection():
     global perform_sharpness
 
+    config_manager.set_perform_sharpness(perform_sharpness.get())
+    """ delete_this
     project_config["perform_sharpness"] = perform_sharpness.get()
+    """
     if ui_init_done:
         win.after(5, scale_display_update)
 
@@ -2653,13 +2726,19 @@ def perform_sharpness_selection():
 def perform_denoise_selection():
     global perform_denoise
 
+    config_manager.set_perform_denoise(perform_denoise.get())
+    """ delete_this
     project_config["perform_denoise"] = perform_denoise.get()
+    """
     if ui_init_done:
         win.after(5, scale_display_update)
 
 
 def perform_gamma_correction_selection():
+    config_manager.set_perform_gamma_correction(perform_gamma_correction.get())
+    """ delete_this
     project_config["perform_gamma_correction"] = perform_gamma_correction.get()
+    """
     if ui_init_done:
         win.after(5, scale_display_update)
 
@@ -2680,8 +2759,12 @@ def force_4_3_selection():
     if force_4_3:
         force_16_9_crop.set(False)
         force_16_9 = False
+    config_manager.set_force_4_3(force_4_3_crop.get())
+    config_manager.set_force_16_9(force_16_9_crop.get())
+    """ delete_this
     project_config["force_4_3"] = force_4_3_crop.get()
     project_config["force_16_9"] = force_16_9_crop.get()
+    """
 
 
 def force_16_9_selection():
@@ -2695,13 +2778,20 @@ def force_16_9_selection():
     if force_16_9:
         force_4_3_crop.set(False)
         force_4_3= False
+    config_manager.set_force_4_3(force_4_3_crop.get())
+    config_manager.set_force_16_9(force_16_9_crop.get())
+    """ delete_this
     project_config["force_4_3"] = force_4_3_crop.get()
     project_config["force_16_9"] = force_16_9_crop.get()
+    """
 
 
 def encode_all_frames_selection():
     global encode_all_frames
+    config_manager.set_encode_all_frames(encode_all_frames.get())
+    """ delete_this
     project_config["encode_all_frames"] = encode_all_frames.get()
+    """
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
@@ -2709,7 +2799,10 @@ def encode_all_frames_selection():
 def generate_video_selection():
     global generate_video
 
+    config_manager.set_generate_video(generate_video.get())
+    """ delete_this
     project_config["generate_video"] = generate_video.get()
+    """
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
@@ -2717,13 +2810,19 @@ def generate_video_selection():
 def set_fps(selected):
     global video_fps
 
+    config_manager.set_video_fps(selected)
+    """ delete_this
     project_config["video_fps"] = selected
+    """
     video_fps = eval(selected)
 
 
 def set_resolution(selected):
     global resolution_dict
+    config_manager.set_video_resolution(selected)
+    """ delete_this
     project_config["video_resolution"] = selected
+    """
 
 
 def display_template_popup_closure():
@@ -2793,7 +2892,10 @@ def cmd_settings_popup_accept():
         general_config["enable_soundtrack"] = enable_soundtrack
         """
     user_defined_left_stripe_width_proportion = left_stripe_width_value.get() / 100
+    config_manager.set_user_defined_left_stripe_width_proportion(user_defined_left_stripe_width_proportion)
+    """ delete_this
     project_config["user_defined_left_stripe_width_proportion"] = user_defined_left_stripe_width_proportion
+    """
 
     options_dlg.grab_release()
     options_dlg.destroy()
@@ -3185,7 +3287,10 @@ def FrameSync_Viewer_popup_refresh():
     else:
         x = 0
         y = 0
+    config_manager.set_project_current_frame(current_frame)
+    """ delete_this
     project_config["current_frame"] = current_frame
+    """
     refresh_current_frame_ui_info(current_frame, first_absolute_frame)
     frame_selected.set(current_frame)
     frame_slider.set(current_frame)
@@ -4107,7 +4212,10 @@ def select_scale_frame(selected_frame):
     if not convert_loop_running and not batch_job_running:  # Do not refresh during conversion loop
         frame_slider.focus()
         current_frame = int(selected_frame)
+        config_manager.set_project_current_frame(current_frame)
+        """ delete_this
         project_config["current_frame"] = current_frame
+        """
         refresh_current_frame_ui_info(current_frame, first_absolute_frame)
         if frame_scale_refresh_done:
             frame_scale_refresh_done = False
@@ -4144,7 +4252,10 @@ def detect_film_type():
     # Initialize work values
     count1 = 0
     count2 = 0
+    """ delete_this
     if project_config["film_type"] == 'R8':
+    """
+    if config_manager.get_film_type():
         template_1 = template_manager.get_template_image_by_key('aux','WB')
         template_2 = template_manager.get_template_image_by_key('aux','BW')
         other_film_type = 'S8'
@@ -4177,9 +4288,13 @@ def detect_film_type():
         else:
             count2 += 1
     if not batch_job_running and count1 > count2:
+        type = config_manager.get_film_type()
+        """ delete_this
+        type = project_config['film_type']
+        """
         if tk.messagebox.askyesno(
             "Wrong film type detected",
-            f"Current project is defined to handle {project_config['film_type']}"
+            f"Current project is defined to handle {type}"
             f" film type, however frames seem to be {other_film_type}.\r\n"
             "Do you want to change it now?"):
             film_type.set(other_film_type)
@@ -4545,7 +4660,10 @@ def select_cropping_area():
         crop_top_left = (0, 0)
         crop_bottom_right = (0, 0)
 
+    config_manager.set_crop_rectangle((crop_top_left, crop_bottom_right))
+    """ delete_this
     project_config["crop_rectangle"] = (crop_top_left, crop_bottom_right)
+    """
     perform_cropping_checkbox.config(state=NORMAL if crop_area_defined
                                      else DISABLED)
 
@@ -4615,7 +4733,10 @@ def select_custom_template():
                 img_final = img_bw
 
             # Write template to disk
+            config_manager.set_custom_template_filename(full_path_template_filename)
+            """ delete_this
             project_config["custom_template_filename"] = full_path_template_filename
+            """
             cv2.imwrite(full_path_template_filename, img_final)
 
             # Add template to list
@@ -4625,8 +4746,12 @@ def select_custom_template():
             FrameSync_Viewer_popup_update_widgets(NORMAL)
             custom_stabilization_btn.config(relief=SUNKEN)
 
+            config_manager.set_custom_template_expected_pos(template_manager.get_active_position())
+            config_manager.set_custom_template_name(template_manager.get_active_name())
+            """ delete_this
             project_config['custom_template_expected_pos'] = template_manager.get_active_position()
             project_config['custom_template_name'] = template_manager.get_active_name()
+            """
 
             define_template_search_area(full_img)  # Adjust hole search area to new template
 
@@ -4657,7 +4782,10 @@ def select_custom_template():
             widget_status_update(DISABLED, 0)
             FrameSync_Viewer_popup_update_widgets(DISABLED)
 
+    config_manager.set_custom_template_defined(True if template_manager.get_active_type() == 'custom' else False)
+    """ delete_this
     project_config["custom_template_defined"] = True if template_manager.get_active_type() == 'custom' else False
+    """
     debug_template_refresh_template()
 
     # Enable all buttons in main window
@@ -4671,7 +4799,10 @@ def set_film_type():
     global film_type, template_manager
 
     if template_manager.set_active_template(film_type.get(), film_type.get()):
+        config_manager.set_film_type(film_type.get())
+        """ delete_this
         project_config["film_type"] = film_type.get()
+        """
         debug_template_refresh_template()
         video_fps_dropdown_selected.set('18' if film_type.get() == 'S8' else '16')
         return True
@@ -5805,7 +5936,11 @@ def start_convert():
         FrameSync_Viewer_popup_update_widgets(DISABLED)
         win.update()
 
+        config_manager.set_film_type(film_type.get())
+        """ delete_this
         if project_config["generate_video"]:
+        """
+        if config_manager.get_generate_video():
             target_video_filename = video_filename_str.get()
             name, ext = os.path.splitext(target_video_filename)
             if target_video_filename == "":   # Assign default if no filename
@@ -5852,7 +5987,10 @@ def start_convert():
             win.after(1, frame_generation_loop)
         elif generate_video.get():
             # first check if resolution has been set
+            """ delete_this
             if resolution_dict[project_config["video_resolution"]] == '':
+            """
+            if resolution_dict[config_manager.get_video_resolution()] == '':
                 if not batch_job_running:
                     logging.error("Error, no video resolution selected")
                     tk.messagebox.showerror("Error!", "Please specify video resolution.")
@@ -6207,7 +6345,10 @@ def frame_generation_loop():
         if current_frame < start_frame + num_threads:
             time.sleep(0.3)
         current_frame += 1
+        config_manager.set_project_current_frame(current_frame)
+        """ delete_this
         project_config["current_frame"] = current_frame
+        """
         win.after(1, frame_generation_loop)
     else:   # If queue is full, wait a bit longer
         win.after(100, frame_generation_loop)
@@ -6346,9 +6487,12 @@ def call_ffmpeg():
     global title_num_frames
     global file_type_out
 
+    """ delete_this
     if resolution_dict[project_config["video_resolution"]] != '':
-        video_width = resolution_dict[project_config["video_resolution"]].split(':')[0]
-        video_height = resolution_dict[project_config["video_resolution"]].split(':')[1]
+    """
+    if resolution_dict[config_manager.get_video_resolution()] != '':
+        video_width = resolution_dict[config_manager.get_video_resolution()].split(':')[0]
+        video_height = resolution_dict[config_manager.get_video_resolution()].split(':')[1]
 
     cmd_ffmpeg = [ffmpeg_bin_name,
                   '-y',

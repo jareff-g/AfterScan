@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "project_config"
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 __data_version__ = "1.0"
-__date__ = "2025-12-07"
-__version_highlight__ = "WIP - Renaming fields/functions for better readability."
+__date__ = "2025-12-08"
+__version_highlight__ = "WIP - Make project_dir and optional parameter in ConfigurationManager accesors."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -289,6 +289,7 @@ class ConfigurationManager:
     # we handle them explicitly in _to_dict_recursive for the top-level structure.
     global_config: GlobalConfig = field(default_factory=GlobalConfig)
     projects: Dict[str, ProjectConfigEntry] = field(default_factory=dict)
+    active_project: str = field(default="")
     
     @classmethod
     def initialize(cls) -> 'ConfigurationManager':
@@ -376,6 +377,12 @@ class ConfigurationManager:
             return obj
 
     # --- Project-Specific Accessors ---
+
+    def set_active_project(self, project_dir: str):
+        self.active_project = project_dir
+
+    def get_active_project(self) -> str:
+        return self.active_project
 
     def get_project_config(self, project_dir: str) -> ProjectConfigEntry:
         """
@@ -500,242 +507,398 @@ class ConfigurationManager:
     
     # --- ProjectConfigEntry Specific Accessors (only those required, for now) ---
     # self.projects[project_dir].copy()
-    def set_project_source_dir(self, project_dir: str, source_dir: str):
+    def set_project_source_dir(self, source_dir: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].source_dir = source_dir
         # If the source_dir changes, we need to update the key in the projects dictionary
         if project_dir != source_dir:
             self.projects[source_dir] = self.projects.pop(project_dir).source_dir = source_dir
             del self.projects[project_dir]
 
-    def set_project_target_dir(self, project_dir: str, target_dir: str):
+    def set_project_target_dir(self, target_dir: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].target_dir = target_dir
 
-    def set_project_video_target_dir(self, project_dir: str, video_target_dir: str):
+    def set_project_video_target_dir(self, video_target_dir: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].video_target_dir = video_target_dir
 
-    def set_project_film_type(self, project_dir: str, film_type: str):
+    def set_project_film_type(self, film_type: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].film_type = film_type
 
-    def set_project_perform_cropping(self, project_dir: str, perform: bool):
+    def set_project_perform_cropping(self, perform: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].perform_cropping = perform
 
-    def set_project_perform_sharpness(self, project_dir: str, perform: bool):
+    def set_project_perform_sharpness(self, perform: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].perform_sharpness = perform
 
-    def set_project_perform_denoise(self, project_dir: str, perform: bool):
+    def set_project_perform_denoise(self, perform: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].perform_denoise = perform
 
-    def set_project_perform_gamma_correction(self, project_dir: str, perform: bool):
+    def set_project_perform_gamma_correction(self, perform: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].perform_gamma_correction = perform
 
-    def set_project_generate_video(self, project_dir: str, generate: bool):
+    def set_project_generate_video(self, generate: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].generate_video = generate
 
-    def set_project_video_fps(self, project_dir: str, fps: str):
+    def set_project_video_fps(self, fps: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].video_fps = fps
 
-    def set_project_current_frame(self, project_dir: str, frame: int):
+    def set_project_current_frame(self, frame: int, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].current_frame = frame
 
-    def set_project_encode_all_frames(self, project_dir: str, encode_all: bool):
+    def set_project_encode_all_frames(self, encode_all: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].encode_all_frames = encode_all
 
-    def set_frames_to_encode(self, project_dir: str, frames: int):
+    def set_frames_to_encode(self, frames: int, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].frames_to_encode = frames
 
-    def set_stabilization_threshold(self, project_dir: str, threshold: float):
+    def set_stabilization_threshold(self, threshold: float, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].stabilization_threshold = threshold
 
-    def set_perform_stabilization(self, project_dir: str, perform: bool):
+    def set_perform_stabilization(self, perform: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].perform_stabilization = perform
 
-    def set_project_skip_frame_regeneration(self, project_dir: str, skip: bool):
+    def set_project_skip_frame_regeneration(self, skip: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].skip_frame_regeneration = skip
 
-    def set_project_video_filename(self, project_dir: str, filename: str):
+    def set_project_video_filename(self, filename: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].video_filename = filename
 
-    def set_project_video_title(self, project_dir: str, title: str):
+    def set_project_video_title(self, title: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].video_title = title
 
-    def set_project_frame_fill_type(self, project_dir: str, fill_type: str):
+    def set_project_frame_fill_type(self, fill_type: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].frame_fill_type = fill_type
 
-    def set_project_frame_from(self, project_dir: str, frame_from: int):
+    def set_project_frame_from(self, frame_from: int, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].frame_from = frame_from
 
-    def set_project_frame_to(self, project_dir: str, frame_to: int):
+    def set_project_frame_to(self, frame_to: int, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].frame_to = frame_to
 
-    def set_project_low_contrast_custom_template(self, project_dir: str, low_contrast: bool):
+    def set_project_low_contrast_custom_template(self, low_contrast: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].low_contrast_custom_template = low_contrast
 
-    def set_project_extended_stabilization(self, project_dir: str, extended: bool):
+    def set_project_extended_stabilization(self, extended: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].extended_stabilization = extended
 
-    def set_project_stabilization_shift_x(self, project_dir: str, shift_x: int):
+    def set_project_stabilization_shift_x(self, shift_x: int, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].stabilization_shift_x = shift_x
 
-    def set_project_stabilization_shift_y(self, project_dir: str, shift_y: int):
+    def set_project_stabilization_shift_y(self, shift_y: int, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].stabilization_shift_y = shift_y
 
-    def set_project_rotation_angle(self, project_dir: str, angle: int):
+    def set_project_rotation_angle(self, angle: int, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].rotation_angle = angle
 
-    def set_project_custom_template_defined(self, project_dir: str, defined: bool):
+    def set_project_custom_template_defined(self, defined: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].custom_template_defined = defined
 
-    def set_custom_template_expected_pos(self, project_dir: str, pos: List[int]):
+    def set_custom_template_expected_pos(self, pos: List[int], project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].custom_template_expected_pos = pos
 
-    def set_custom_template_filename(self, project_dir: str, filename: str):
+    def set_custom_template_filename(self, filename: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].custom_template_filename = filename
 
-    def set_custom_template_name(self, project_dir: str, name: str):
+    def set_custom_template_name(self, name: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].custom_template_name = name
 
-    def set_gamma_correction_value(self, project_dir: str, value: float):
+    def set_gamma_correction_value(self, value: float, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].gamma_correction_value = value
 
-    def set_crop_rectangle(self, project_dir: str, rectangle: List[List[int]]):
+    def set_crop_rectangle(self, rectangle: List[List[int]], project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].crop_rectangle = rectangle
 
-    def set_force_4_3(self, project_dir: str, force_4_3: bool):
+    def set_force_4_3(self, force_4_3: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].force_4_3 = force_4_3
 
-    def set_force_16_9(self, project_dir: str, force_16_9: bool):
+    def set_force_16_9(self, force_16_9: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].force_16_9 = force_16_9
     
-    def set_ffmpeg_preset(self, project_dir: str, preset: str):
+    def set_ffmpeg_preset(self, preset: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].ffmpeg_preset = preset
 
-    def set_perform_rotation(self, project_dir: str, perform: bool):
+    def set_perform_rotation(self, perform: bool, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].perform_rotation = perform
 
-    def set_video_resolution(self, project_dir: str, video_resolution: str):
+    def set_video_resolution(self, video_resolution: str, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].video_resolution = video_resolution
 
-    def set_current_bad_frame_index(self, project_dir: str, current_bad_frame_index: int):
+    def set_current_bad_frame_index(self, current_bad_frame_index: int, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].current_bad_frame_index = current_bad_frame_index
 
-    def set_user_defined_left_stripe_width_proportion(self, project_dir: str, proportion: float):
+    def set_user_defined_left_stripe_width_proportion(self, proportion: float, project_dir: str = None):
+        if project_dir is None:
+            project_dir = self.active_project
         self.projects[project_dir].user_defined_left_stripe_width_proportion = proportion
-    
-    def get_project_source_dir(self, project_dir: str) -> str:
+
+    def get_project_source_dir(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].source_dir
 
-    def get_target_dir(self, project_dir: str) -> str:
+    def get_target_dir(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].target_dir
 
-    def get_video_target_dir(self, project_dir: str) -> str:
+    def get_video_target_dir(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].video_target_dir
 
-    def get_film_type(self, project_dir: str) -> str:
+    def get_film_type(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].film_type
 
-    def get_perform_cropping(self, project_dir: str) -> bool:
+    def get_perform_cropping(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].perform_cropping
 
-    def get_perform_sharpness(self, project_dir: str) -> bool:
+    def get_perform_sharpness(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].perform_sharpness
 
-    def get_perform_denoise(self, project_dir: str) -> bool:
+    def get_perform_denoise(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].perform_denoise
 
-    def get_perform_gamma_correction(self, project_dir: str) -> bool:
+    def get_perform_gamma_correction(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].perform_gamma_correction
 
-    def get_generate_video(self, project_dir: str) -> bool:
+    def get_generate_video(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].generate_video
 
-    def get_video_fps(self, project_dir: str) -> str:
+    def get_video_fps(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].video_fps
 
-    def get_current_frame(self, project_dir: str) -> int:
+    def get_current_frame(self, project_dir: str = None) -> int:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].current_frame
 
-    def get_encode_all_frames(self, project_dir: str) -> bool:
+    def get_encode_all_frames(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].encode_all_frames
 
-    def get_frames_to_encode(self, project_dir: str) -> int:
+    def get_frames_to_encode(self, project_dir: str = None) -> int:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].frames_to_encode
 
-    def get_stabilization_threshold(self, project_dir: str) -> float:
+    def get_stabilization_threshold(self, project_dir: str = None) -> float:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].stabilization_threshold
 
-    def get_perform_stabilization(self, project_dir: str) -> bool:
+    def get_perform_stabilization(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].perform_stabilization
 
-    def get_skip_frame_regeneration(self, project_dir: str) -> bool:
+    def get_skip_frame_regeneration(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].skip_frame_regeneration
 
-    def get_video_filename(self, project_dir: str) -> str:
+    def get_video_filename(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].video_filename
 
-    def get_video_title(self, project_dir: str) -> str:
+    def get_video_title(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].video_title
 
-    def get_frame_fill_type(self, project_dir: str) -> str:
+    def get_frame_fill_type(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].frame_fill_type
 
-    def get_frame_from(self, project_dir: str) -> int:
+    def get_frame_from(self, project_dir: str = None) -> int:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].frame_from
 
-    def get_frame_to(self, project_dir: str) -> int:
+    def get_frame_to(self, project_dir: str = None) -> int:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].frame_to
 
-    def get_low_contrast_custom_template(self, project_dir: str) -> bool:
+    def get_low_contrast_custom_template(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].low_contrast_custom_template
 
-    def get_extended_stabilization(self, project_dir: str) -> bool:
+    def get_extended_stabilization(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].extended_stabilization
 
-    def get_stabilization_shift_x(self, project_dir: str) -> int:
+    def get_stabilization_shift_x(self, project_dir: str = None) -> int:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].stabilization_shift_x
 
-    def get_stabilization_shift_y(self, project_dir: str) -> int:
+    def get_stabilization_shift_y(self, project_dir: str = None) -> int:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].stabilization_shift_y
 
-    def get_rotation_angle(self, project_dir: str) -> int:
+    def get_rotation_angle(self, project_dir: str = None) -> int:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].rotation_angle
 
-    def get_custom_template_defined(self, project_dir: str) -> bool:
+    def get_custom_template_defined(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].custom_template_defined
 
-    def get_custom_template_expected_pos(self, project_dir: str) -> List[int]:
+    def get_custom_template_expected_pos(self, project_dir: str = None) -> List[int]:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].custom_template_expected_pos
 
-    def get_custom_template_filename(self, project_dir: str) -> str:
+    def get_custom_template_filename(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].custom_template_filename
 
-    def get_custom_template_name(self, project_dir: str) -> str:
+    def get_custom_template_name(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].custom_template_name
 
-    def get_gamma_correction_value(self, project_dir: str) -> float:
+    def get_gamma_correction_value(self, project_dir: str = None) -> float:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].gamma_correction_value
 
-    def get_crop_rectangle(self, project_dir: str) -> List[List[int]]:
+    def get_crop_rectangle(self, project_dir: str = None) -> List[List[int]]:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].crop_rectangle
 
-    def get_force_4_3(self, project_dir: str) -> bool:
+    def get_force_4_3(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].force_4_3
 
-    def get_force_16_9(self, project_dir: str) -> bool:
+    def get_force_16_9(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].force_16_9
 
-    def get_ffmpeg_preset(self, project_dir: str) -> str:
+    def get_ffmpeg_preset(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].ffmpeg_preset
 
-    def get_perform_rotation(self, project_dir: str) -> bool:
+    def get_perform_rotation(self, project_dir: str = None) -> bool:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].perform_rotation
 
-    def get_video_resolution(self, project_dir: str) -> str:
+    def get_video_resolution(self, project_dir: str = None) -> str:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].video_resolution
 
-    def get_current_bad_frame_index(self, project_dir: str) -> int:
+    def get_current_bad_frame_index(self, project_dir: str = None) -> int:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].current_bad_frame_index
 
-    def get_user_defined_left_stripe_width_proportion(self, project_dir: str) -> float:
+    def get_user_defined_left_stripe_width_proportion(self, project_dir: str = None) -> float:
+        if project_dir is None:
+            project_dir = self.active_project
         return self.projects[project_dir].user_defined_left_stripe_width_proportion
 
 
