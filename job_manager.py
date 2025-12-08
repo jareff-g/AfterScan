@@ -1,3 +1,25 @@
+#!/usr/bin/env python
+"""
+job_manager - Handles AfterScan batch job list
+
+Licensed under a MIT LICENSE.
+
+More info in README.md file
+"""
+
+__author__ = 'Juan Remirez de Esparza'
+__copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
+__credits__ = ["Juan Remirez de Esparza"]
+__license__ = "MIT"
+__module__ = "project_config"
+__version__ = "1.0.1"
+__data_version__ = "1.0"
+__date__ = "2025-12-08"
+__version_highlight__ = "WIP - Add a few accesors (job_exists, mark as done, mark as attempted, etc)."
+__maintainer__ = "Juan Remirez de Esparza"
+__email__ = "jremirez@hotmail.com"
+__status__ = "Development"
+
 from dataclasses import dataclass, field, fields, asdict
 from typing import Dict, Any, Optional, List
 import uuid
@@ -88,7 +110,11 @@ class JobQueue:
     def get_job(self, job_name: str) -> Optional[JobEntry]:
         """Retrieves a job by its name."""
         return self.job_map.get(job_name)
-        
+
+    def job_exists(self, job_name: str) -> bool:
+        """Checks if a job with the given name exists."""
+        return job_name in self.job_map
+
 # --- Job Manager Facade ---
 
 @dataclass
@@ -177,15 +203,42 @@ class JobManager:
         """Retrieves a job by name."""
         return self.job_queue.get_job(job_name)
         
+    def job_exists(self, job_name: str) -> bool:
+        """Checks if a job with the given name exists."""
+        return self.job_queue.job_exists(job_name)
+
     def mark_job_done(self, job_name: str, success: bool = True):
         """Updates the status of a job."""
         job = self.get_job(job_name)
         if job:
             job.done = success
             job.attempted = True
-            logging.info(f"Job '{job_name}' marked as done. Success: {success}")
+            logging.debug(f"Job '{job_name}' marked as done. Success: {success}")
         else:
-            logging.warning(f"Could not find job '{job_name}' to update status.")
+            logging.debug(f"Could not find job '{job_name}' to update done status.")
+
+    def is_job_done(self, job_name: str):
+        """Retrieves the status of a job."""
+        job = self.get_job(job_name)
+        if not job:
+            logging.debug(f"Could not find job '{job_name}' to retrieve done status.")
+        return job.done if job else False
+
+    def mark_job_attempted(self, job_name: str, success: bool = True):
+        """Updates the status of a job."""
+        job = self.get_job(job_name)
+        if job:
+            job.attempted = True
+            logging.debug(f"Job '{job_name}' marked as attempted. Success: {success}")
+        else:
+            logging.debug(f"Could not find job '{job_name}' to update attempted status.")
+
+    def is_job_attempted(self, job_name: str):
+        """Retrieves the status of a job."""
+        job = self.get_job(job_name)
+        if not job:
+            logging.debug(f"Could not find job '{job_name}' to retrieve attempted status.")
+        return job.attempted if job else False
 
     def get_all_jobs(self) -> Dict[str, JobEntry]:
         """Returns the complete job map."""

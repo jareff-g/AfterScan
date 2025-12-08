@@ -23,7 +23,7 @@ __module__ = "AfterScan"
 __version__ = "1.40.16"
 __data_version__ = "1.0"
 __date__ = "2025-12-08"
-__version_highlight__ = "WIP Refactoring - project_config wrongly migrated to project_instance (ProjectConfigEntry), changed to config_manager (Configuration manager, the facade)."
+__version_highlight__ = "WIP Refactoring - Conversion from job_list dictionary to JobManager ongoing."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -155,6 +155,7 @@ from rolling_average import RollingAverage
 from define_rectangle import DefineRectangle
 from template_manager import TemplateManager
 from configuration_manager import ConfigurationManager, ProjectConfigEntry
+from job_manager import JobManager
 
 # Check for temporalDenoise in OpenCV at startup
 HAS_TEMPORAL_DENOISE = hasattr(cv2, 'temporalDenoising')
@@ -540,7 +541,6 @@ def set_project_defaults():
     global frame_from_str, frame_to_str
     global frame_fill_type, extended_stabilization, low_contrast_custom_template
     global perform_denoise, perform_sharpness
-    global project_instance
 
     # Initialize TkInter variables with default values
     perform_cropping.set(config_manager.get_perform_cropping())
@@ -1136,7 +1136,8 @@ def load_project_config():
     global project_repository, project_instance
 
     if not ignore_config:
-        project_instance = project_repository.get_project_instance(source_dir)
+        config_manager.set_active_project(source_dir)
+        project_instance = config_manager.get_project_config(source_dir)
 
     for item in project_instance:
         logging.debug("%s=%s", item, str(project_instance[item]))
@@ -1216,7 +1217,6 @@ def decode_project_config():
     global precise_template_match
     global stabilization_shift_x, stabilization_shift_y
     global user_defined_left_stripe_width_proportion
-    global project_instance
 
     aux_value = config_manager.get_source_dir()
     source_dir = aux_value
@@ -1679,8 +1679,10 @@ def job_list_process_selection(evt):
         Name = job_list_treeview.item(item_id, "text")  # Returns a tuple of all column values
         if Name:
             entry = normalize_job_name(Name)  # Get the first element
+            rerun_job_btn.config(text='Rerun job' if batch_job_list.is_job_done(entry) else rerun_job_btn.config(text='Mark as run'))
+            """ delete_this
             rerun_job_btn.config(text='Rerun job' if job_list[entry]['done'] else rerun_job_btn.config(text='Mark as run'))
-
+            """
 
 
 def job_list_add_current():
@@ -1752,7 +1754,10 @@ def job_list_add_current():
 
     save_project = True
     item_id = None
+    """ delete_this
     if entry_name in job_list:
+    """
+    if batch_job_list.job_exists(entry_name):
         if tk.messagebox.askyesno(
                 "Job already exists",
                 "A job named " + entry_name + " exists already in the job list. "
@@ -1828,6 +1833,9 @@ def job_list_load_selected():
                 """
                 decode_project_config()
 
+                # Refresh project loaded from Job list in project list (plus set it as active)
+                config_manager.save_project_config(source_dir, project_instance)
+                config_manager.set_active_project(source_dir)
                 config_manager.set_source_dir(source_dir)
                 """ delete_this
                 general_config["source_dir"] = source_dir
@@ -2114,6 +2122,12 @@ def job_processing_loop():
             project_config = job_list[entry]['project'].copy()
             """
             decode_project_config()
+
+            # Refresh project loaded from Job list in project list (plus set it as active)
+            config_manager.save_project_config(source_dir, project_instance)
+            config_manager.set_active_project(source_dir)
+            config_manager.set_source_dir(source_dir)
+
 
             # Load matching file list from target dir (source dir list retrieved in decode_project_config)
             get_target_dir_file_list()
@@ -7944,6 +7958,7 @@ def main(argv):
     global use_simple_stabilization
     global dev_debug_enabled
     global config_manager, project_instance
+    global batch_job_list
     
     logging_mode = "INFO"
     go_disable_tooptips = False
@@ -8032,9 +8047,7 @@ def main(argv):
 
     config_manager: ConfigurationManager = ConfigurationManager.initialize()
     project_instance: ProjectConfigEntry = ProjectConfigEntry()
-    job_list: JobList = JobList()
-
-
+    batch_job_list: JobManager = JobManager.initialize()
 
     load_configuration(config_manager)
 
