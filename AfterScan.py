@@ -154,7 +154,7 @@ from tooltip import Tooltips
 from rolling_average import RollingAverage
 from define_rectangle import DefineRectangle
 from template_manager import TemplateManager
-from configuration_manager import ConfigurationManager
+from configuration_manager import ConfigurationManager, ProjectConfigEntry
 
 # Check for temporalDenoise in OpenCV at startup
 HAS_TEMPORAL_DENOISE = hasattr(cv2, 'temporalDenoising')
@@ -298,6 +298,8 @@ project_repository = {}
 project_config = default_project_config.copy()
 """
 config_manager: ConfigurationManager = {}
+project_instance: ProjectConfigEntry = {}   # this will replace project_config
+
 
 # Film hole search vars
 hole_search_top_left = (0, 0)
@@ -531,6 +533,37 @@ Configuration file support functions
 
 def set_project_defaults():
     global project_config
+    global perform_cropping, generate_video, resolution_dropdown_selected, perform_gamma_correction
+    global frame_slider, encode_all_frames, frames_to_encode_str
+    global perform_stabilization, skip_frame_regeneration, ffmpeg_preset
+    global video_filename_str, video_title_str
+    global frame_from_str, frame_to_str
+    global frame_fill_type, extended_stabilization, low_contrast_custom_template
+    global perform_denoise, perform_sharpness
+    global project_instance
+
+    # Initialize TkInter variables with default values
+    perform_cropping.set(project_instance.get_perform_cropping())
+    perform_denoise.set(project_instance.get_perform_denoise())
+    perform_sharpness.set(project_instance.get_perform_sharpness())
+    perform_gamma_correction.set(project_instance.get_perform_gamma_correction())
+    frame_fill_type.set(project_instance.get_frame_fill_type())
+    generate_video.set(project_instance.get_generate_video())
+    frame_slider.set(project_instance.get_current_frame())
+    encode_all_frames.set(project_instance.get_encode_all_frames())
+    frame_from_str.set(project_instance.get_frame_from())
+    frame_to_str.set(project_instance.get_frame_to())
+    perform_stabilization.set(project_instance.get_perform_stabilization())
+    low_contrast_custom_template.set(project_instance.get_low_contrast_custom_template())
+    extended_stabilization.set(project_instance.get_extended_stabilization())
+    skip_frame_regeneration.set(project_instance.get_skip_frame_regeneration())
+    video_filename_str.set(project_instance.get_video_filename())
+    video_title_str.set(project_instance.get_video_title())
+
+
+""" delete_this
+def set_project_defaults():
+    global project_config
     global perform_cropping, generate_video, resolution_dropdown_selected
     global frame_slider, encode_all_frames, frames_to_encode_str
     global perform_stabilization, skip_frame_regeneration, ffmpeg_preset
@@ -573,7 +606,7 @@ def set_project_defaults():
     video_title_str.set(project_config["video_title"])
     project_config["stabilization_shift_y"] = 0
     project_config["stabilization_shift_x"] = 0
-
+"""
 
 def sort_nested_json(data):
     """Sorts keys in nested dictionaries."""
@@ -796,11 +829,15 @@ def update_project_repository():
     global project_repository
     global source_dir
     # source_dir is the key for each project config inside the global project settings
+    project_repository.update({source_dir: project_instance.copy()})
+
+    """ delete this
     if source_dir in project_repository:
         project_repository.update({source_dir: project_config.copy()})
     elif source_dir != '':
         project_repository.update({source_dir: project_config.copy()})
         # project_repository[project_config["source_dir"]] = project_config.copy()
+    """
 
 def save_project_repository():
     global project_repository, project_repository_filename, project_repository_backup_filename
@@ -991,6 +1028,60 @@ def save_project_config():
     global frame_from_str, frame_to_str
     global perform_denoise, perform_sharpness, perform_gamma_correction
 
+    # Write project data upon exit. TODO, get rid of global variables
+    project_instance.set_project_source_dir(source_dir)
+    project_instance.set_project_target_dir(target_dir)
+    project_instance.set_current_frame(current_frame)
+    project_instance.set_skip_frame_regeneration(skip_frame_regeneration.get())
+    project_instance.set_ffmpeg_preset(ffmpeg_preset.get())
+    project_instance.set_project_config_date(str(datetime.now()))
+    project_instance.set_perform_cropping(perform_cropping.get())
+    project_instance.set_perform_denoise(perform_denoise.get())
+    project_instance.set_perform_sharpness(perform_sharpness.get())
+    project_instance.set_perform_gamma_correction(perform_gamma_correction.get())
+    project_instance.set_gamma_correction_value(float(gamma_correction_str.get()))
+    project_instance.set_frame_fill_type(frame_fill_type.get())
+    project_instance.set_extended_stabilization(extended_stabilization.get())
+    project_instance.set_low_contrast_custom_template(low_contrast_custom_template.get())
+    project_instance.set_video_title(video_title_str.get())
+    project_instance.set_video_filename(video_filename_str.get())
+    project_instance.set_frame_from(int(frame_from_str.get()))
+    project_instance.set_frame_to(int(frame_to_str.get()))
+
+    project_instance.set_current_bad_frame_index(current_bad_frame_index)
+    if stabilize_area_defined:
+        project_instance.set_perform_stabilization(perform_stabilization.get())
+        project_instance.set_stabilization_shift_y(stabilization_shift_y_value.get())
+        project_instance.set_stabilization_shift_x(stabilization_shift_x_value.get())
+
+    project_instance.set_perform_rotation(perform_rotation.get())
+    project_instance.set_video_resolution(video_resolution.get())
+    project_instance.set_video_fps(video_fps.get())
+    project_instance.set_generate_video(generate_video.get())
+    project_instance.set_video_target_dir(video_target_dir_str.get())
+    project_instance.set_frame_fill_type(frame_fill_type.get())
+    
+    if len(bad_frame_list) > 0:
+        save_bad_frame_list()   # Bad frames need to be saved even in batch mode
+
+    # Do not save if current project comes from batch job
+    if not project_config_from_file or ignore_config:
+        return
+
+    update_project_repository()
+    save_project_repository()
+
+""" delete_this
+def save_project_config():
+    global template_manager
+    global skip_frame_regeneration
+    global ffmpeg_preset
+    global stabilize_area_defined
+    global current_frame
+    global video_filename_str, video_title_str
+    global frame_from_str, frame_to_str
+    global perform_denoise, perform_sharpness, perform_gamma_correction
+
     # Write project data upon exit
     project_config["source_dir"] = source_dir
     project_config["target_dir"] = target_dir
@@ -1033,7 +1124,31 @@ def save_project_config():
 
     update_project_repository()
     save_project_repository()
+"""
 
+
+def load_project_config():
+    global source_dir
+    global project_config, project_config_from_file
+    global project_config_basename, project_config_filename
+    global project_repository
+    global default_project_config
+    global project_repository, project_instance
+
+    if not ignore_config:
+        project_instance = project_repository.get_project_instance(source_dir)
+
+    for item in project_instance:
+        logging.debug("%s=%s", item, str(project_instance[item]))
+
+    # Allow to determine source of current project, to avoid
+    # saving it in case of batch processing
+    project_config_from_file = True
+    widget_status_update(NORMAL)
+    FrameSync_Viewer_popup_update_widgets(NORMAL)
+
+
+""" delete_this
 def load_project_config():
     global source_dir
     global project_config, project_config_from_file
@@ -1068,13 +1183,238 @@ def load_project_config():
     project_config_from_file = True
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
-
+"""
 
 def delete_dict_key(dict, old_key):
     if old_key in dict:
         del dict[old_key]
 
 
+def decode_project_config():        
+    global source_dir, target_dir
+    global project_config
+    global template_manager
+    global project_config_basename, project_config_filename
+    global current_frame, frame_slider
+    global video_fps, video_fps_dropdown_selected
+    global resolution_dropdown, resolution_dropdown_selected
+    global encode_all_frames, frames_to_encode
+    global skip_frame_regeneration
+    global generate_video, video_filename_name
+    global crop_top_left, crop_bottom_right, perform_cropping
+    global stabilize_area_defined, film_type
+    global stabilization_threshold, low_contrast_custom_template
+    global rotation_angle
+    global frame_from_str, frame_to_str
+    global project_name
+    global force_4_3_crop, force_16_9_crop
+    global frame_fill_type
+    global extended_stabilization
+    global force_4_3, force_16_9
+    global perform_denoise, perform_sharpness, perform_gamma_correction, gamma_correction_str
+    global detect_minor_mismatches, current_bad_frame_index
+    global precise_template_match
+    global stabilization_shift_x, stabilization_shift_y
+    global user_defined_left_stripe_width_proportion
+    global project_instance
+
+    aux_value = project_config['source_dir']
+    source_dir = aux_value
+    if source_dir != '':
+        project_name = os.path.split(source_dir)[-1].replace(',', ';')
+        # If directory in configuration does not exist, set current working dir
+        if not os.path.isdir(source_dir):
+            source_dir = ""
+            project_name = "No Project"
+        else:
+            get_source_dir_file_list()
+        frames_source_dir.delete(0, 'end')
+        frames_source_dir.insert('end', source_dir)
+        frames_source_dir.after(100, frames_source_dir.xview_moveto, 1)
+        # Need to retrieve source file list at this point, since win.update at the end of thi sfunction will force a refresh of the preview
+        # If we don't do it here, an oimage from the previou ssource folder will be displayed instead
+
+    aux_value = project_instance.get_target_dir()
+    target_dir = aux_value
+    if target_dir != '':
+        # If directory in configuration does not exist, set current working dir
+        if not os.path.isdir(target_dir):
+            target_dir = ""
+        else:
+            get_target_dir_file_list()
+        frames_target_dir.delete(0, 'end')
+        frames_target_dir.insert('end', target_dir)
+        frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
+
+    aux_value = project_instance.get_video_target_dir()
+    video_target_dir_str.set(aux_value)
+    if video_target_dir_str.get() != '':
+        # If directory in configuration does not exist, set current working dir
+        if not os.path.isdir(video_target_dir_str.get()):
+            video_target_dir_str.set(target_dir)  # use frames target dir as fallback option
+        video_target_dir_entry.after(100, video_target_dir_entry.xview_moveto, 1)
+    current_frame = 0
+    if not batch_job_running: # only if project loaded by user, otherwise it alters start encoding frame in batch mode
+        aux_value = project_instance.get_current_frame()
+        current_frame = aux_value
+        # frame_slider.set(current_frame)
+
+    aux_value = project_instance.get_encode_all_frames()
+    encode_all_frames.set(aux_value)
+
+    aux_value = project_instance.get_frame_from()
+    frame_from_str.set(str(aux_value))
+
+    aux_value = project_instance.get_frame_to()
+    frame_to_str.set(str(aux_value))
+    if frame_to_str.get() != '' and frame_from_str.get() != '':
+        frames_to_encode = int(frame_to_str.get()) - int(frame_from_str.get()) + 1
+    else:
+        frames_to_encode = 0
+
+    aux_value = project_instance.get_frames_to_encode()
+    if frames_to_encode != aux_value:
+        project_instance.set_frames_to_encode(frames_to_encode)
+    
+    aux_value = project_instance.get_film_type()
+    film_type.set(aux_value)
+
+    aux_value = project_instance.get_rotation_angle()
+    rotation_angle = aux_value
+    rotation_angle_str.set(rotation_angle)
+
+    if expert_mode:
+        aux_value = project_instance.get_stabilization_threshold()
+        stabilization_threshold = aux_value
+        stabilization_threshold_str.set(stabilization_threshold)
+    else:
+        stabilization_threshold = 220.0
+
+    aux_value = project_instance.get_low_contrast_custom_template()
+    low_contrast_custom_template.set(aux_value)
+
+    aux_value = project_instance.get_extended_stabilization()
+    extended_stabilization.set(aux_value)
+
+    aux_value = project_instance.get_custom_template_defined()
+    if not project_instance.get_custom_template_defined():
+        # No custom template defined, set default one
+        set_film_type()
+    else:
+        aux_value = project_instance.get_custom_template_name()
+        template_name = aux_value
+
+        aux_value = project_instance.get_custom_template_expected_pos()
+        custom_template_expected_pos = aux_value
+
+        aux_value = project_instance.get_custom_template_filename()
+        full_path_template_filename = aux_value
+        if not os.path.exists(full_path_template_filename):
+            tk.messagebox.showwarning(
+                "Template in project invalid",
+                f"The custom template saved for project {template_name} is invalid."
+                "Please redefine custom template for this project.")
+            project_instance.set_custom_template_filename('')   # Normally item should be removed from dictionary. Need a method in ConfigurationManager for that
+            # Invalid custom template defined, set default one
+            set_film_type()
+            project_instance.set_custom_template_defined(False)
+        else:
+            logging.debug(f"Adding custom template {template_name} from configuration to template list (filename {full_path_template_filename})")
+            template_manager.add(template_name, full_path_template_filename, "custom", custom_template_expected_pos)
+            debug_template_refresh_template()
+
+    aux_value = project_instance.get_perform_cropping()
+    perform_cropping.set(aux_value)
+
+    aux_value = project_instance.get_perform_denoise()
+    perform_denoise.set(aux_value)
+
+    aux_value = project_instance.get_perform_sharpness()
+    perform_sharpness.set(aux_value)
+
+    aux_value = project_instance.get_perform_gamma_correction()
+    perform_gamma_correction.set(aux_value)
+
+    aux_value = project_instance.get_gamma_correction_value()
+    gamma_correction_str.set(aux_value)
+
+    aux_value = project_instance.get_crop_rectangle()
+    crop_top_left = aux_value[0]
+    crop_bottom_right = aux_value[1]
+    perform_cropping_selection()
+
+    aux_value = project_instance.get_force_4_3()
+    force_4_3_crop.set(aux_value)
+
+    aux_value = project_instance.get_force_16_9()
+    force_16_9_crop.set(aux_value)
+    if force_4_3_crop.get():    # 4:3 has priority if both set
+        force_16_9_crop.set(False)
+    force_4_3 = force_4_3_crop.get()
+    force_16_9 = force_16_9_crop.get()
+
+    aux_value = project_instance.get_frame_fill_type()
+    frame_fill_type.set(aux_value)
+
+    aux_value = project_instance.get_generate_video()
+    generate_video.set(aux_value)
+    generate_video_selection()
+
+    aux_value = project_instance.get_video_filename()
+    video_filename_str.set(aux_value)
+
+    aux_value = project_instance.get_video_title()
+    video_title_str.set(aux_value)
+
+    # Snake case from the start
+    aux_value = project_instance.get_skip_frame_regeneration()
+    skip_frame_regeneration.set(aux_value)
+
+    aux_value = project_instance.get_ffmpeg_preset()
+    ffmpeg_preset.set(aux_value)
+
+    aux_value = project_instance.get_perform_stabilization()
+    perform_stabilization.set(aux_value)
+
+    aux_value = project_instance.get_stabilization_shift_y()
+    stabilization_shift_y_value.set(aux_value)
+
+    aux_value = project_instance.get_stabilization_shift_x()
+    stabilization_shift_x_value.set(aux_value)
+
+    aux_value = project_instance.get_perform_rotation()
+    perform_rotation.set(aux_value)
+
+    aux_value = project_instance.get_video_fps()
+    video_fps = eval(aux_value)
+    video_fps_dropdown_selected.set(video_fps)
+    set_fps(str(video_fps))
+
+    aux_value = project_instance.get_video_resolution()
+    resolution_dropdown_selected.set(aux_value)
+
+    aux_value = project_instance.get_current_bad_frame_index()
+    current_bad_frame_index = aux_value
+
+    aux_value = project_instance.get_user_defined_left_stripe_width_proportion()
+    user_defined_left_stripe_width_proportion = aux_value
+    # Don't really need to retrieve the config date, this is intended only to be written. But anyhow...
+
+    aux_value = project_instance.get_project_config_daten()
+
+    aux_value = project_instance.get_precise_template_match()
+
+    if len(source_dir_file_list) > 0:
+        adjust_dimensions_based_on_frame()
+
+    widget_status_update(NORMAL)
+    FrameSync_Viewer_popup_update_widgets(NORMAL)
+
+    load_bad_frame_list()
+
+    win.update()
+
+""" delete_this
 def decode_project_config():        
     global source_dir, target_dir
     global project_config
@@ -1305,7 +1645,7 @@ def decode_project_config():
     load_bad_frame_list()
 
     win.update()
-
+"""
 
 """
 ##########################
@@ -1360,7 +1700,8 @@ def job_list_add_current():
         tk.messagebox.showerror("Cannot add new job", "Please fill 'Video filename' field, as it is used to identify the job.")
         return
 
-    if project_config["film_type"] == 'R8':
+    if project_instance.get_film_type() == 'R8':
+    ### if project_config["film_type"] == 'R8': # delete_this
         description = "R8, "
     else:
         description = "S8, "
@@ -1392,7 +1733,8 @@ def job_list_add_current():
     if perform_gamma_correction.get():
         description = description + f", GC:{gamma_correction_str.get()}"
     description = description + f", fill: {frame_fill_type.get()}"
-    if project_config["generate_video"]:
+    ### if project_config["generate_video"]: # delete_this
+    if project_instance.get_generate_video():
         description = description + ", "
         if ffmpeg_preset.get() == 'veryslow':
             description = description + "HQ video"
@@ -1420,7 +1762,8 @@ def job_list_add_current():
             save_project = False
     if save_project:
         save_project_config()  # Make sure all current settings are in project_config
-        job_list[entry_name] = {'project': project_config.copy(), 'done': False, 'attempted': False, 'description': description}
+        ### job_list[entry_name] = {'project': project_config.copy(), 'done': False, 'attempted': False, 'description': description} # delete_this
+        job_list[entry_name] = {'project': project_instance.copy(), 'done': False, 'attempted': False, 'description': description}
         # If a custom pattern is used, copy it with the name of the job, and change it in the joblist/project item
         if template_manager.get_active_type() == 'custom' and os.path.isfile(template_manager.get_active_filename()):
             custom_template_dir = os.path.dirname(template_manager.get_active_filename())    # should be resources_dir, but better be safe
@@ -1430,8 +1773,12 @@ def job_list_add_current():
                 shutil.copyfile(template_manager.get_active_filename(), target_template_file)
             job_list[entry_name]['project']['custom_template_filename'] = target_template_file
         else:
+            """ delete_this
             if 'custom_template_filename' in project_config:
                 del project_config['custom_template_filename']
+            """
+            project_instance.set_custom_template_filename('')   # better remove it, but no method for now
+
         if item_id is None:
             item_id = job_list_treeview.insert('', 'end', text=entry_name, values=(description,), 
                                                tags=("pending","joblist_font",))
@@ -7452,11 +7799,13 @@ def main(argv):
     global num_threads
     global use_simple_stabilization
     global dev_debug_enabled
+    global config_manager, project_instance
     
     logging_mode = "INFO"
     go_disable_tooptips = False
     goanyway = False
 
+    """ delete_this
     # Create job dictionary
     # Dictionary fields
     # 'description': Added in 1.12.09, to split job list entry name in two
@@ -7464,6 +7813,7 @@ def main(argv):
     # 'done': Job already completed
     # 'attempted': Job started but not completed
     job_list = {}
+    """
 
     opts, args = getopt.getopt(argv, "hiel:dcst:12nab", ["goanyway"])
 
@@ -7537,6 +7887,10 @@ def main(argv):
         return
 
     config_manager: ConfigurationManager = ConfigurationManager.initialize()
+    project_instance: ProjectConfigEntry = ProjectConfigEntry()
+    job_list: JobList = JobList()
+
+
 
     load_configuration(config_manager)
 
