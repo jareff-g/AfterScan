@@ -69,6 +69,10 @@ import base64
 from collections import deque
 import webbrowser
 
+# Required by the new classes
+from typing import Dict, Any, List, Callable, Tuple
+from dataclasses import dataclass, field, fields, asdict, Field
+
 try:
     import requests
     requests_loaded = True
@@ -300,6 +304,7 @@ project_config = default_project_config.copy()
 """
 config_manager: ConfigurationManager = {}
 project_instance: ProjectConfigEntry = {}   # this will replace project_config
+batch_job_list: JobManager = {}
 
 
 # Film hole search vars
@@ -640,7 +645,7 @@ def load_configuration(manager: ConfigurationManager):
     if os.path.exists(config_filename):
         logging.info("Found NEW unified config file. Loading directly.")
         manager.load_configuration(config_filename)
-        return
+        return True
 
     # --- Legacy Fallback Path ---
     
@@ -650,11 +655,17 @@ def load_configuration(manager: ConfigurationManager):
         # Load data from the two legacy sources
         global_data = load_json_file(general_config_filename)
         projects_data = load_json_file(project_repository_filename)
+
+        if len(projects_data) != 2:
+            logging.error("Missing or corrupt legacy projects file while migrating legacy data.")
+            manager.save_project_config('default', ProjectConfigEntry())
+            manager.set_active_project('default')
+            return True
         
         # Merge, migrate keys, and load into the manager
         manager.migrate_legacy_data(global_data, projects_data)
         
-        return
+        return True
 
 def save_configuration(manager: ConfigurationManager):
     manager.set_version(__version__)
@@ -664,7 +675,7 @@ def save_configuration(manager: ConfigurationManager):
     except Exception as e:
         logging.error(f"Error while trying to save main window geometry: {e}")
     if not ignore_config:
-        manager.save_configuration()
+        manager.save_configuration(config_filename)
 
 
 def rename_legacy_configuration_files():
@@ -714,7 +725,7 @@ def decode_general_config(manager: ConfigurationManager):
     detect_minor_mismatches = manager.get_detect_minor_mismatches()
 
 
-""" delete_this
+''' delete_this
 def save_general_config():
     # Write config data upon exit
     general_config["last_config_save_date"] = str(datetime.now())
@@ -822,7 +833,7 @@ def decode_general_config():
         precise_template_match = general_config["precise_template_match"]
     if 'detect_minor_mismatches' in general_config:
         detect_minor_mismatches = general_config["detect_minor_mismatches"]
-"""
+'''
 
 
 def update_project_repository():
@@ -966,7 +977,7 @@ def _migrate_keys(obj):
         return obj
 
 
-
+""" delete_this
 def load_project_repository():
     global project_repository, project_repository_filename, default_project_config
     global source_dir, files_to_delete
@@ -1016,7 +1027,7 @@ def load_project_repository():
     if not projects_loaded:   # No project settings file. Set empty config to force defaults
         project_repository = {source_dir: default_project_config.copy()}
         project_repository[source_dir]["source_dir"] = source_dir
-
+"""
 
 def save_project_config():
     global template_manager
@@ -1030,11 +1041,11 @@ def save_project_config():
 
     # Write project data upon exit. TODO, get rid of global variables
     config_manager.set_project_source_dir(source_dir)
-    config_manager.set_project_target_dir(target_dir)
+    config_manager.set_target_dir(target_dir)
     config_manager.set_current_frame(current_frame)
     config_manager.set_skip_frame_regeneration(skip_frame_regeneration.get())
     config_manager.set_ffmpeg_preset(ffmpeg_preset.get())
-    config_manager.set_project_config_date(str(datetime.now()))
+    config_manager.set_config_date(str(datetime.now()))
     config_manager.set_perform_cropping(perform_cropping.get())
     config_manager.set_perform_denoise(perform_denoise.get())
     config_manager.set_perform_sharpness(perform_sharpness.get())
@@ -1135,12 +1146,20 @@ def load_project_config():
     global default_project_config
     global project_repository, project_instance
 
-    if not ignore_config:
-        config_manager.set_active_project(source_dir)
-        project_instance = config_manager.get_project_config(source_dir)
+    if ignore_config:
+        return
 
+    if source_dir == '':
+        source_dir = 'default'
+    config_manager.set_active_project(source_dir)
+    project_instance = config_manager.get_project_config(source_dir)
+
+    """ delete_this
     for item in project_instance:
         logging.debug("%s=%s", item, str(project_instance[item]))
+    """
+    for field_name, value in asdict(project_instance).items():
+        print(f"Field: {field_name}, Value: {value}, Type: {type(value).__name__}")
 
     # Allow to determine source of current project, to avoid
     # saving it in case of batch processing
@@ -1399,8 +1418,6 @@ def decode_project_config():
     aux_value = config_manager.get_user_defined_left_stripe_width_proportion()
     user_defined_left_stripe_width_proportion = aux_value
     # Don't really need to retrieve the config date, this is intended only to be written. But anyhow...
-
-    aux_value = config_manager.get_project_config_daten()
 
     aux_value = config_manager.get_precise_template_match()
 
@@ -3301,7 +3318,7 @@ def FrameSync_Viewer_popup_refresh():
     else:
         x = 0
         y = 0
-    config_manager.set_project_current_frame(current_frame)
+    config_manager.set_current_frame(current_frame)
     """ delete_this
     project_config["current_frame"] = current_frame
     """
@@ -4226,7 +4243,7 @@ def select_scale_frame(selected_frame):
     if not convert_loop_running and not batch_job_running:  # Do not refresh during conversion loop
         frame_slider.focus()
         current_frame = int(selected_frame)
-        config_manager.set_project_current_frame(current_frame)
+        config_manager.set_current_frame(current_frame)
         """ delete_this
         project_config["current_frame"] = current_frame
         """
@@ -5094,7 +5111,7 @@ def display_image(img):
 
     img = resize_image(img, preview_ratio)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    displayable_image = ImageTk.PhotoImage(Image.fromarray(img))
+    displayable_image = ImageTk.PhotoImage(Image.fromarray(img), master=draw_capture_canvas)
 
     image_height = img.shape[0]
     image_width = img.shape[1]
@@ -6359,7 +6376,7 @@ def frame_generation_loop():
         if current_frame < start_frame + num_threads:
             time.sleep(0.3)
         current_frame += 1
-        config_manager.set_project_current_frame(current_frame)
+        config_manager.set_current_frame(current_frame)
         """ delete_this
         project_config["current_frame"] = current_frame
         """
@@ -6924,7 +6941,8 @@ def afterscan_init():
 
     display_window_title()  # setting title of the window
     
-    win.geometry(f"+{config_manager.get_window_pos().split('+', 1)[1]}")
+    if config_manager.get_window_pos() != '':
+        win.geometry(f"+{config_manager.get_window_pos().split('+', 1)[1]}")
     """ delete_this
     if 'window_pos' in general_config:
          win.geometry(f"+{general_config['window_pos'].split('+', 1)[1]}")
@@ -7084,7 +7102,7 @@ def build_ui():
     draw_capture_canvas.pack(side=TOP, anchor=N)
     # Initialize canvas image (to avoid multiple use of create_image)
     #Create an empty photoimage
-    draw_capture_canvas.image = ImageTk.PhotoImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0))) #create a transparent 1x1 image.
+    draw_capture_canvas.image = ImageTk.PhotoImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), master=draw_capture_canvas) #create a transparent 1x1 image.
     draw_capture_canvas.image_id = draw_capture_canvas.create_image(0, 0, anchor=tk.NW, image=draw_capture_canvas.image)
 
     # New scale under canvas 
@@ -7162,7 +7180,7 @@ def build_ui():
         new_height = int(logo_image.height * ratio)
         resized_logo = logo_image.resize((new_width, new_height), Image.LANCZOS) #use LANCZOS for high quality resizing.
         # Convert to PhotoImage
-        logo_image = ImageTk.PhotoImage(resized_logo)
+        logo_image = ImageTk.PhotoImage(resized_logo, master=draw_capture_canvas)
         if logo_image:
             logo_label = tk.Label(regular_top_section_frame, image=logo_image)
 
@@ -8045,11 +8063,14 @@ def main(argv):
         logging.error(error_msg)
         return
 
-    config_manager: ConfigurationManager = ConfigurationManager.initialize()
-    project_instance: ProjectConfigEntry = ProjectConfigEntry()
-    batch_job_list: JobManager = JobManager.initialize()
+    config_manager = ConfigurationManager.initialize()
+    project_instance = ProjectConfigEntry()
+    batch_job_list = JobManager.initialize()
 
-    load_configuration(config_manager)
+    if load_configuration(config_manager):
+        decode_general_config(config_manager)
+    else:
+        config_manager = ConfigurationManager.initialize()
 
     """ delete_this
     load_general_config()
@@ -8060,8 +8081,6 @@ def main(argv):
 
     if go_disable_tooptips:
         as_tooltips.disable()
-
-    decode_general_config(config_manager)
 
     # Check reporting consent on first run
     get_consent()
@@ -8113,8 +8132,10 @@ def main(argv):
     widget_status_update()
 
     if source_dir is not None:
-        project_config_filename = os.path.join(source_dir,
-                                               project_config_basename)
+        project_config_filename = os.path.join(source_dir, project_config_basename)
+
+    print(f"active project: {config_manager.get_active_project()}")
+    
     load_project_config()
     decode_project_config()
 

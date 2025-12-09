@@ -125,7 +125,7 @@ class GlobalConfig:
     ffmpeg_bin_name: str = field(default="ffmpeg", metadata={'do_serialize': True})
     last_config_save_date: str = field(default="", metadata={'do_serialize': True})
     job_list_filename: str = field(default="", metadata={'do_serialize': True})
-    last_consent_date: str = field(default="", metadata={'do_serialize': True})
+    last_consent_date: datetime = field(default="", metadata={'do_serialize': True})
     popup_pos: str = field(default="", metadata={'do_serialize': True})
     precise_template_match: bool = field(default=False, metadata={'do_serialize': True})
     source_dir: str = field(default="", metadata={'do_serialize': True})    # Even if this is part of the project configuration, since it is the key to retrieve each specific project, needs to be in general_config
@@ -183,12 +183,34 @@ class GlobalConfig:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GlobalConfig':
+        if 'last_consent_date' in data and isinstance(data['last_consent_date'], str):
+            # Convert the string back into a datetime object
+            data['last_consent_date'] = datetime.fromisoformat(data['last_consent_date'])
+        if 'last_config_save_date' in data and isinstance(data['last_config_save_date'], str):
+            # Convert the string back into a datetime object
+            data['last_config_save_date'] = datetime.fromisoformat(data['last_config_save_date'])
+       
         """Creates a GlobalConfig instance from a dictionary, filtering invalid keys."""
         valid_fields = {f.name for f in fields(cls)}
         # When loading, we still accept all valid field names, regardless of 'do_serialize' status
         filtered_data = {key: value for key, value in data.items() if key in valid_fields}
         return cls(**filtered_data)
 
+
+    def to_dict(self):
+        output = asdict(self)
+        
+        # Custom conversion step:
+        if isinstance(output['last_consent_date'], datetime.datetime):
+            # Convert the datetime object to an ISO 8601 string, 
+            # which is globally recognized and easily reversible.
+            output['last_consent_date'] = output['last_consent_date'].isoformat()
+        if isinstance(output['last_config_save_date'], datetime.datetime):
+            # Convert the datetime object to an ISO 8601 string, 
+            # which is globally recognized and easily reversible.
+            output['last_config_save_date'] = output['last_config_save_date'].isoformat()
+            
+        return output
 
 # --- 2. Single Project Configuration Entry ---
 @dataclass
@@ -516,57 +538,57 @@ class ConfigurationManager:
             self.projects[source_dir] = self.projects.pop(project_dir).source_dir = source_dir
             del self.projects[project_dir]
 
-    def set_project_target_dir(self, target_dir: str, project_dir: str = None):
+    def set_target_dir(self, target_dir: str, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].target_dir = target_dir
 
-    def set_project_video_target_dir(self, video_target_dir: str, project_dir: str = None):
+    def set_video_target_dir(self, video_target_dir: str, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].video_target_dir = video_target_dir
 
-    def set_project_film_type(self, film_type: str, project_dir: str = None):
+    def set_film_type(self, film_type: str, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].film_type = film_type
 
-    def set_project_perform_cropping(self, perform: bool, project_dir: str = None):
+    def set_perform_cropping(self, perform: bool, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].perform_cropping = perform
 
-    def set_project_perform_sharpness(self, perform: bool, project_dir: str = None):
+    def set_perform_sharpness(self, perform: bool, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].perform_sharpness = perform
 
-    def set_project_perform_denoise(self, perform: bool, project_dir: str = None):
+    def set_perform_denoise(self, perform: bool, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].perform_denoise = perform
 
-    def set_project_perform_gamma_correction(self, perform: bool, project_dir: str = None):
+    def set_perform_gamma_correction(self, perform: bool, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].perform_gamma_correction = perform
 
-    def set_project_generate_video(self, generate: bool, project_dir: str = None):
+    def set_generate_video(self, generate: bool, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].generate_video = generate
 
-    def set_project_video_fps(self, fps: str, project_dir: str = None):
+    def set_video_fps(self, fps: str, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].video_fps = fps
 
-    def set_project_current_frame(self, frame: int, project_dir: str = None):
+    def set_current_frame(self, frame: int, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].current_frame = frame
 
-    def set_project_encode_all_frames(self, encode_all: bool, project_dir: str = None):
+    def set_encode_all_frames(self, encode_all: bool, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].encode_all_frames = encode_all
@@ -586,62 +608,62 @@ class ConfigurationManager:
             project_dir = self.active_project
         self.projects[project_dir].perform_stabilization = perform
 
-    def set_project_skip_frame_regeneration(self, skip: bool, project_dir: str = None):
+    def set_skip_frame_regeneration(self, skip: bool, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].skip_frame_regeneration = skip
 
-    def set_project_video_filename(self, filename: str, project_dir: str = None):
+    def set_video_filename(self, filename: str, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].video_filename = filename
 
-    def set_project_video_title(self, title: str, project_dir: str = None):
+    def set_video_title(self, title: str, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].video_title = title
 
-    def set_project_frame_fill_type(self, fill_type: str, project_dir: str = None):
+    def set_frame_fill_type(self, fill_type: str, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].frame_fill_type = fill_type
 
-    def set_project_frame_from(self, frame_from: int, project_dir: str = None):
+    def set_frame_from(self, frame_from: int, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].frame_from = frame_from
 
-    def set_project_frame_to(self, frame_to: int, project_dir: str = None):
+    def set_frame_to(self, frame_to: int, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].frame_to = frame_to
 
-    def set_project_low_contrast_custom_template(self, low_contrast: bool, project_dir: str = None):
+    def set_low_contrast_custom_template(self, low_contrast: bool, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].low_contrast_custom_template = low_contrast
 
-    def set_project_extended_stabilization(self, extended: bool, project_dir: str = None):
+    def set_extended_stabilization(self, extended: bool, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].extended_stabilization = extended
 
-    def set_project_stabilization_shift_x(self, shift_x: int, project_dir: str = None):
+    def set_stabilization_shift_x(self, shift_x: int, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].stabilization_shift_x = shift_x
 
-    def set_project_stabilization_shift_y(self, shift_y: int, project_dir: str = None):
+    def set_stabilization_shift_y(self, shift_y: int, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].stabilization_shift_y = shift_y
 
-    def set_project_rotation_angle(self, angle: int, project_dir: str = None):
+    def set_rotation_angle(self, angle: int, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].rotation_angle = angle
 
-    def set_project_custom_template_defined(self, defined: bool, project_dir: str = None):
+    def set_custom_template_defined(self, defined: bool, project_dir: str = None):
         if project_dir is None:
             project_dir = self.active_project
         self.projects[project_dir].custom_template_defined = defined
