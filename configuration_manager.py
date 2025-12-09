@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "project_config"
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 __data_version__ = "1.0"
-__date__ = "2025-12-08"
-__version_highlight__ = "WIP - Make project_dir and optional parameter in ConfigurationManager accesors."
+__date__ = "2025-12-09"
+__version_highlight__ = "WIP - Trying to make current code working."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -196,7 +196,7 @@ class GlobalConfig:
         filtered_data = {key: value for key, value in data.items() if key in valid_fields}
         return cls(**filtered_data)
 
-
+    """ delete_this
     def to_dict(self):
         output = asdict(self)
         
@@ -210,6 +210,30 @@ class GlobalConfig:
             # which is globally recognized and easily reversible.
             output['last_config_save_date'] = output['last_config_save_date'].isoformat()
             
+        return output
+    """
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Manually iterates through fields to perform custom serialization 
+        (like datetime to string) before returning the final dictionary.
+        """
+        output = {}
+        
+        for field_info in fields(self):
+            field_name = field_info.name
+            value = getattr(self, field_name)
+
+            if field_info.type is datetime:
+                # Custom Serialization Logic for datetime:
+                # Convert the datetime object to a standardized string
+                output[field_name] = value.isoformat()
+            
+            # General Case: Let asdict handle nested dataclasses, lists, or standard types
+            else:
+                # We use asdict on the value itself. This handles nested dataclasses
+                # correctly without raising the error on the top-level datetime.
+                output[field_name] = asdict(value) if isinstance(value, dataclass) else value
+
         return output
 
 # --- 2. Single Project Configuration Entry ---
@@ -338,7 +362,12 @@ class ConfigurationManager:
         if isinstance(obj, list):
             # Recursively handle lists (e.g., job_list)
             return [self._to_dict_recursive(item) for item in obj]
-        
+
+        if isinstance(obj, datetime):
+            # Custom Serialization Logic for datetime:
+            # Convert the datetime object to a standardized string
+            return obj.isoformat()
+
         # Check if the object is one of our configuration dataclasses
         if isinstance(obj, (ConfigurationManager, GlobalConfig, ProjectConfigEntry)):
             data = {}

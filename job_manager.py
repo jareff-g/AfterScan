@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "project_config"
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __data_version__ = "1.0"
-__date__ = "2025-12-08"
-__version_highlight__ = "WIP - Add a few accesors (job_exists, mark as done, mark as attempted, etc)."
+__date__ = "2025-12-09"
+__version_highlight__ = "WIP - Trying to make current code working."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -192,6 +192,8 @@ class JobManager:
         return JobEntry(
             job_name=name,
             project=copy.deepcopy(config)
+            done=False,
+            attempted=False
         )
 
     def add_job(self, job: JobEntry):

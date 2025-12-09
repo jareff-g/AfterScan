@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.16"
+__version__ = "1.40.17"
 __data_version__ = "1.0"
-__date__ = "2025-12-08"
-__version_highlight__ = "WIP Refactoring - Conversion from job_list dictionary to JobManager ongoing."
+__date__ = "2025-12-09"
+__version_highlight__ = "WIP - Trying to make current refactored code working."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -681,14 +681,18 @@ def save_configuration(manager: ConfigurationManager):
 def rename_legacy_configuration_files():
     # CRITICAL: Rename/archive legacy files after successful in-memory load
     # TODO: This renaming should only be done on application exit, since system shutdown (top right x) does not save the configuration
+    any_renamed = False
     try:
         # We must check if the file still exists before attempting to rename/move it, 
         # as it might have been only one of the two that triggered the load.
         if os.path.exists(general_config_filename):
             os.rename(general_config_filename, general_config_backup_filename)
+            any_renamed = True
         if os.path.exists(project_repository_filename):
             os.rename(project_repository_filename, project_repository_backup_filename)
-        logging.info(f"Legacy files renamed to *.bak")
+            any_renamed = True
+        if any_renamed:
+            logging.info(f"Legacy files renamed to *.bak")
     except Exception as e:
             logging.error(f"Failed to rename legacy files: {e}. Migration successful, but cleanup failed.")
         
@@ -837,10 +841,9 @@ def decode_general_config():
 
 
 def update_project_repository():
-    global project_repository
     global source_dir
     # source_dir is the key for each project config inside the global project settings
-    project_repository.update({source_dir: project_instance.copy()})
+    config_manager.save_project_config(source_dir, project_instance.copy())
 
     """ delete this
     if source_dir in project_repository:
@@ -850,6 +853,7 @@ def update_project_repository():
         # project_repository[project_config["source_dir"]] = project_config.copy()
     """
 
+""" delete_this
 def save_project_repository():
     global project_repository, project_repository_filename, project_repository_backup_filename
 
@@ -866,6 +870,8 @@ def save_project_repository():
         list_to_save = [global_info, project_repository]
         with open(project_repository_filename, 'w+') as f:
             json.dump(list_to_save, f, indent=4)
+"""
+
 
 # Handle migration from old JSON names (CamelCase) to new ones (snake_case)
 # --- Constants for Key Migration ---
@@ -1045,7 +1051,6 @@ def save_project_config():
     config_manager.set_current_frame(current_frame)
     config_manager.set_skip_frame_regeneration(skip_frame_regeneration.get())
     config_manager.set_ffmpeg_preset(ffmpeg_preset.get())
-    config_manager.set_config_date(str(datetime.now()))
     config_manager.set_perform_cropping(perform_cropping.get())
     config_manager.set_perform_denoise(perform_denoise.get())
     config_manager.set_perform_sharpness(perform_sharpness.get())
@@ -1066,8 +1071,8 @@ def save_project_config():
         config_manager.set_stabilization_shift_x(stabilization_shift_x_value.get())
 
     config_manager.set_perform_rotation(perform_rotation.get())
-    config_manager.set_video_resolution(video_resolution.get())
-    config_manager.set_video_fps(video_fps.get())
+    config_manager.set_video_resolution(config_manager.get_video_resolution())
+    config_manager.set_video_fps(config_manager.get_video_fps())
     config_manager.set_generate_video(generate_video.get())
     config_manager.set_video_target_dir(video_target_dir_str.get())
     config_manager.set_frame_fill_type(frame_fill_type.get())
@@ -1080,7 +1085,10 @@ def save_project_config():
         return
 
     update_project_repository()
+    """ delete_this
     save_project_repository()
+    """
+    save_configuration(config_manager)
 
 """ delete_this
 def save_project_config():
@@ -1785,7 +1793,11 @@ def job_list_add_current():
     if save_project:
         save_project_config()  # Make sure all current settings are in project_config
         ### job_list[entry_name] = {'project': project_config.copy(), 'done': False, 'attempted': False, 'description': description} # delete_this
+        job = batch_job_list.create_new_job_entry(description, project_instance)
+        batch_job_list.add_job(job)
+        """ delete_this
         job_list[entry_name] = {'project': project_instance.copy(), 'done': False, 'attempted': False, 'description': description}
+        """
         # If a custom pattern is used, copy it with the name of the job, and change it in the joblist/project item
         if template_manager.get_active_type() == 'custom' and os.path.isfile(template_manager.get_active_filename()):
             custom_template_dir = os.path.dirname(template_manager.get_active_filename())    # should be resources_dir, but better be safe
@@ -2008,7 +2020,10 @@ def load_named_job_list():
         filetypes=[("Joblist JSON files", "*.joblist.json"), ("JSON files", "*.json")],
         title="Select file to retrieve job list")
     if len(aux_file) > 0:
+        batch_job_list.load_from_file(default_job_list_filename)
+        """ delete_this
         load_job_list(aux_file)
+        """
         job_list_filename = aux_file
         config_manager.set_job_list_filename(job_list_filename)
         """ delete_this
@@ -2017,14 +2032,13 @@ def load_named_job_list():
         job_list_hash = generate_dict_hash(job_list)
         display_window_title()
 
-
+""" delete_this
 def save_job_list():
     global job_list, default_job_list_filename
 
     if not ignore_config:
         with open(default_job_list_filename, 'w+') as f:
             json.dump(job_list, f, indent=4)
-
 
 def load_job_list(filename = None):
     global job_list, default_job_list_filename, job_list_treeview, job_list_hash
@@ -2083,6 +2097,7 @@ def load_job_list(filename = None):
         job_list_hash = generate_dict_hash(job_list)
     else:   # No job list file. Set empty config to force defaults
         job_list = {}
+"""
 
 
 def start_processing_job_list():
@@ -4286,7 +4301,7 @@ def detect_film_type():
     """ delete_this
     if project_config["film_type"] == 'R8':
     """
-    if config_manager.get_film_type():
+    if config_manager.get_film_type() == 'R8':
         template_1 = template_manager.get_template_image_by_key('aux','WB')
         template_2 = template_manager.get_template_image_by_key('aux','BW')
         other_film_type = 'S8'
@@ -4295,7 +4310,7 @@ def detect_film_type():
         template_2 = template_manager.get_template_image_by_key('aux','WB')
         other_film_type = 'R8'
     if template_1 is None or template_2 is None:
-        logging.debug("Invalid detection templated, cannot determine film type.")
+        logging.debug("Invalid detection templates, cannot determine film type.")
         tk.messagebox.showerror("Film detection failed",
             "Templates to detect film type are missing, please set film type manually.")
         return
@@ -5927,8 +5942,9 @@ def start_convert():
         """ delete_this
         save_general_config()
         save_project_config()
-        """
         save_job_list()
+        """
+        batch_job_list.save_to_file(default_job_list_filename)
         # Empty FPS register list
         fps_last_minute_frame_times.clear()
         # Centralize 'frames_to_encode' update here
@@ -7881,8 +7897,9 @@ def exit_app():  # Exit Application
     """ delete_this
     save_general_config()
     save_project_config()
-    """
     save_job_list()
+    """
+    batch_job_list.save_to_file(default_job_list_filename)
     win.destroy()
 
 
@@ -8139,7 +8156,10 @@ def main(argv):
     load_project_config()
     decode_project_config()
 
+    batch_job_list.load_from_file(default_job_list_filename)
+    """ delete_this
     load_job_list()
+    """
 
     get_target_dir_file_list()
 
