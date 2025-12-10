@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.19"
+__version__ = "1.40.20"
 __data_version__ = "1.0"
 __date__ = "2025-12-10"
-__version_highlight__ = "WIP - Mostly working after integration of JobManager."
+__version_highlight__ = "WIP - Settings changes properly propagated to/from current project and job list."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -848,7 +848,8 @@ def decode_general_config():
 def update_project_repository():
     global source_dir
     # source_dir is the key for each project config inside the global project settings
-    config_manager.save_project_config(source_dir, project_instance.copy())
+    # config_manager.save_project_config(source_dir, project_instance.copy())
+    pass
 
     """ delete this
     if source_dir in project_repository:
@@ -1798,7 +1799,7 @@ def job_list_add_current():
     if save_project:
         save_project_config()  # Make sure all current settings are in project_config
         ### job_list[entry_name] = {'project': project_config.copy(), 'done': False, 'attempted': False, 'description': description} # delete_this
-        job = batch_job_list.create_new_job_entry(entry_name, project_instance)
+        job = batch_job_list.create_new_job_entry(entry_name, description, config_manager.get_project_config(config_manager.get_active_project()))
         batch_job_list.add_job(job)
         """ delete_this
         job_list[entry_name] = {'project': project_instance.copy(), 'done': False, 'attempted': False, 'description': description}

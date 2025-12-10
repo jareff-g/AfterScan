@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "job_manager"
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 __data_version__ = "1.0"
 __date__ = "2025-12-10"
-__version_highlight__ = "WIP - Mostly working after integration of JobManager."
+__version_highlight__ = "WIP - Settings changes properly propagated to/from current project and job list."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -202,12 +202,13 @@ class JobManager:
 
     # --- Job Manipulation Methods ---
     
-    def create_new_job_entry(self, name: str, config: ProjectConfigEntry) -> JobEntry:
+    def create_new_job_entry(self, name: str, description: str, config: ProjectConfigEntry) -> JobEntry:
         """Creates and returns a new JobEntry instance."""
         # Use a deep copy of the config to ensure mutations on the job object don't affect 
         # the original config object outside this manager, if any.
         return JobEntry(
             job_name=name,
+            description=description,
             project=copy.deepcopy(config),
             done=False,
             attempted=False
