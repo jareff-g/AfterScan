@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "job_manager"
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 __data_version__ = "1.0"
 __date__ = "2025-12-10"
-__version_highlight__ = "WIP - Trying to make current code working."
+__version_highlight__ = "WIP - Mostly working after integration of JobManager."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -28,7 +28,9 @@ import logging
 import json
 import os
 import time
-from configuration_manager import ProjectConfigEntry
+from configuration_manager import ProjectConfigEntry, ConfigurationManager
+
+
 
 # --- Job Entry (The Value in the Job Map) ---
 
@@ -156,14 +158,16 @@ class JobManager:
         try:
             with open(filepath, 'r') as f:
                 raw_data = json.load(f)
+
+            migrated_data = ConfigurationManager.migrate_keys(raw_data)
             
             # The raw_data must be in the format {job_name: job_data_dict (snake_case)}
-            if not isinstance(raw_data, dict):
+            if not isinstance(migrated_data, dict):
                  logging.error(f"File content is invalid: expected dictionary structure.")
                  return False
 
             # Create a new JobQueue from the loaded data
-            new_queue = JobQueue.from_dict(raw_data)
+            new_queue = JobQueue.from_dict(migrated_data)
             self.job_queue = new_queue
             
             logging.info(f"Successfully loaded {len(self.job_queue.job_map)} jobs from '{filepath}'")

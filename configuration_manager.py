@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "configuration_manager"
-__version__ = "1.0.6"
+__version__ = "1.0.7"
 __data_version__ = "1.0"
 __date__ = "2025-12-10"
-__version_highlight__ = "WIP - Trying to make current code working."
+__version_highlight__ = "WIP - Mostly working after integration of JobManager."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -337,6 +337,9 @@ class ProjectConfigEntry:
     def get_frame_to(self) -> int:
         return self.frame_to
 
+    def get_project_source_dir(self) -> int:
+        return self.source_dir
+
     def set_video_filename(self, filename: str) -> str:
         self.video_filename = filename
 
@@ -415,7 +418,8 @@ class ConfigurationManager:
 
 
     # --- Private Migration Helper ---
-    def _migrate_keys(self, obj: Any) -> Any:
+    @staticmethod
+    def migrate_keys(obj: Any) -> Any:
         """
         Recursively checks keys in dictionaries within a structure (dict or list) 
         and converts legacy keys using the KEY_MIGRATION_MAP. Keys mapped to 
@@ -425,7 +429,7 @@ class ConfigurationManager:
             new_dict = {}
             for old_key, value in obj.items():
                 # Recursively process the value first
-                new_value = self._migrate_keys(value)
+                new_value = ConfigurationManager.migrate_keys(value)
                 
                 # Determine the target key (rename or delete)
                 new_key = KEY_MIGRATION_MAP.get(old_key, old_key)
@@ -442,7 +446,7 @@ class ConfigurationManager:
             
         elif isinstance(obj, list):
             # Recursively process items in a list
-            return [self._migrate_keys(item) for item in obj]
+            return [ConfigurationManager.migrate_keys(item) for item in obj]
             
         else:
             # Base case: return primitives unchanged
@@ -986,7 +990,7 @@ class ConfigurationManager:
             with open(file_path, 'r') as f:
                 raw_data = json.load(f)
             
-            migrated_data = self._migrate_keys(raw_data)
+            migrated_data = ConfigurationManager.migrate_keys(raw_data)
             
             # Use the migrated dictionary to populate the manager properties
             global_data = migrated_data.get('global_config', {})
@@ -1010,8 +1014,8 @@ class ConfigurationManager:
         logging.info("Starting legacy data migration and merge.")
         
         # 1. Migrate keys on both structures
-        migrated_global = self._migrate_keys(global_data)
-        migrated_entries = self._migrate_keys(entries_data[1])
+        migrated_global = ConfigurationManager.migrate_keys(global_data)
+        migrated_entries = ConfigurationManager.migrate_keys(entries_data[1])
 
         # 2. Populate Global Config
         self.global_config = GlobalConfig.from_dict(migrated_global)

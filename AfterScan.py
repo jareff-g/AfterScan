@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.18"
+__version__ = "1.40.19"
 __data_version__ = "1.0"
 __date__ = "2025-12-10"
-__version_highlight__ = "WIP - Trying to make current refactored code working."
+__version_highlight__ = "WIP - Mostly working after integration of JobManager."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -1162,8 +1162,8 @@ def load_project_config():
     if ignore_config:
         return
 
-    if source_dir == '':
-        source_dir = 'default'
+    #if source_dir == '':
+    #    source_dir = 'default'
     config_manager.set_active_project(source_dir)
     project_instance = config_manager.get_project_config(source_dir)
 
@@ -1172,7 +1172,7 @@ def load_project_config():
         logging.debug("%s=%s", item, str(project_instance[item]))
     """
     for field_name, value in asdict(project_instance).items():
-        print(f"Field: {field_name}, Value: {value}, Type: {type(value).__name__}")
+        logging.debug(f"Field: {field_name}, Value: {value}, Type: {type(value).__name__}")
 
     # Allow to determine source of current project, to avoid
     # saving it in case of batch processing
@@ -1798,7 +1798,7 @@ def job_list_add_current():
     if save_project:
         save_project_config()  # Make sure all current settings are in project_config
         ### job_list[entry_name] = {'project': project_config.copy(), 'done': False, 'attempted': False, 'description': description} # delete_this
-        job = batch_job_list.create_new_job_entry(description, project_instance)
+        job = batch_job_list.create_new_job_entry(entry_name, project_instance)
         batch_job_list.add_job(job)
         """ delete_this
         job_list[entry_name] = {'project': project_instance.copy(), 'done': False, 'attempted': False, 'description': description}
@@ -1875,6 +1875,9 @@ def job_list_load_selected():
                 current_bad_frame_index = -1
                 # Copy job settings as current project settings
                 project_instance = batch_job_list.get_job(entry_name).project.copy()
+                config_manager.save_project_config(entry_name, project_instance)
+                config_manager.set_active_project(entry_name)
+                config_manager.set_source_dir(project_instance.get_project_source_dir())
                 """ delete_this
                 project_instance = job_list[entry_name]['project']
                 project_config = job_list[entry_name]['project']
@@ -2175,7 +2178,9 @@ def load_job_list(filename = None):
         batch_job_list.load_from_file(filename)
         for item_id in job_list_treeview.get_children():
             job_list_treeview.delete(item_id)
-        for job_name, job_entry in batch_job_list.get_all_jobs().items():
+        keys = list(batch_job_list.get_all_jobs().items())
+        # for job_name, job_entry in batch_job_list.get_all_jobs().items():
+        for job_name, job_entry in keys:
             if len(job_name) > JOB_LIST_NAME_LENGTH:  # In case name is longer than JOB_LIST_NAME_LENGTH (25)
                 new_entry_name = normalize_job_name(job_name)
                 logging.error(f"Detected name too long in job list, replacing '{job_name}' by '{new_entry_name}'")
@@ -6193,7 +6198,6 @@ def start_convert():
             """ delete_this
             if resolution_dict[project_config["video_resolution"]] == '':
             """
-            # print(f"***** config_manager.get_video_resolution() = {config_manager.get_video_resolution()}")
             if resolution_dict[config_manager.get_video_resolution()] == '':
                 if not batch_job_running:
                     logging.error("Error, no video resolution selected")
@@ -8311,8 +8315,6 @@ def main(argv):
     if source_dir is not None:
         project_config_filename = os.path.join(source_dir, project_config_basename)
 
-    print(f"active project: {config_manager.get_active_project()}")
-    
     load_project_config()
     decode_project_config()
 
