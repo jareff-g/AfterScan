@@ -11,10 +11,10 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__module__ = "project_config"
-__version__ = "1.0.5"
+__module__ = "configuration_manager"
+__version__ = "1.0.6"
 __data_version__ = "1.0"
-__date__ = "2025-12-09"
+__date__ = "2025-12-10"
 __version_highlight__ = "WIP - Trying to make current code working."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
@@ -322,6 +322,27 @@ class ProjectConfigEntry:
         for key, value in config_dict.items():
             logging.debug("%s = %s", key, str(value))
         logging.debug("----------------------------------------------")
+
+    # Some accessors required for JobManager
+    
+    def get_video_filename(self) -> str:
+        return self.video_filename
+
+    def get_custom_template_filename(self, filename: str):
+        return self.custom_template_filename
+
+    def get_frame_from(self) -> int:
+        return self.frame_from
+
+    def get_frame_to(self) -> int:
+        return self.frame_to
+
+    def set_video_filename(self, filename: str) -> str:
+        self.video_filename = filename
+
+    def set_custom_template_filename(self, filename: str):
+        self.custom_template_filename = filename
+
 
 # --- 3. The Configuration Manager Facade ---
 @dataclass

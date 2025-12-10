@@ -20,9 +20,9 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.17"
+__version__ = "1.40.18"
 __data_version__ = "1.0"
-__date__ = "2025-12-09"
+__date__ = "2025-12-10"
 __version_highlight__ = "WIP - Trying to make current refactored code working."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
@@ -160,6 +160,7 @@ from define_rectangle import DefineRectangle
 from template_manager import TemplateManager
 from configuration_manager import ConfigurationManager, ProjectConfigEntry
 from job_manager import JobManager
+from custom_json_encoder import AppEncoder
 
 # Check for temporalDenoise in OpenCV at startup
 HAS_TEMPORAL_DENOISE = hasattr(cv2, 'temporalDenoising')
@@ -197,8 +198,9 @@ project_config_basename = "AfterScan-project.json"
 project_config_filename = ""
 project_config_from_file = True
 project_name = "No Project"
-default_job_list_filename_legacy = os.path.join(script_dir, "AfterScan_job_list.json")
-default_job_list_filename = os.path.join(script_dir, "AfterScan.joblist.json")
+default_job_list_filename_legacy = os.path.join(script_dir, "AfterScan.joblist.json")
+default_job_list_backup_filename = os.path.join(script_dir, "AfterScan.joblist.json.bak")
+default_job_list_filename = os.path.join(script_dir, "afterscan.joblist.json")
 job_list_filename = default_job_list_filename
 job_list_hash = None    # To determine if job list has changed since loaded
 temp_dir = os.path.join(script_dir, "temp")
@@ -690,6 +692,9 @@ def rename_legacy_configuration_files():
             any_renamed = True
         if os.path.exists(project_repository_filename):
             os.rename(project_repository_filename, project_repository_backup_filename)
+            any_renamed = True
+        if os.path.exists(default_job_list_filename_legacy):
+            os.rename(default_job_list_filename_legacy, default_job_list_backup_filename)
             any_renamed = True
         if any_renamed:
             logging.info(f"Legacy files renamed to *.bak")
@@ -1802,10 +1807,16 @@ def job_list_add_current():
         if template_manager.get_active_type() == 'custom' and os.path.isfile(template_manager.get_active_filename()):
             custom_template_dir = os.path.dirname(template_manager.get_active_filename())    # should be resources_dir, but better be safe
             # Maybe we should check here if a video filename has been defined
+            target_template_file = os.path.join(custom_template_dir, os.path.splitext(batch_job_list.get_job(entry_name).project.get_video_filename())[0]+'.jpg' )
+            """ delete_this
             target_template_file = os.path.join(custom_template_dir, os.path.splitext(job_list[entry_name]['project']['video_filename'])[0]+'.jpg' )
+            """
             if template_manager.get_active_filename() != target_template_file:
                 shutil.copyfile(template_manager.get_active_filename(), target_template_file)
+            batch_job_list.get_job(entry_name).project.set_custom_template_filename(target_template_file)
+            """ delete_this
             job_list[entry_name]['project']['custom_template_filename'] = target_template_file
+            """
         else:
             """ delete_this
             if 'custom_template_filename' in project_config:
@@ -1818,7 +1829,11 @@ def job_list_add_current():
                                                tags=("pending","joblist_font",))
         else:   # Update existing
             job_list_treeview.item(item_id, text=entry_name, values=(description,), 
+                                   tags=("done","joblist_font",) if batch_job_list.is_job_done(entry_name) else ("pending","joblist_font",))
+            """ delete_this
+            job_list_treeview.item(item_id, text=entry_name, values=(description,), 
                                    tags=("pending","joblist_font",) if job_list[entry_name]['done'] == False else ("done","joblist_font",))
+            """
 
         job_list_treeview.selection_set(item_id)  # Select the row
         job_list_treeview.see(item_id)
@@ -1848,7 +1863,10 @@ def job_list_load_selected():
         Name = job_list_treeview.item(item_id, "text")  # Get Name (Colmun #0)
         if Name:
             entry_name = normalize_job_name(Name)  # Get the first element
+            """ delete_this
             if entry_name in job_list:
+            """
+            if batch_job_list.job_exists(entry_name):
                 # Save misaligned frame list in case new job switches to a different source folder
                 if len(bad_frame_list) > 0:
                     save_bad_frame_list()
@@ -1856,8 +1874,9 @@ def job_list_load_selected():
                 bad_frame_list.clear()
                 current_bad_frame_index = -1
                 # Copy job settings as current project settings
-                project_instance = job_list[entry_name]['project']
+                project_instance = batch_job_list.get_job(entry_name).project.copy()
                 """ delete_this
+                project_instance = job_list[entry_name]['project']
                 project_config = job_list[entry_name]['project']
                 """
                 decode_project_config()
@@ -1904,7 +1923,10 @@ def job_list_delete_selected():
             items = job_list_treeview.get_children()
             index = items.index(item_id) if item_id in items else -1
             entry = normalize_job_name(Name)  # Get the first element
+            batch_job_list.delete_job(entry)
+            """ delete_this
             job_list.pop(entry) # Delete from job list
+            """
             job_list_treeview.delete(item_id)    # Delete from tree view
             # Try to select the previous row if it exists
             if index > 0:
@@ -1927,18 +1949,26 @@ def job_list_rerun_selected():
         Name = job_list_treeview.item(item_id, "text")  # Get Name (Col. #0)
         if Name:
             entry = normalize_job_name(Name)  # Get the first element
+            batch_job_list.mark_job_done(entry, not batch_job_list.is_job_done(entry))
+            batch_job_list.mark_job_attempted(entry, batch_job_list.is_job_done(entry))
+            job_list_treeview.item(item_id, tags=("done","joblist_font",) if batch_job_list.is_job_done(entry) else ("pending","joblist_font",))
+            rerun_job_btn.config(text='Rerun job' if batch_job_list.is_job_done(entry) else 'Mark as run')
+            """ delete_this
             job_list[entry]['done'] = not job_list[entry]['done']
             job_list[entry]['attempted'] = job_list[entry]['done']
             job_list_treeview.item(item_id, tags=("done","joblist_font",) if job_list[entry]['done'] else ("pending","joblist_font",))
             rerun_job_btn.config(text='Rerun job' if job_list[entry]['done'] else 'Mark as run')
-
+            """
 
 def create_alternate_job_name(name):
     index = 2
     done = False
     new_name = name[:JOB_LIST_NAME_LENGTH]
     while not done:
+        """ delete_this
         if new_name in job_list:
+        """
+        if batch_job_list.job_exists(new_name):
             name_len = len(name)
             name_appendix = f"({index})"
             appendix_req_len = len(name_appendix)
@@ -1968,12 +1998,31 @@ def search_job_name_in_job_treeview(job_name):
             return item_id
     return -1
 
-
+""" delete_this
 def generate_dict_hash(dictionary):
-    """Generates a SHA-256 hash from a dictionary."""
+    print(f"******* type(dictionary): {type(dictionary)}")
+    # Generates a SHA-256 hash from a dictionary.
     serialized_dict = json.dumps(dictionary, sort_keys=True).encode('utf-8')
     hash_object = hashlib.sha256(serialized_dict)
     return hash_object.hexdigest()
+"""
+def generate_dict_hash(dictionary: Dict[str, Any]) -> str:
+    """
+    Generates a consistent SHA256 hash from a dictionary containing custom objects.
+    
+    The custom AppEncoder handles the serialization of JobEntry and datetime objects.
+    """
+    
+    # 1. Serialize the dictionary using the custom encoder
+    #    sort_keys=True is CRITICAL for consistent hashing across runs.
+    serialized_dict = json.dumps(
+        dictionary, 
+        sort_keys=True, 
+        cls=AppEncoder # <-- This is the key change!
+    ).encode('utf-8')
+    
+    # 2. Generate and return the hash
+    return hashlib.sha256(serialized_dict).hexdigest()
 
 
 def save_named_job_list():
@@ -1986,15 +2035,21 @@ def save_named_job_list():
         filetypes=[("Joblist JSON files", "*.joblist.json"), ("JSON files", "*.json")],
         title="Select file to save job list")
     if len(aux_file) > 0:
+        job_list_hash = generate_dict_hash(batch_job_list.get_all_jobs())
+        """ delete_this
         job_list_hash = generate_dict_hash(job_list)
+        """
         # Remove only the exact suffix if present
         if not aux_file.endswith(".joblist.json"):
             # Remove .json or .joblist if they exist separately
             aux_file = aux_file.removesuffix(".json").removesuffix(".joblist")
             # Append the correct suffix
             aux_file = f"{aux_file}.joblist.json"
+        batch_job_list.save_to_file(aux_file)
+        """ delete_this
         with open(aux_file, 'w+') as f:
             json.dump(job_list, f, indent=4)
+        """
         job_list_filename = aux_file
         config_manager.set_job_list_filename(job_list_filename)
         """ delete_this
@@ -2006,7 +2061,10 @@ def save_named_job_list():
 def load_named_job_list():
     global job_list, job_list_filename, job_list_hash
 
+    aux_hash = generate_dict_hash(batch_job_list.get_all_jobs())
+    """ delete_this
     aux_hash = generate_dict_hash(job_list)
+    """
     if job_list_hash != aux_hash:   # Current job list modified since loaded
         if tk.messagebox.askyesno(
             "Save job list?",
@@ -2029,7 +2087,10 @@ def load_named_job_list():
         """ delete_this
         general_config["job_list_filename"] = job_list_filename
         """
+        job_list_hash = generate_dict_hash(batch_job_list.get_all_jobs())
+        """ delete_this
         job_list_hash = generate_dict_hash(job_list)
+        """
         display_window_title()
 
 """ delete_this
@@ -2098,6 +2159,40 @@ def load_job_list(filename = None):
     else:   # No job list file. Set empty config to force defaults
         job_list = {}
 """
+def load_job_list(filename = None):
+    global default_job_list_filename, job_list_treeview, job_list_hash
+
+    if filename is None:
+        if not os.path.isfile(default_job_list_filename):   
+            # if default job list file does not exist, try with legacy one (before 1.20.13)
+            filename = default_job_list_filename_legacy
+        else:
+            filename = default_job_list_filename
+
+    display_window_title()  # setting title of the window
+
+    if not ignore_config and os.path.isfile(filename):
+        batch_job_list.load_from_file(filename)
+        for item_id in job_list_treeview.get_children():
+            job_list_treeview.delete(item_id)
+        for job_name, job_entry in batch_job_list.get_all_jobs().items():
+            if len(job_name) > JOB_LIST_NAME_LENGTH:  # In case name is longer than JOB_LIST_NAME_LENGTH (25)
+                new_entry_name = normalize_job_name(job_name)
+                logging.error(f"Detected name too long in job list, replacing '{job_name}' by '{new_entry_name}'")
+                job_entry.job_name = new_entry_name
+                batch_job_list.add_job(job_entry)
+                batch_job_list.delete_job(job_name)
+                job_name = new_entry_name
+            # Add to listbox
+            job_list_treeview.insert('', 'end', text=job_name, values=(batch_job_list.get_job(job_name).get_description(),),
+                                     tags=("done","joblist_font",) if batch_job_list.is_job_done(job_name) else ("pending","joblist_font",))
+            batch_job_list.mark_job_attempted(job_name, batch_job_list.is_job_done(job_name))
+        for job_name, job_entry in batch_job_list.get_all_jobs().items():
+            item_id = search_job_name_in_job_treeview(job_name)
+            if item_id is not None:
+                job_list_treeview.item(item_id, tags=("done","joblist_font",) if batch_job_list.is_job_done(job_name) else ("pending","joblist_font",))
+
+        job_list_hash = generate_dict_hash(batch_job_list.get_all_jobs())
 
 
 def start_processing_job_list():
@@ -2109,8 +2204,13 @@ def start_processing_job_list():
         widget_status_update(DISABLED, start_batch_btn)
         FrameSync_Viewer_popup_update_widgets(DISABLED)
 
+        """ delete_this
         for entry in job_list:
             job_list[entry]['attempted'] = job_list[entry]['done'] # Reset attempted flag for those not done yet
+        """
+        for job_name, job_entry in batch_job_list.get_all_jobs().items():
+            batch_job_list.mark_job_attempted(job_name, batch_job_list.is_job_done(job_name))
+
         job_processing_loop()
 
 
@@ -2126,31 +2226,43 @@ def job_processing_loop():
 
     logging.debug(f"Starting batch loop")
     job_started = False
+    """ delete_this
     for entry in job_list:
         if not job_list[entry]['done'] and not job_list[entry]['attempted']:
+    """
+    for job_name, job_entry in batch_job_list.get_all_jobs().items():
+        if not batch_job_list.is_job_done(job_name) and not not batch_job_list.is_job_attempted(job_name):
             # Save bad frame list if any
             if len(bad_frame_list) > 0:
                 save_bad_frame_list()
                 # Clear list of bad frames
                 bad_frame_list.clear()
                 current_bad_frame_index = -1
+            batch_job_list.mark_job_attempted(job_name)
+            """ delete_this
             job_list[entry]['attempted'] = True
+            """
             for item_id in job_list_treeview.selection():  
                 job_list_treeview.selection_remove(item_id)  # Unselect each selected item
-            item_id = search_job_name_in_job_treeview(entry)
+            item_id = search_job_name_in_job_treeview(job_name)
             if item_id is not None:
                 job_list_treeview.item(item_id, tags=("ongoing","joblist_font",))
-            current_job_entry = entry
+            current_job_entry = job_name
+            """ delete_this
             if 'frame_from' in job_list[entry]['project']:
-                # At some point frame_from and frame_to were saved to project file as strings, so just in case, convert them.
                 current_frame = int(job_list[entry]['project']['frame_from'])
+            """
+            if batch_job_list.get_job(job_name).project.get_frame_from() is not None:
+                # At some point frame_from and frame_to were saved to project file as strings, so just in case, convert them.
+                current_frame = int(batch_job_list.get_job(job_name).project.get_frame_from())
                 logging.debug(f"Set current Frame to {current_frame}")
             else:
                 current_frame = 0
-            logging.debug(f"Processing {entry}, starting from frame {current_frame}, {job_list[entry]['project']['frames_to_encode']} frames")
+            logging.debug(f"Processing {job_name}, starting from frame {current_frame}, {batch_job_list.get_job(job_name).project.get_frame_from()} frames")
             project_config_from_file = False
-            project_instance = job_list[entry]['project'].copy()
+            project_instance = batch_job_list.get_job(job_name).project.copy()
             """ delete_this
+            project_instance = job_list[entry]['project'].copy()
             project_config = job_list[entry]['project'].copy()
             """
             decode_project_config()
@@ -2194,7 +2306,7 @@ def job_list_load_current(event):
 
 
 def job_list_rerun_current(event):
-    global job_list, job_list_treeview
+    global job_list_treeview
     global job_list_listbox_disabled
 
     if job_list_listbox_disabled:
@@ -2214,7 +2326,7 @@ def job_list_rerun_current(event):
         job_list_treeview.selection_set(next_item)  # Select next row
         job_list_treeview.focus(next_item)  # Move focus to it
 
-
+""" delete_this
 def sync_job_list_with_treeview():
     global job_list_treeview, job_list
 
@@ -2226,6 +2338,40 @@ def sync_job_list_with_treeview():
 
     # Create a new dictionary with the desired order
     job_list = {key: job_list[key] for key in order_list if key in job_list}
+"""
+def sync_job_list_with_treeview(job_manager: JobManager):
+    """
+    Reads the order from the Tkinter Treeview and re-creates the 
+    JobManager's internal job map to match that order.
+    
+    Args:
+        job_manager: The instance of the JobManager containing the job queue.
+    """
+    global job_list_treeview # UI component is still global here
+
+    # 1. Build the order list from the Treeview (Logic remains the same)
+    order_list = []
+    for item_id in job_list_treeview.get_children():
+        name = job_list_treeview.item(item_id, "text")
+        if name:  
+            # NOTE: Ensure normalize_job_name() is consistent with the dictionary keys
+            order_list.append(normalize_job_name(name))
+
+    # 2. Get the existing (unordered) jobs map from the manager
+    existing_jobs = job_manager.get_all_jobs() 
+
+    # 3. Create a new dictionary with the desired order
+    # (This uses the list comprehension trick to force insertion order based on 'order_list')
+    new_ordered_map = {
+        key: existing_jobs[key] 
+        for key in order_list 
+        if key in existing_jobs
+    }
+
+    # 4. Update the manager's internal map using the setter
+    job_manager.set_jobs_map(new_ordered_map)
+
+    logging.debug(f"Job map reordered to match Treeview: {order_list}")
 
 
 def job_list_move_up(event):
@@ -2244,10 +2390,15 @@ def job_list_move_up(event):
             # Update Job list
             Name = job_list_treeview.item(item_id, "text")  # Returns Name column (#0)
             if Name:
+                if batch_job_list.job_exists(Name):
+                    if batch_job_list.is_job_done(Name):    # TODO - Remove this if (otherwise following statemetn does not make sense)
+                        job_list_treeview.item(item_id, tags=("done","joblist_font",) if batch_job_list.is_job_done(Name) else ("pending","joblist_font",))
+                """ delete_this
                 if Name in job_list:
                     if job_list[Name]['done'] == True:
                         job_list_treeview.item(item_id, tags=("pending","joblist_font",) if job_list[Name]['done'] == False else ("done","joblist_font",))
-                sync_job_list_with_treeview()
+                """
+                sync_job_list_with_treeview(batch_job_list)
 
 
 def job_list_move_down(event):
@@ -2266,10 +2417,15 @@ def job_list_move_down(event):
             # Update Job list
             Name = job_list_treeview.item(item_id, "text")  # Ret¡riebe job name (column #0)
             if Name:
+                if batch_job_list.job_exists(Name):
+                    if batch_job_list.is_job_done(Name):    # TODO - Remove this if (otherwise following statemetn does not make sense)
+                        job_list_treeview.item(item_id, tags=("done","joblist_font",) if batch_job_list.is_job_done(Name) else ("pending","joblist_font",))
+                """ delete_this
                 if Name in job_list:
                     if job_list[Name]['done'] == True:
                         job_list_treeview.item(item_id, tags=("pending","joblist_font",) if job_list[Name]['done'] == False else ("done","joblist_font",))
-                sync_job_list_with_treeview()
+                """
+                sync_job_list_with_treeview(batch_job_list)
 
 
 """
@@ -5918,7 +6074,7 @@ def start_convert():
     global frame_from_str, frame_to_str
     global project_name
     global batch_job_running
-    global job_list, current_job_entry
+    global current_job_entry
     global csv_filename, csv_path_name
     global fps_last_minute_frame_times
     global current_bad_frame_index
@@ -6037,6 +6193,7 @@ def start_convert():
             """ delete_this
             if resolution_dict[project_config["video_resolution"]] == '':
             """
+            # print(f"***** config_manager.get_video_resolution() = {config_manager.get_video_resolution()}")
             if resolution_dict[config_manager.get_video_resolution()] == '':
                 if not batch_job_running:
                     logging.error("Error, no video resolution selected")
@@ -6070,7 +6227,10 @@ def generation_exit(success = True):
                     job_list_treeview.item(item_id, tags=("pending","joblist_font",))
         else:
             if success:
+                batch_job_list.mark_job_done(current_job_entry)
+                """ delete_this
                 job_list[current_job_entry]['done'] = True    # Flag as done
+                """
                 item_id = search_job_name_in_job_treeview(current_job_entry)
                 if item_id != -1:
                     job_list_treeview.item(item_id, tags=("done","joblist_font",))
@@ -8156,10 +8316,7 @@ def main(argv):
     load_project_config()
     decode_project_config()
 
-    batch_job_list.load_from_file(default_job_list_filename)
-    """ delete_this
     load_job_list()
-    """
 
     get_target_dir_file_list()
 

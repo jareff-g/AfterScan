@@ -11,10 +11,10 @@ __author__ = 'Juan Remirez de Esparza'
 __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
-__module__ = "project_config"
-__version__ = "1.0.2"
+__module__ = "job_manager"
+__version__ = "1.0.3"
 __data_version__ = "1.0"
-__date__ = "2025-12-09"
+__date__ = "2025-12-10"
 __version_highlight__ = "WIP - Trying to make current code working."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
@@ -67,6 +67,15 @@ class JobEntry:
         output['project'] = self.project.to_dict()
         
         return output
+    
+    def get_project(self) -> Optional[ProjectConfigEntry]:
+        """Retrieves a job by its name."""
+        return self.project
+
+    def get_description(self) -> str:
+        """Retrieves a job by its name."""
+        return self.description
+
 
 # --- Job Queue Container (The Top-Level Structure) ---
 
@@ -110,6 +119,10 @@ class JobQueue:
     def get_job(self, job_name: str) -> Optional[JobEntry]:
         """Retrieves a job by its name."""
         return self.job_map.get(job_name)
+
+    def delete_job(self, job_name: str):
+        """Retrieves a job by its name."""
+        self.job_map.pop(job_name)
 
     def job_exists(self, job_name: str) -> bool:
         """Checks if a job with the given name exists."""
@@ -191,7 +204,7 @@ class JobManager:
         # the original config object outside this manager, if any.
         return JobEntry(
             job_name=name,
-            project=copy.deepcopy(config)
+            project=copy.deepcopy(config),
             done=False,
             attempted=False
         )
@@ -204,6 +217,10 @@ class JobManager:
     def get_job(self, job_name: str) -> Optional[JobEntry]:
         """Retrieves a job by name."""
         return self.job_queue.get_job(job_name)
+        
+    def delete_job(self, job_name: str):
+        """Deletes a job by name."""
+        return self.job_queue.delete_job(job_name)
         
     def job_exists(self, job_name: str) -> bool:
         """Checks if a job with the given name exists."""
@@ -246,3 +263,6 @@ class JobManager:
         """Returns the complete job map."""
         return self.job_queue.job_map
 
+    def set_jobs_map(self, new_map: Dict[str, JobEntry]):
+        """Replaces the internal job map with a new one."""
+        self.job_queue.job_map = new_map
