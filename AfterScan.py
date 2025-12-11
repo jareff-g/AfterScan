@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.20"
+__version__ = "1.40.21"
 __data_version__ = "1.0"
-__date__ = "2025-12-10"
-__version_highlight__ = "WIP - Settings changes properly propagated to/from current project and job list."
+__date__ = "2025-12-11"
+__version_highlight__ = "WIP - Fix inconsistencies when dealign with job list filename."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -2082,7 +2082,7 @@ def load_named_job_list():
         filetypes=[("Joblist JSON files", "*.joblist.json"), ("JSON files", "*.json")],
         title="Select file to retrieve job list")
     if len(aux_file) > 0:
-        batch_job_list.load_from_file(default_job_list_filename)
+        batch_job_list.load_from_file(aux_file)
         """ delete_this
         load_job_list(aux_file)
         """
@@ -2164,14 +2164,18 @@ def load_job_list(filename = None):
         job_list = {}
 """
 def load_job_list(filename = None):
-    global default_job_list_filename, job_list_treeview, job_list_hash
+    global job_list_filename, default_job_list_filename_legacy, job_list_treeview, job_list_hash
 
     if filename is None:
-        if not os.path.isfile(default_job_list_filename):   
-            # if default job list file does not exist, try with legacy one (before 1.20.13)
-            filename = default_job_list_filename_legacy
-        else:
+        if os.path.isfile(job_list_filename):
+            filename = job_list_filename
+        elif os.path.isfile(default_job_list_filename):   # if current job list file does not exist, try with default one
             filename = default_job_list_filename
+        elif os.path.isfile(default_job_list_filename_legacy):     # if default job list file does not exist, try with legacy one
+            filename = default_job_list_filename_legacy
+    else:
+        logging.warning(f"No job files found.")
+        return
 
     display_window_title()  # setting title of the window
 
