@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "afterscan_template_manager"
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 __data_version__ = "1.0"
-__date__ = "2025-12-06"
-__version_highlight__ = "Add debug log when activating tamplate."
+__date__ = "2025-12-11"
+__version_highlight__ = "WIP: Move default template initialization code to TemplateManager."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -246,16 +246,33 @@ class TemplateManager:
     
     # --- Factory Method (Initialization) ---
     @classmethod
-    def initialize(cls) -> 'TemplateManager':
+    def initialize(cls, template_folder: str) -> 'TemplateManager':
+        initial_templates = TemplateList()
+        cls._add_default_templates(cls, initial_templates, template_folder)
         """
         Initializes the Manager with an empty TemplateList.
         (No I/O needed since templates are built from external JPEGs.)
         """
         logging.info("TemplateManager initialized with an empty list.")
-        return cls(template_list=TemplateList())
+        return cls(template_list=initial_templates)
 
     # --- Methods for modifying the collection ---
-    
+
+    @staticmethod
+    def _add_default_templates(self, list: TemplateList, template_folder: str):
+        default_templates = [["R8","Pattern.R8.jpg", "R8", (65, 1080)],
+                              ["S8","Pattern.S8.jpg", "S8", (66, 838)],
+                              ["BW","Pattern_BW.jpg", "aux", (0, 0)],
+                              ["WB","Pattern_WB.jpg", "aux", (0, 0)],
+                              ["Corner","Pattern_Corner_TR.jpg", "aux", (0, 0)]]
+        for template in default_templates:
+            list.add(template[0], os.path.join(template_folder, template[1]), template[2], template[3])
+
+        templates_ok, error_msg = list.check_default_template_consistency(template_folder)
+        if not templates_ok:
+            logging.error(error_msg)
+            return
+   
     def add(self, name: str, filename: str, type: str, position: Tuple[int, int]) -> Optional[Template]:
         """Adds a new template or updates an existing one."""
         return self.template_list.add(name, filename, type, position)

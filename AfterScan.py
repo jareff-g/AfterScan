@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.21"
+__version__ = "1.40.22"
 __data_version__ = "1.0"
 __date__ = "2025-12-11"
-__version_highlight__ = "WIP - Fix inconsistencies when dealign with job list filename."
+__version_highlight__ = "WIP: Move default template initialization code to TemplateManager."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -221,6 +221,7 @@ if os.path.isfile(soundtrack_file_path):
 else:
     sound_file_available = False
 
+""" delete_this
 template_manager = TemplateManager.initialize()
 hole_template_filename_r8 = os.path.join(script_dir, "Pattern.R8.jpg")
 hole_template_filename_s8 = os.path.join(script_dir, "Pattern.S8.jpg")
@@ -237,7 +238,9 @@ EXPECTED_HASHES = {
     'Pattern_WB.jpg': '60d50644f26407503267b763bcc48d7bec88dd6f58bb238cf9bec6ba86938f33',
     'Pattern_Corner_TR.jpg': '5e56a49c029013588646b11adbdc4a223217abfb91423dd3cdde26abbf5dcd9c'
 }
+"""
 
+""" delete_this
 default_project_config = {
     'source_dir': '',
     'target_dir': '',
@@ -299,7 +302,6 @@ default_general_config = {
     'window_pos': ''
 }
 
-""" delete_this
 general_config = default_general_config.copy()
 project_repository = {}
 project_config = default_project_config.copy()
@@ -8237,17 +8239,19 @@ def main(argv):
         set_log_level_from_args(logging_mode)
 
     # Create and initialize TemplateManager: Add default templates to template list
-    template_manager = TemplateManager.initialize()
+    template_manager = TemplateManager.initialize(script_dir)
+    """ delete_this
     template_manager.add("S8", hole_template_filename_s8, "S8", (66, 838))     # New, smaller
     template_manager.add("R8", hole_template_filename_r8, "R8", (65, 1080)) # Default R8 (bottom hole)
     template_manager.add("BW", hole_template_filename_bw, "aux", (0, 0))
     template_manager.add("WB", hole_template_filename_wb, "aux", (0, 0))
     template_manager.add("Corner", hole_template_filename_corner, "aux", (0, 0))
-
+    
     templates_ok, error_msg = verify_templates()
     if not templates_ok:
         logging.error(error_msg)
         return
+    """
 
     config_manager = ConfigurationManager.initialize()
     project_instance = ProjectConfigEntry()
