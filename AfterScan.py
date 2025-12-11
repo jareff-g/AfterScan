@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.22"
+__version__ = "1.40.23"
 __data_version__ = "1.0"
 __date__ = "2025-12-11"
-__version_highlight__ = "WIP: Move default template initialization code to TemplateManager."
+__version_highlight__ = "WIP: Started to rearrange global variables, to create AppState class. Create helpers module."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -155,33 +155,38 @@ def set_log_level_from_args(logging_level):
 configure_logging()
 
 from tooltip import Tooltips
-from rolling_average import RollingAverage
 from define_rectangle import DefineRectangle
 from template_manager import TemplateManager
 from configuration_manager import ConfigurationManager, ProjectConfigEntry
 from job_manager import JobManager
 from custom_json_encoder import AppEncoder
+from helpers import RollingAverage, FPSTracker
 
 # Check for temporalDenoise in OpenCV at startup
 HAS_TEMPORAL_DENOISE = hasattr(cv2, 'temporalDenoising')
 
-# Frame vars
+# --- Frame related values ---
 first_absolute_frame = 0
 last_absolute_frame = 0
 frame_scale_refresh_done = True
 frame_scale_refresh_pending = False
 frames_to_encode = 0
-from_frame = 0
-to_frame = 0
 current_frame = 0
 start_frame = 0
-reference_frame = 0
 frame_selected = 0
+
+# --- Work images to define (draw) rectangles on them ---
 global work_image, base_image, original_image
-# FPS calculation (taken from ALT-Scann8)
+
+# --- FPS calculation (taken from ALT-Scann8) ---
+fps_tracker = FPSTracker()
+"""
 fps_last_minute_frame_times = list()
 fps_start_time = time.ctime()
 fps_calculated_value = -1
+"""
+
+# --- Queue to hold last n frames for temporal denoise ---
 denoise_window_size = 3
 temp_denoise_frame_deque = deque(maxlen=denoise_window_size)
 
@@ -1048,7 +1053,6 @@ def save_project_config():
     global skip_frame_regeneration
     global ffmpeg_preset
     global stabilize_area_defined
-    global current_frame
     global video_filename_str, video_title_str
     global frame_from_str, frame_to_str
     global perform_denoise, perform_sharpness, perform_gamma_correction
@@ -1720,7 +1724,7 @@ def job_list_process_selection(evt):
 
 def job_list_add_current():
     global job_list, template_manager
-    global current_frame, start_frame, frames_to_encode
+    global frames_to_encode
     global project_config, video_filename_str
     global job_list_treeview
     global encode_all_frames, source_dir_file_list
@@ -1845,7 +1849,7 @@ def job_list_add_current():
 # gets currently selected job list item and loads it in the UI fields (to allow editing)
 def job_list_load_selected():
     global job_list
-    global current_frame, start_frame, frames_to_encode
+    global current_frame
     global project_config
     global job_list_treeview
     global encode_all_frames, source_dir_file_list
@@ -2465,6 +2469,7 @@ def display_ffmpeg_result(ffmpeg_output):
     ffmpeg_result_sb.config(command=ffmpeg_label.yview)
 
 
+""" delete_this
 def register_frame():
     global fps_last_minute_frame_times
     global fps_start_time
@@ -2488,7 +2493,7 @@ def register_frame():
         fps_calculated_value = len(fps_last_minute_frame_times)/60
     elif frame_time - fps_start_time > 10:  # some  calculations needed if less than 60 sec
         fps_calculated_value = int((len(fps_last_minute_frame_times) * 60) / (frame_time - fps_start_time))/60
-
+"""
 
 
 """
@@ -2501,8 +2506,7 @@ File handling functions
 def set_source_folder():
     global source_dir, frames_source_dir
     global target_dir, frames_target_dir
-    global current_frame, frame_slider, Go_btn, cropping_btn
-    global first_absolute_frame
+    global frame_slider, Go_btn, cropping_btn
     global project_name
     global current_bad_frame_index
     global ui_init_done
@@ -2768,7 +2772,6 @@ def widget_status_update(widget_state=0, button_action=0):
 
 def update_frame_from(event):
     global frame_from_str, frame_slider
-    global current_frame
     
     if len(frame_from_str.get()) == 0 or frame_from_str.get() == '0' or event.num == 2:
         frame_from_str.set(current_frame)
@@ -2776,17 +2779,19 @@ def update_frame_from(event):
         if ui_init_done:
             select_scale_frame(frame_from_str.get())
         frame_slider.set(frame_from_str.get())
+    config_manager.set_frame_from(frame_from_str.get())
 
 
 def update_frame_to(event):
     global frame_to_str, frame_slider
-    global current_frame
+
     if len(frame_to_str.get()) == 0 or frame_to_str.get() == '0' or event.num == 2:
         frame_to_str.set(current_frame)
     else:
         if ui_init_done:
             select_scale_frame(frame_to_str.get())
         frame_slider.set(frame_to_str.get())
+    config_manager.set_frame_to(frame_to_str.get())
 
 def on_paste_all_entries(event, entry):
     try:
@@ -3813,7 +3818,7 @@ def FrameSync_Viewer_popup():
     global current_frame_text, crop_text, film_type_text
     global search_area_text, template_type_text, hole_pos_text, template_size_text, template_wb_proportion_text, template_threshold_text
     global left_stripe_canvas, left_stripe_stabilized_canvas, template_canvas
-    global source_dir_file_list, current_frame
+    global source_dir_file_list
     global bad_frame_text, corrected_bad_frame_text, bad_frames_on_left_value, bad_frames_on_right_value
     global frame_up_button, frame_left_button, frame_down_button, frame_right_button
     global next_frame_button_1, next_frame_button_10, previous_frame_button_1, previous_frame_button_10, save_button, close_button
@@ -4365,7 +4370,6 @@ def load_current_frame_image():
 def scale_display_update(update_filters=True, offset_x = 0, offset_y = 0):
     global win
     global frame_scale_refresh_done, frame_scale_refresh_pending
-    global current_frame
     global perform_stabilization, perform_cropping, perform_rotation, hole_search_area_adjustment_pending
     global crop_top_left, crop_bottom_right
     global source_dir_file_list
@@ -4417,7 +4421,6 @@ def select_scale_frame(selected_frame):
     global source_dir
     global current_frame
     global source_dir_file_list
-    global first_absolute_frame
     global frame_scale_refresh_done, frame_scale_refresh_pending
     global frame_slider
 
@@ -4460,7 +4463,7 @@ def get_stabilization_threshold():
 
 def detect_film_type():
     global template_manager
-    global current_frame, source_dir_file_list
+    global source_dir_file_list
     global project_config
 
     # Initialize work values
@@ -4767,7 +4770,6 @@ def draw_rectangle(event, x, y, flags, param):
 
 
 def select_rectangle_area(is_cropping=False):
-    global current_frame, first_absolute_frame
     global source_dir_file_list
     global rectangle_drawing
     global ix, iy
@@ -4845,7 +4847,7 @@ def select_cropping_area():
     global crop_area_defined
     global rectangle_top_left, rectangle_bottom_right
     global project_config
-    global encode_all_frames, from_frame, to_frame, reference_frame
+    global encode_all_frames
 
     # Disable all buttons in main window
     widget_status_update(DISABLED,0)
@@ -5321,7 +5323,6 @@ def display_image(img):
 # Display frames while video encoding is ongoing
 # No need to care about sequencing since video encoding process in AfterScan is single threaded
 def display_output_frame_by_number(frame_number):
-    global start_frame
     global target_dir_file_list, file_type_out
 
     target_file = target_dir + '/' + frame_output_filename_pattern % (start_frame + frame_number, file_type_out)
@@ -5677,7 +5678,6 @@ def stabilize_image(frame_idx, img, img_ref, offset_x = 0, offset_y = 0, img_ref
     id: Thread identifier, for debugging purposes
     """
     global source_dir_file_list
-    global first_absolute_frame, start_frame
     global crop_top_left, crop_bottom_right, win
     global project_name
     global frame_fill_type, extended_stabilization
@@ -5998,7 +5998,6 @@ def get_target_dir_file_list():
 
 
 def valid_generated_frame_range():
-    global start_frame, frames_to_encode, first_absolute_frame
     global target_dir_file_list, file_type_out
 
     file_count = 0
@@ -6088,7 +6087,6 @@ def start_convert():
     global batch_job_running
     global current_job_entry
     global csv_filename, csv_path_name
-    global fps_last_minute_frame_times
     global current_bad_frame_index
 
     if convert_loop_running:
@@ -6114,7 +6112,10 @@ def start_convert():
         """
         batch_job_list.save_to_file(default_job_list_filename)
         # Empty FPS register list
+        fps_tracker.reset()
+        """ delete_this
         fps_last_minute_frame_times.clear()
+        """
         # Centralize 'frames_to_encode' update here
         if encode_all_frames.get():
             start_frame = 0
@@ -6273,7 +6274,7 @@ def generation_exit(success = True):
 
 def frame_encode(frame_idx, id, do_save = True, offset_x = 0, offset_y = 0):
     global source_dir, target_dir
-    global hdr_files_only , first_absolute_frame, frames_to_encode
+    global hdr_files_only
     global frame_input_filename_pattern, hdr_set_input_filename_pattern, frame_hdr_input_filename_pattern, frame_output_filename_pattern
     global crop_top_left, crop_bottom_right
     global app_status_label
@@ -6339,7 +6340,10 @@ def frame_encode(frame_idx, id, do_save = True, offset_x = 0, offset_y = 0):
         logging.error(
             "Error reading frame %i, skipping", frame_idx)
     else:
+        fps_tracker.register_frame()
+        """ delete_this
         register_frame()
+        """
         if perform_rotation.get():
             img = rotate_image(img)
         # If FrameSync editor opened, call stabilize_image even when not enabled just to display FrameSync images. Image would not be stabilized
@@ -6385,15 +6389,18 @@ def frame_encode(frame_idx, id, do_save = True, offset_x = 0, offset_y = 0):
     return len(images_to_merge) != 0, match_level, move_x, move_y
 
 def frame_update_ui(frame_idx, merged):
-    global first_absolute_frame, start_frame, frames_to_encode, fps_calculated_value
     global app_status_label
 
     frame_selected.set(frame_idx)
     frame_slider.set(frame_idx)
     refresh_current_frame_ui_info(frame_idx, first_absolute_frame)
     status_str = f"Status: Generating{' merged' if merged else ''} frames {((frame_idx - start_frame+1) * 100 / frames_to_encode):.1f}%"
+    if fps_tracker.get_fps() != -1:
+        status_str = status_str + f' (FPS:{fps_tracker.get_fps():.1f})'
+    """ delete_this
     if fps_calculated_value != -1:  # FPS not calculated yet, display some indication
         status_str = status_str + f' (FPS:{fps_calculated_value:.1f})'
+    """
     app_status_label.config(text=status_str, fg='black')
 
 
@@ -6428,7 +6435,7 @@ def frame_encoding_thread(queue, event, id):
 
 def check_subprocess_event_queue(user_terminated):
     global target_dir, frame_output_filename_pattern
-    global first_absolute_frame, frame_idx
+    global frame_idx
     global subprocess_event_queue
     global last_displayed_image, active_threads
     global convert_loop_running
@@ -6465,15 +6472,13 @@ def frame_generation_loop():
     global perform_stabilization, perform_cropping, perform_rotation, perform_denoise, perform_sharpness
     global convert_loop_exit_requested
     global target_dir
-    global current_frame, first_absolute_frame
-    global start_frame, frames_to_encode, frame_selected
+    global current_frame
     global frame_output_filename_pattern
     global batch_job_running
     global ffmpeg_success, ffmpeg_encoding_status
     global target_dir_file_list
     global frame_slider
     global merge_mertens
-    global fps_calculated_value
     global hdr_files_only
     global frame_encoding_queue
     global last_displayed_image, working_threads
@@ -6490,7 +6495,10 @@ def frame_generation_loop():
             
 
     if current_frame >= start_frame + frames_to_encode and last_displayed_image+1 >= start_frame + frames_to_encode:
+        fps_tracker.reset()
+        """ delete_this
         fps_calculated_value = -1
+        """
         # write average match quality in the status line, and in the widget
         status_str = f"Status: Frame generation OK - AvgQ: {int(match_level_average.get_average()*100)}"
         app_status_label.config(text=status_str, fg='green')
@@ -6547,7 +6555,10 @@ def frame_generation_loop():
         app_status_label.config(text=status_str, fg='red')
         generation_exit(success = False)
         stabilization_threshold_match_label.config(fg='lightgray', bg='lightgray', text='')
+        fps_tracker.reset()
+        """ delete_this
         fps_calculated_value = -1
+        """
         # Refresh popup window
         FrameSync_Viewer_popup_refresh()
         # Enable manual stabilize popup widgets
@@ -6632,7 +6643,7 @@ def draw_multiple_line_text(image, text, font, text_color, num_lines):
 def video_create_title():
     global video_title_str
     global video_fps
-    global start_frame, first_absolute_frame, title_num_frames, frames_to_encode
+    global title_num_frames
     global file_type_out
 
     if len(video_title_str.get()): 
@@ -6696,11 +6707,9 @@ def call_ffmpeg():
     global ffmpeg_preset
     global ffmpeg_bin_name
     global target_video_filename
-    global start_frame
     global ffmpeg_process, ffmpeg_success
     global ffmpeg_encoding_status
     global frame_output_filename_pattern
-    global first_absolute_frame, frames_to_encode
     global out_frame_width, out_frame_height
     global title_num_frames
     global file_type_out
@@ -6847,8 +6856,7 @@ def video_generation_loop():
     global frames_to_encode, title_num_frames
     global app_status_label
     global batch_job_running
-    global start_frame, first_absolute_frame, frames_to_encode
-    global frame_selected, last_displayed_image
+    global last_displayed_image
     global frame_slider
 
     if ffmpeg_encoding_status == ffmpeg_state.Pending:
@@ -7197,7 +7205,7 @@ def build_ui():
     global perform_gamma_correction_checkbox, gamma_correction_spinbox
     global generate_video, generate_video_checkbox
     global encode_all_frames, encode_all_frames_checkbox
-    global frames_to_encode_str, frames_to_encode, frames_to_encode_label
+    global frames_to_encode_str, frames_to_encode_label
     global save_bg, save_fg
     global source_folder_btn, target_folder_btn
     global perform_stabilization, perform_stabilization_checkbox
@@ -7220,7 +7228,7 @@ def build_ui():
     global ffmpeg_preset_rb1, ffmpeg_preset_rb2, ffmpeg_preset_rb3
     global ffmpeg_bin_name
     global skip_frame_regeneration
-    global frame_slider, selected_frame_time, current_frame, frame_selected, selected_frame_number, selected_frame_index
+    global frame_slider, selected_frame_time, frame_selected, selected_frame_number, selected_frame_index
     global film_type
     global job_list_treeview, job_list_listbox_disabled
     global app_status_label
@@ -7467,15 +7475,16 @@ def build_ui():
                                       text='Frame range:',
                                       width=12, font=("Arial", font_size))
     frames_to_encode_label.grid(row=postprocessing_row, column=0, columnspan=2, sticky=W)
-    frame_from_str = tk.StringVar(value=str(from_frame))
+    frame_from_str = tk.StringVar(value=0)
     frame_from_entry = Entry(postprocessing_frame, textvariable=frame_from_str, width=5, borderwidth=1, font=("Arial", font_size))
     frame_from_entry.grid(row=postprocessing_row, column=1, sticky=W)
     frame_from_entry.config(state=NORMAL)
     frame_from_entry.bind("<Double - Button - 1>", update_frame_from)
     frame_from_entry.bind("<Button - 2>", update_frame_from)
     frame_from_entry.bind('<<Paste>>', lambda event, entry=frame_from_entry: on_paste_all_entries(event, entry))
+    frame_from_entry.bind("<FocusOut>", update_frame_from)
     as_tooltips.add(frame_from_entry, "First frame to be processed, if not encoding the entire set")
-    frame_to_str = tk.StringVar(value=str(from_frame))
+    frame_to_str = tk.StringVar(value=0)
     frames_separator_label = tk.Label(postprocessing_frame, text='to', width=2, font=("Arial", font_size))
     frames_separator_label.grid(row=postprocessing_row, column=1)
     frame_to_entry = Entry(postprocessing_frame, textvariable=frame_to_str, width=5, borderwidth=1, font=("Arial", font_size))
@@ -7484,6 +7493,7 @@ def build_ui():
     frame_to_entry.bind("<Double - Button - 1>", update_frame_to)
     frame_to_entry.bind("<Button - 2>", update_frame_to)
     frame_to_entry.bind('<<Paste>>', lambda event, entry=frame_to_entry: on_paste_all_entries(event, entry))
+    frame_to_entry.bind("<FocusOut>", update_frame_to)
     as_tooltips.add(frame_to_entry, "Last frame to be processed, if not encoding the entire set")
 
     postprocessing_row += 1
