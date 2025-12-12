@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.26"
+__version__ = "1.40.28"
 __data_version__ = "1.0"
 __date__ = "2025-12-12"
-__version_highlight__ = "WIP: Move utility static functions to helpers module. Delete update_ui_from_config. Refresh config from UI when saving."
+__version_highlight__ = "WIP: Remove legacy HDR support (hdrpic files)."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -225,10 +225,8 @@ file_type = 'jpg'
 file_type_out = file_type
 frame_input_filename_pattern_list_jpg = "picture-?????.jpg"
 hdr_input_filename_pattern_list_jpg = "picture-?????.3.jpg"   # In HDR mode, use 3rd frame as guide
-legacy_hdr_input_filename_pattern_list_jpg = "hdrpic-?????.3.jpg"   # In legacy HDR mode, use 3rd frame as guide
 frame_input_filename_pattern_list_png = "picture-?????.png"
 hdr_input_filename_pattern_list_png = "picture-?????.3.png"   # In HDR mode, use 3rd frame as guide
-legacy_hdr_input_filename_pattern_list_png = "hdrpic-?????.3.png"   # In legacy HDR mode, use 3rd frame as guide
 frame_input_filename_pattern = "picture-%05d.%s"   # HDR frames using standard filename (2/12/2023)
 frame_hdr_input_filename_pattern = "picture-%05d.%1d.%s"   # HDR frames using standard filename (2/12/2023)
 frame_output_filename_pattern = "picture_out-%05d.%s"
@@ -236,8 +234,6 @@ title_output_filename_pattern = "picture_out(title)-%05d.%s"
 frame_output_filename_pattern_for_ffmpeg = "picture_out-%05d."
 title_output_filename_pattern_for_ffmpeg = "picture_out(title)-%05d."
 frame_check_output_filename_pattern = "picture_out-?????.%s"  # Req. for ffmpeg gen.
-hdr_set_input_filename_pattern = "hdrpic-%05d.%1d.%s"   # Req. to fetch each HDR frame set
-hdr_files_only = False   # No HDR by default. Updated when building file list from input folder
 merge_mertens = None
 align_mtb = None
 
@@ -1478,7 +1474,12 @@ def set_source_folder():
         project_name = os.path.split(source_dir)[-1].replace(',', ';')
         config_manager.set_source_dir(source_dir)
 
-
+    # Create new project and add to list if it does not exist
+    if not config_manager.project_exists(source_dir):
+        new_project = config_manager.get_project_config(source_dir)    # Returns new project if it does not exist
+        config_manager.save_project_config(source_dir, new_project)
+        config_manager.set_active_project(source_dir)
+        
     load_project_config()  # Needs source_dir defined
 
     decode_project_config()  # Needs first_absolute_frame defined
@@ -4592,7 +4593,6 @@ def get_source_dir_file_list():
     global frame_slider
     global area_select_image_factor, screen_height
     global frames_target_dir
-    global hdr_files_only
     global crop_bottom_right
     global file_type, file_type_out
     global frame_sync_images_factor
@@ -4631,32 +4631,6 @@ def get_source_dir_file_list():
     elif len(source_dir_hdr_file_list_jpg) != 0:
         file_type_out = 'jpg'
 
-    source_dir_legacy_hdr_file_list_jpg = list(glob(os.path.join(
-        source_dir,
-        legacy_hdr_input_filename_pattern_list_jpg)))
-    source_dir_legacy_hdr_file_list_png = list(glob(os.path.join(
-        source_dir,
-        legacy_hdr_input_filename_pattern_list_png)))
-    source_dir_legacy_hdr_file_list = sorted(source_dir_legacy_hdr_file_list_jpg + source_dir_legacy_hdr_file_list_png)
-    if len(source_dir_legacy_hdr_file_list_png) != 0:
-        file_type_out = 'png'   # If we have png files in the input, we default to png for the output
-    elif len(source_dir_legacy_hdr_file_list_jpg) != 0:
-        file_type_out = 'jpg'
-
-    num_files = len(source_dir_file_list)
-    num_hdr_files = len(source_dir_hdr_file_list)
-    num_legacy_hdr_files = len(source_dir_legacy_hdr_file_list)
-    if num_files != 0 and num_legacy_hdr_files != 0:
-        if tk.messagebox.askyesno(
-                "Frame conflict",
-                f"Found both standard and HDR files in source folder. "
-                f"There are {num_files} standard frames and {num_legacy_hdr_files} HDR files.\r\n"
-                f"Do you want to continue using the {'standard' if num_files > num_legacy_hdr_files else 'HDR'} files?.\r\n"
-                f"You might want ot clean up that source folder, it is strongly recommended to have only a single type of frames in the source folder."):
-                    if num_legacy_hdr_files > num_files:
-                        source_dir_file_list = source_dir_legacy_hdr_file_list
-    elif num_files == 0 and num_hdr_files == 0: # Only Legacy HDR
-        source_dir_file_list = SourceDirLegacyHdrFileList
 
     if len(source_dir_file_list) == 0:
         tk.messagebox.showerror("Error!",
@@ -4664,8 +4638,6 @@ def get_source_dir_file_list():
                                 "Please specify new one and try again")
         frames_target_dir.delete(0, 'end')
         return 0
-    else:
-        hdr_files_only = num_legacy_hdr_files > num_files
 
     # Sanity check for current_frame
     if current_frame >= len(source_dir_file_list):
@@ -5008,8 +4980,7 @@ def generation_exit(success = True):
 
 def frame_encode(frame_idx, id, do_save = True, offset_x = 0, offset_y = 0):
     global source_dir, target_dir
-    global hdr_files_only
-    global frame_input_filename_pattern, hdr_set_input_filename_pattern, frame_hdr_input_filename_pattern, frame_output_filename_pattern
+    global frame_input_filename_pattern, frame_hdr_input_filename_pattern, frame_output_filename_pattern
     global crop_top_left, crop_bottom_right
     global app_status_label
     global subprocess_event_queue
@@ -5022,53 +4993,36 @@ def frame_encode(frame_idx, id, do_save = True, offset_x = 0, offset_y = 0):
         logging.debug(f"Thread {id}, starting to encode Frame {frame_idx}")
 
     # Get current file(s)
-    if hdr_files_only:    # Legacy HDR (before 2 Dec 2023): Dedicated filename
+    file1 = os.path.join(source_dir, frame_input_filename_pattern % (frame_idx + first_absolute_frame, file_type))
+    if not os.path.isfile(file1):
+        file_type = 'png' if file_type == 'jpg' else 'jpg'  # Try with the other file type
+        file1 = os.path.join(source_dir, frame_input_filename_pattern % (frame_idx + first_absolute_frame, file_type))
+    # read image
+    img = cv2.imread(file1, cv2.IMREAD_UNCHANGED)
+    img_ref = img   # Reference image is the same image for standard capture
+    # Check if HDR frames exist. Can handle between 2 and 5
+    file2 = os.path.join(source_dir, frame_hdr_input_filename_pattern % (frame_idx + first_absolute_frame, 2, file_type))
+    if os.path.isfile(file2):   # If hdr frames exist, add them
         images_to_merge.clear()
-        file1 = os.path.join(source_dir, hdr_set_input_filename_pattern % (frame_idx + first_absolute_frame, 1, file_type))
-        img_ref = cv2.imread(file1, cv2.IMREAD_UNCHANGED)   # Keep first frame of the set for stabilization reference
+        images_to_merge.append(img_ref)     # Add first frame
+        img_ref_aux = img_ref
+        img_ref = cv2.imread(file2, cv2.IMREAD_UNCHANGED) # Override stabilization reference with HDR#2
         images_to_merge.append(img_ref)
-        file2 = os.path.join(source_dir, hdr_set_input_filename_pattern % (frame_idx + first_absolute_frame, 2, file_type))
-        images_to_merge.append(cv2.imread(file2, cv2.IMREAD_UNCHANGED))
-        file3 = os.path.join(source_dir, hdr_set_input_filename_pattern % (frame_idx + first_absolute_frame, 3, file_type))
-        images_to_merge.append(cv2.imread(file3, cv2.IMREAD_UNCHANGED))
-        file4 = os.path.join(source_dir, hdr_set_input_filename_pattern % (frame_idx + first_absolute_frame, 4, file_type))
-        images_to_merge.append(cv2.imread(file4, cv2.IMREAD_UNCHANGED))
+        file3 = os.path.join(source_dir, frame_hdr_input_filename_pattern % (frame_idx + first_absolute_frame, 3, file_type))
+        if os.path.isfile(file3):  # If hdr frames exist, add them
+            images_to_merge.append(cv2.imread(file3, cv2.IMREAD_UNCHANGED))
+            file4 = os.path.join(source_dir, frame_hdr_input_filename_pattern % (frame_idx + first_absolute_frame, 4, file_type))
+            if os.path.isfile(file4):  # If hdr frames exist, add them
+                images_to_merge.append(cv2.imread(file4, cv2.IMREAD_UNCHANGED))
+                file5 = os.path.join(source_dir, frame_hdr_input_filename_pattern % (frame_idx + first_absolute_frame, 5, file_type))
+                if os.path.isfile(file5):  # If hdr frames exist, add them
+                    images_to_merge.append(cv2.imread(file5, cv2.IMREAD_UNCHANGED))
+
         align_mtb.process(images_to_merge, images_to_merge)
         img = merge_mertens.process(images_to_merge)
         img = img - img.min()  # Now between 0 and 8674
         img = img / img.max() * 255
         img = np.uint8(img)
-    else:
-        file1 = os.path.join(source_dir, frame_input_filename_pattern % (frame_idx + first_absolute_frame, file_type))
-        if not os.path.isfile(file1):
-            file_type = 'png' if file_type == 'jpg' else 'jpg'  # Try with the other file type
-            file1 = os.path.join(source_dir, frame_input_filename_pattern % (frame_idx + first_absolute_frame, file_type))
-        # read image
-        img = cv2.imread(file1, cv2.IMREAD_UNCHANGED)
-        img_ref = img   # Reference image is the same image for standard capture
-        # Check if HDR frames exist. Can handle between 2 and 5
-        file2 = os.path.join(source_dir, frame_hdr_input_filename_pattern % (frame_idx + first_absolute_frame, 2, file_type))
-        if os.path.isfile(file2):   # If hdr frames exist, add them
-            images_to_merge.clear()
-            images_to_merge.append(img_ref)     # Add first frame
-            img_ref_aux = img_ref
-            img_ref = cv2.imread(file2, cv2.IMREAD_UNCHANGED) # Override stabilization reference with HDR#2
-            images_to_merge.append(img_ref)
-            file3 = os.path.join(source_dir, frame_hdr_input_filename_pattern % (frame_idx + first_absolute_frame, 3, file_type))
-            if os.path.isfile(file3):  # If hdr frames exist, add them
-                images_to_merge.append(cv2.imread(file3, cv2.IMREAD_UNCHANGED))
-                file4 = os.path.join(source_dir, frame_hdr_input_filename_pattern % (frame_idx + first_absolute_frame, 4, file_type))
-                if os.path.isfile(file4):  # If hdr frames exist, add them
-                    images_to_merge.append(cv2.imread(file4, cv2.IMREAD_UNCHANGED))
-                    file5 = os.path.join(source_dir, frame_hdr_input_filename_pattern % (frame_idx + first_absolute_frame, 5, file_type))
-                    if os.path.isfile(file5):  # If hdr frames exist, add them
-                        images_to_merge.append(cv2.imread(file5, cv2.IMREAD_UNCHANGED))
-
-            align_mtb.process(images_to_merge, images_to_merge)
-            img = merge_mertens.process(images_to_merge)
-            img = img - img.min()  # Now between 0 and 8674
-            img = img / img.max() * 255
-            img = np.uint8(img)
 
     if img is None:
         logging.error(
@@ -5206,7 +5160,6 @@ def frame_generation_loop():
     global target_dir_file_list
     global frame_slider
     global merge_mertens
-    global hdr_files_only
     global frame_encoding_queue
     global last_displayed_image, working_threads
     global frame_encoding_queue, subprocess_event_queue

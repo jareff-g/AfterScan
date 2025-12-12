@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "configuration_manager"
-__version__ = "1.0.9"
+__version__ = "1.0.10"
 __data_version__ = "1.0"
 __date__ = "2025-12-12"
-__version_highlight__ = "WIP: Remove commented code."
+__version_highlight__ = "WIP: Add methog to check if project exists in the list."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -525,6 +525,9 @@ class ConfigurationManager:
 
     def get_active_project(self) -> str:
         return self.active_project
+
+    def project_exists(self, project_dir: str) -> bool:
+        return project_dir in self.projects
 
     def get_project_config(self, project_dir: str) -> ProjectConfigEntry:
         """
