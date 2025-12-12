@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.23"
+__version__ = "1.40.24"
 __data_version__ = "1.0"
-__date__ = "2025-12-11"
-__version_highlight__ = "WIP: Started to rearrange global variables, to create AppState class. Create helpers module."
+__date__ = "2025-12-12"
+__version_highlight__ = "WIP: Move high level methods (included filename handling) to load configuration and job lists to classes."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -193,6 +193,7 @@ temp_denoise_frame_deque = deque(maxlen=denoise_window_size)
 # Configuration & support file vars
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
+""" delete_this
 config_filename = os.path.join(script_dir, "afterscan.json")
 config_backup_filename = os.path.join(script_dir, "afterscan.json.back")
 general_config_filename = os.path.join(script_dir, "AfterScan.json")
@@ -201,13 +202,19 @@ project_repository_filename = os.path.join(script_dir, "AfterScan-projects.json"
 project_repository_backup_filename = os.path.join(script_dir, "AfterScan-projects.json.bak")
 project_config_basename = "AfterScan-project.json"
 project_config_filename = ""
+"""
+
 project_config_from_file = True
+
 project_name = "No Project"
+""" delete_this
 default_job_list_filename_legacy = os.path.join(script_dir, "AfterScan.joblist.json")
 default_job_list_backup_filename = os.path.join(script_dir, "AfterScan.joblist.json.bak")
 default_job_list_filename = os.path.join(script_dir, "afterscan.joblist.json")
-job_list_filename = default_job_list_filename
+"""
+job_list_filename = os.path.join(script_dir, "afterscan.joblist.json")
 job_list_hash = None    # To determine if job list has changed since loaded
+
 temp_dir = os.path.join(script_dir, "temp")
 if not os.path.exists(temp_dir):
     os.mkdir(temp_dir)
@@ -621,7 +628,7 @@ def set_project_defaults():
     project_config["stabilization_shift_y"] = 0
     project_config["stabilization_shift_x"] = 0
 """
-
+''' delete_this
 def sort_nested_json(data):
     """Sorts keys in nested dictionaries."""
     if isinstance(data, dict):
@@ -707,7 +714,9 @@ def rename_legacy_configuration_files():
             logging.info(f"Legacy files renamed to *.bak")
     except Exception as e:
             logging.error(f"Failed to rename legacy files: {e}. Migration successful, but cleanup failed.")
-        
+'''
+
+
 # To be used during refactoring, should dissapear in the long run
 def decode_general_config(manager: ConfigurationManager):
     global source_dir
@@ -733,7 +742,8 @@ def decode_general_config(manager: ConfigurationManager):
     anonymous_uuid = manager.get_anonymous_uuid()
     last_consent_date = manager.get_last_consent_date()
     saved_with_version = manager.get_version()  # global variable name does not match the key, but not important since it is unused
-    job_list_filename = manager.get_job_list_filename()
+    if manager.get_job_list_filename() != '':
+        job_list_filename = manager.get_job_list_filename()
     ffmpeg_denoise_param = manager.get_ffmpeg_hqdn_3d()
     enable_rectangle_popup = manager.get_enable_rectangle_popup()
     enable_soundtrack = manager.get_enable_soundtrack()
@@ -1100,7 +1110,7 @@ def save_project_config():
     """ delete_this
     save_project_repository()
     """
-    save_configuration(config_manager)
+    config_manager.save_configuration()
 
 """ delete_this
 def save_project_config():
@@ -1161,7 +1171,6 @@ def save_project_config():
 def load_project_config():
     global source_dir
     global project_config, project_config_from_file
-    global project_config_basename, project_config_filename
     global project_repository
     global default_project_config
     global project_repository, project_instance
@@ -1234,7 +1243,6 @@ def decode_project_config():
     global source_dir, target_dir
     global project_config
     global template_manager
-    global project_config_basename, project_config_filename
     global current_frame, frame_slider
     global video_fps, video_fps_dropdown_selected
     global resolution_dropdown, resolution_dropdown_selected
@@ -2089,6 +2097,7 @@ def load_named_job_list():
         title="Select file to retrieve job list")
     if len(aux_file) > 0:
         batch_job_list.load_from_file(aux_file)
+        refresh_job_tree()
         """ delete_this
         load_job_list(aux_file)
         """
@@ -2168,9 +2177,10 @@ def load_job_list(filename = None):
         job_list_hash = generate_dict_hash(job_list)
     else:   # No job list file. Set empty config to force defaults
         job_list = {}
-"""
+
 def load_job_list(filename = None):
-    global job_list_filename, default_job_list_filename_legacy, job_list_treeview, job_list_hash
+    global job_list_treeview, job_list_hash
+    global job_list_filename, default_job_list_filename_legacy
 
     if filename is None:
         if os.path.isfile(job_list_filename):
@@ -2182,33 +2192,34 @@ def load_job_list(filename = None):
     else:
         logging.warning(f"No job files found.")
         return
-
     display_window_title()  # setting title of the window
+    batch_job_list.load_from_file(filename)
+"""
 
-    if not ignore_config and os.path.isfile(filename):
-        batch_job_list.load_from_file(filename)
-        for item_id in job_list_treeview.get_children():
-            job_list_treeview.delete(item_id)
-        keys = list(batch_job_list.get_all_jobs().items())
-        # for job_name, job_entry in batch_job_list.get_all_jobs().items():
-        for job_name, job_entry in keys:
-            if len(job_name) > JOB_LIST_NAME_LENGTH:  # In case name is longer than JOB_LIST_NAME_LENGTH (25)
-                new_entry_name = normalize_job_name(job_name)
-                logging.error(f"Detected name too long in job list, replacing '{job_name}' by '{new_entry_name}'")
-                job_entry.job_name = new_entry_name
-                batch_job_list.add_job(job_entry)
-                batch_job_list.delete_job(job_name)
-                job_name = new_entry_name
-            # Add to listbox
-            job_list_treeview.insert('', 'end', text=job_name, values=(batch_job_list.get_job(job_name).get_description(),),
-                                     tags=("done","joblist_font",) if batch_job_list.is_job_done(job_name) else ("pending","joblist_font",))
-            batch_job_list.mark_job_attempted(job_name, batch_job_list.is_job_done(job_name))
-        for job_name, job_entry in batch_job_list.get_all_jobs().items():
-            item_id = search_job_name_in_job_treeview(job_name)
-            if item_id is not None:
-                job_list_treeview.item(item_id, tags=("done","joblist_font",) if batch_job_list.is_job_done(job_name) else ("pending","joblist_font",))
+def refresh_job_tree():
+    global job_list_treeview, job_list_hash
+    for item_id in job_list_treeview.get_children():
+        job_list_treeview.delete(item_id)
+    keys = list(batch_job_list.get_all_jobs().items())
+    # for job_name, job_entry in batch_job_list.get_all_jobs().items():
+    for job_name, job_entry in keys:
+        if len(job_name) > JOB_LIST_NAME_LENGTH:  # In case name is longer than JOB_LIST_NAME_LENGTH (25)
+            new_entry_name = normalize_job_name(job_name)
+            logging.error(f"Detected name too long in job list, replacing '{job_name}' by '{new_entry_name}'")
+            job_entry.job_name = new_entry_name
+            batch_job_list.add_job(job_entry)
+            batch_job_list.delete_job(job_name)
+            job_name = new_entry_name
+        # Add to listbox
+        job_list_treeview.insert('', 'end', text=job_name, values=(batch_job_list.get_job(job_name).get_description(),),
+                                    tags=("done","joblist_font",) if batch_job_list.is_job_done(job_name) else ("pending","joblist_font",))
+        batch_job_list.mark_job_attempted(job_name, batch_job_list.is_job_done(job_name))
+    for job_name, job_entry in batch_job_list.get_all_jobs().items():
+        item_id = search_job_name_in_job_treeview(job_name)
+        if item_id is not None:
+            job_list_treeview.item(item_id, tags=("done","joblist_font",) if batch_job_list.is_job_done(job_name) else ("pending","joblist_font",))
 
-        job_list_hash = generate_dict_hash(batch_job_list.get_all_jobs())
+    job_list_hash = generate_dict_hash(batch_job_list.get_all_jobs())
 
 
 def start_processing_job_list():
@@ -6104,13 +6115,13 @@ def start_convert():
         # Enforce minimum value for Gamma in case user clicks starts rigth after having manually entered a zero in GC box
         gamma_enforce_min_value()
         # Save current project status
-        save_configuration(config_manager)
+        config_manager.save_configuration()
         """ delete_this
         save_general_config()
         save_project_config()
         save_job_list()
         """
-        batch_job_list.save_to_file(default_job_list_filename)
+        batch_job_list.save_to_file(job_list_filename)
         # Empty FPS register list
         fps_tracker.reset()
         """ delete_this
@@ -7174,7 +7185,7 @@ def afterscan_init():
 
     logging.debug("AfterScan initialized")
 
-
+""" delete_this
 def display_window_title():
     title = f"{__module__} {__version__}"
     if job_list_filename != default_job_list_filename:
@@ -7184,6 +7195,14 @@ def display_window_title():
         if aux.endswith('.joblist'):
             aux = aux.removesuffix('.joblist')
         title += f" - {aux}"
+    win.title(title)  # setting title of the window
+"""
+
+def display_window_title():
+    job_name = batch_job_list.get_job_list_name()
+    title = f"{__module__} {__version__}"
+    if job_name != '':
+        title += f" - {job_name}"
     win.title(title)  # setting title of the window
 
 
@@ -8073,14 +8092,22 @@ def exit_app():  # Exit Application
         logging.debug(f"Waiting for threads to exit, {active_threads} pending")
         time.sleep(0.2)
 
-    save_configuration(config_manager)
-    rename_legacy_configuration_files()
+    if not ignore_config:
+        config_manager.set_version(__version__)
+        try:
+            if win is not None and win.winfo_exists():
+                config_manager.set_window_pos(win.geometry())
+        except Exception as e:
+            logging.error(f"Error while trying to save main window geometry: {e}")
+        config_manager.save_configuration()
+    config_manager.rename_legacy_configuration_files()
+    batch_job_list.rename_legacy_configuration_files()
     """ delete_this
     save_general_config()
     save_project_config()
     save_job_list()
     """
-    batch_job_list.save_to_file(default_job_list_filename)
+    batch_job_list.save_to_file(job_list_filename)
     win.destroy()
 
 
@@ -8159,7 +8186,10 @@ def main(argv):
     global expert_mode
     global ffmpeg_bin_name
     global is_windows, is_linux, is_mac
-    global project_config_filename, project_config_basename
+    """ delete_this
+    global project_config_filename
+    global project_config_basename
+    """
     global perform_stabilization
     global ui_init_done
     global ignore_config
@@ -8263,14 +8293,14 @@ def main(argv):
         return
     """
 
-    config_manager = ConfigurationManager.initialize()
+    config_manager = ConfigurationManager.initialize(script_dir)
     project_instance = ProjectConfigEntry()
-    batch_job_list = JobManager.initialize()
+    batch_job_list = JobManager.initialize(script_dir)
 
-    if load_configuration(config_manager):
+    if config_manager.load_configuration():
         decode_general_config(config_manager)
     else:
-        config_manager = ConfigurationManager.initialize()
+        config_manager = ConfigurationManager.initialize(script_dir)
 
     """ delete_this
     load_general_config()
@@ -8331,13 +8361,20 @@ def main(argv):
     win.config(cursor="watch")  # Set cursor to hourglass
     widget_status_update()
 
+    """ delete_this
     if source_dir is not None:
         project_config_filename = os.path.join(source_dir, project_config_basename)
+    """
 
     load_project_config()
     decode_project_config()
 
+    """ delete_this
     load_job_list()
+    """
+    if not ignore_config:
+        batch_job_list.load_from_file(None)
+        refresh_job_tree()
 
     get_target_dir_file_list()
 

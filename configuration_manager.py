@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "configuration_manager"
-__version__ = "1.0.7"
+__version__ = "1.0.8"
 __data_version__ = "1.0"
-__date__ = "2025-12-10"
-__version_highlight__ = "WIP - Mostly working after integration of JobManager."
+__date__ = "2025-12-12"
+__version_highlight__ = "WIP: Move high level methods (included filename handling) to load configuration and job lists to classes."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -146,11 +146,6 @@ class GlobalConfig:
     # NOTE: You don't need 'general_config_filename' here if you pass it into the method,
     # but defining it here is cleaner if you want to store it in the instance.
     general_config_filename: str = field(default="")
-    
-    project_settings_filename: str = field(default="")
-    project_settings_backup_filename: str = field(default="")
-    project_config_basename: str = field(default="AfterScan-projects.json") # Static basename
-    project_config_filename: str = field(default="")
     
     temp_dir: str = field(default="")
     logs_dir: str = field(default="")
@@ -360,12 +355,21 @@ class ConfigurationManager:
     global_config: GlobalConfig = field(default_factory=GlobalConfig)
     projects: Dict[str, ProjectConfigEntry] = field(default_factory=dict)
     active_project: str = field(default="")
-    
+    # --- Configuration folder & filenames ---
+    config_folder: str = field(default="")
+    config_filename: str = field(default="afterscan.json")
+    config_backup_filename: str = field(default="afterscan.json.back")
+    general_config_filename: str = field(default="AfterScan.json")
+    general_config_backup_filename: str = field(default="AfterScan.json.bak")
+    project_repository_filename: str = field(default="AfterScan-projects.json")
+    project_repository_backup_filename: str = field(default="AfterScan-projects.json.bak")
+
+
     @classmethod
-    def initialize(cls) -> 'ConfigurationManager':
+    def initialize(cls, base_folder: str) -> 'ConfigurationManager':
         """Initializes the Manager, loading global settings if available."""
         logging.info("ConfigurationManager initialized.")
-        return cls()
+        return cls(config_folder = base_folder)
         
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -415,6 +419,84 @@ class ConfigurationManager:
         
         # Return primitives and non-dataclass objects unchanged
         return obj
+
+    # --- High level configuration load/save methods ---
+
+    def sort_nested_json(self, obj: Any) -> Any:
+        """Sorts keys in nested dictionaries."""
+        if isinstance(obj, dict):
+            return {k: self.sort_nested_json(obj[k]) for k in sorted(obj)}
+        elif isinstance(obj, list):
+            return [self.sort_nested_json(item) for item in obj]
+        else:
+            return obj
+
+
+    def load_legacy_json_file(self, file_path: str) -> Dict[str, Any]:
+        """Helper to safely load a JSON file or return empty dict if not found."""
+        if not os.path.exists(file_path):
+            return {}
+        try:
+            with open(file_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading {file_path}: {e}")
+            return {}
+
+
+    def load_configuration(self) -> bool:
+        """
+        Implements the backward-compatibility file loading strategy:
+        1. Try new file.
+        2. If missing, try legacy files.
+        """
+
+        if os.path.exists(os.path.join(self.config_folder, self.config_filename)):
+            logging.info("Found NEW unified config file. Loading directly.")
+            self.load_json_file(os.path.join(self.config_folder, self.config_filename))
+            return True
+
+        # --- Legacy Fallback Path ---
+        
+        if os.path.exists(os.path.join(self.config_folder, self.general_config_filename)) or os.path.exists(os.path.join(self.config_folder, self.project_repository_filename)):
+            logging.warning("NEW config file missing. Starting LEGACY MIGRATION.")
+            
+            # Load data from the two legacy sources
+            global_data = self.load_legacy_json_file(os.path.join(self.config_folder, self.general_config_filename))
+            projects_data = self.load_legacy_json_file(os.path.join(self.config_folder, self.project_repository_filename))
+
+            if len(projects_data) != 2:
+                logging.error("Missing or corrupt legacy projects file while migrating legacy data.")
+                self.save_project_config('default', ProjectConfigEntry())
+                self.set_active_project('default')
+                return True
+            
+            # Merge, migrate keys, and load into the manager
+            self.migrate_legacy_data(global_data, projects_data)
+            
+            return True
+
+    def save_configuration(self):
+        self.save_json_file(os.path.join(self.config_folder, self.config_filename))
+
+
+    def rename_legacy_configuration_files(self):
+        # CRITICAL: Rename/archive legacy files after successful in-memory load
+        # TODO: This renaming should only be done on application exit, since system shutdown (top right x) does not save the configuration
+        any_renamed = False
+        try:
+            # We must check if the file still exists before attempting to rename/move it, 
+            # as it might have been only one of the two that triggered the load.
+            if os.path.exists(os.path.join(self.config_folder, self.general_config_filename)):
+                os.rename(os.path.join(self.config_folder, self.general_config_filename), os.path.join(self.config_folder, self.general_config_backup_filename))
+                any_renamed = True
+            if os.path.exists(os.path.join(self.config_folder, self.project_repository_filename)):
+                os.rename(os.path.join(self.config_folder, self.project_repository_filename), os.path.join(self.config_folder, self.project_repository_backup_filename))
+                any_renamed = True
+            if any_renamed:
+                logging.info(f"Legacy files renamed to *.bak")
+        except Exception as e:
+                logging.error(f"Failed to rename legacy files: {e}. Migration successful, but cleanup failed.")
 
 
     # --- Private Migration Helper ---
@@ -980,7 +1062,7 @@ class ConfigurationManager:
 
     # --- NEW I/O Methods ---
     
-    def load_configuration(self, file_path: str):
+    def load_json_file(self, file_path: str):
         """
         Loads the modern, unified config file format (dictionary-based)
         from a single path.
@@ -1027,7 +1109,7 @@ class ConfigurationManager:
         logging.info("Legacy data successfully loaded and migrated in-memory.")
 
 
-    def save_configuration(self, file_path: str):
+    def save_json_file(self, file_path: str):
         """
         Saves the entire ConfigurationManager state (global and projects) 
         to a single file in the modern dictionary format.

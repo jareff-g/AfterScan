@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "job_manager"
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 __data_version__ = "1.0"
-__date__ = "2025-12-10"
-__version_highlight__ = "WIP - Settings changes properly propagated to/from current project and job list."
+__date__ = "2025-12-12"
+__version_highlight__ = "WIP: Move high level methods (included filename handling) to load configuration and job lists to classes."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -138,18 +138,46 @@ class JobManager:
     Facade for managing the JobQueue and handling dedicated joblist file I/O.
     """
     job_queue: JobQueue = field(default_factory=JobQueue)
+    # --- Job list folder & filenames ---
+    job_list_folder: str = field(default="")
+    default_job_list_filename_legacy: str = field(default="AfterScan.joblist.json")
+    default_job_list_backup_filename: str = field(default="AfterScan.joblist.json.bak")
+    default_job_list_filename: str = field(default="afterscan.joblist.json")
+    job_list_filename: str = field(default="afterscan.joblist.json")
 
     @classmethod
-    def initialize(cls) -> 'JobManager':
+    def initialize(cls, base_folder: str) -> 'JobManager':
         """
         Factory method to initialize the JobManager with an empty queue.
         """
         logging.info("JobManager initialized.")
-        return cls()
+        return cls(job_list_folder = base_folder)
       
     # --- Persistence Methods (Dedicated Job File) ---
 
+    def get_job_list_name(self):
+        if self.job_list_filename != self.default_job_list_filename:
+            aux = os.path.split(self.job_list_filename)[1]
+            if aux.endswith('.json'):
+                aux = aux.removesuffix('.json')
+            if aux.endswith('.joblist'):
+                aux = aux.removesuffix('.joblist')
+        else:
+            aux = ''
+        return aux
+
     def load_from_file(self, filepath: str) -> bool:
+        """ If no filename provided, check for default filepaths """
+        if filepath is None or filepath == '':
+            if os.path.isfile(os.path.join(self.job_list_folder, self.job_list_filename)):
+                filepath = os.path.join(self.job_list_folder, self.job_list_filename)
+            elif os.path.isfile(os.path.join(self.job_list_folder, self.default_job_list_filename)):   # if current job list file does not exist, try with default one
+                filepath = os.path.join(self.job_list_folder, self.default_job_list_filename)
+            elif os.path.isfile(os.path.join(self.job_list_folder, self.default_job_list_filename_legacy)):     # if default job list file does not exist, try with legacy one
+                filepath = os.path.join(self.job_list_folder, self.default_job_list_filename_legacy)
+
+        self.job_list_filename = filepath
+
         """Loads a dedicated 'joblist-only' JSON file and replaces the active queue."""
         if not os.path.exists(filepath):
             logging.error(f"Cannot load jobs: File not found at '{filepath}'")
@@ -199,6 +227,21 @@ class JobManager:
         except Exception as e:
             logging.error(f"Error saving job queue to '{filepath}': {e}")
             return False
+
+    def rename_legacy_configuration_files(self):
+        # CRITICAL: Rename/archive legacy files after successful in-memory load
+        # TODO: This renaming should only be done on application exit, since system shutdown (top right x) does not save the configuration
+        any_renamed = False
+        try:
+            # We must check if the file still exists before attempting to rename/move it, 
+            # as it might have been only one of the two that triggered the load.
+            if os.path.exists(os.path.join(self.job_list_folder, self.default_job_list_filename_legacy)):
+                os.rename(os.path.join(self.job_list_folder, self.default_job_list_filename_legacy), os.path.join(self.job_list_folder, self.default_job_list_backup_filename))
+                any_renamed = True
+            if any_renamed:
+                logging.info(f"Legacy files renamed to *.bak")
+        except Exception as e:
+                logging.error(f"Failed to rename legacy files: {e}. Migration successful, but cleanup failed.")
 
     # --- Job Manipulation Methods ---
     
