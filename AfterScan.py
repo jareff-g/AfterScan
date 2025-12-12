@@ -180,11 +180,6 @@ global work_image, base_image, original_image
 
 # --- FPS calculation (taken from ALT-Scann8) ---
 fps_tracker = FPSTracker()
-""" delete_this
-fps_last_minute_frame_times = list()
-fps_start_time = time.ctime()
-fps_calculated_value = -1
-"""
 
 # --- Queue to hold last n frames for temporal denoise ---
 denoise_window_size = 3
@@ -193,25 +188,10 @@ temp_denoise_frame_deque = deque(maxlen=denoise_window_size)
 # Configuration & support file vars
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
-""" delete_this
-config_filename = os.path.join(script_dir, "afterscan.json")
-config_backup_filename = os.path.join(script_dir, "afterscan.json.back")
-general_config_filename = os.path.join(script_dir, "AfterScan.json")
-general_config_backup_filename = os.path.join(script_dir, "AfterScan.json.bak")
-project_repository_filename = os.path.join(script_dir, "AfterScan-projects.json")
-project_repository_backup_filename = os.path.join(script_dir, "AfterScan-projects.json.bak")
-project_config_basename = "AfterScan-project.json"
-project_config_filename = ""
-"""
-
 project_config_from_file = True
 
 project_name = "No Project"
-""" delete_this
-default_job_list_filename_legacy = os.path.join(script_dir, "AfterScan.joblist.json")
-default_job_list_backup_filename = os.path.join(script_dir, "AfterScan.joblist.json.bak")
-default_job_list_filename = os.path.join(script_dir, "afterscan.joblist.json")
-"""
+
 job_list_filename = os.path.join(script_dir, "afterscan.joblist.json")
 job_list_hash = None    # To determine if job list has changed since loaded
 
@@ -233,91 +213,7 @@ if os.path.isfile(soundtrack_file_path):
 else:
     sound_file_available = False
 
-""" delete_this
-template_manager = TemplateManager.initialize()
-hole_template_filename_r8 = os.path.join(script_dir, "Pattern.R8.jpg")
-hole_template_filename_s8 = os.path.join(script_dir, "Pattern.S8.jpg")
-hole_template_filename_custom = os.path.join(script_dir, "Pattern.custom.jpg")
-hole_template_filename_corner = os.path.join(script_dir, "Pattern_Corner_TR.jpg")
-hole_template_filename_bw = os.path.join(script_dir, "Pattern_BW.jpg")
-hole_template_filename_wb = os.path.join(script_dir, "Pattern_WB.jpg")
-hole_template_filename = hole_template_filename_s8
-files_to_delete = []
-EXPECTED_HASHES = {
-    'Pattern.S8.jpg': 'dc4b94a14ef3d3dad3fe9d5708b4f2702bed44be2a3ed0aef63e8405301b3562', # new, smaller
-    'Pattern.R8.jpg': 'ce7c81572bc0a03b079d655aab10ec16924c8d3b313087bd841cf68a6657fe9a',
-    'Pattern_BW.jpg': '4a90371097219e5d5604c00bead6710b694e70b48fe66dbc5c2ce31ceedce4cf',
-    'Pattern_WB.jpg': '60d50644f26407503267b763bcc48d7bec88dd6f58bb238cf9bec6ba86938f33',
-    'Pattern_Corner_TR.jpg': '5e56a49c029013588646b11adbdc4a223217abfb91423dd3cdde26abbf5dcd9c'
-}
-"""
 
-""" delete_this
-default_project_config = {
-    'source_dir': '',
-    'target_dir': '',
-    'video_target_dir': '',
-    'current_frame': 0,
-    'encode_all_frames': False,
-    'frame_from': 0,
-    'frame_to': 0,
-    'frames_to_encode': 0,
-    'film_type': 'S8',
-    'rotation_angle': 0,
-    'stabilization_threshold': 220.0,
-    'low_contrast_custom_template': False,
-    'extended_stabilization': False,
-    'custom_template_defined': False,
-    'custom_template_name': '',
-    'custom_template_expected_pos': [0, 0],
-    'custom_template_filename': '',
-    'perform_cropping': False,
-    'perform_denoise': False,
-    'perform_sharpness': False,
-    'perform_gamma_correction': False,
-    'gamma_correction_value': 2.2,
-    'crop_rectangle': [[0, 0], [0, 0]],
-    'force_4_3': False,
-    'force_16_9': False,
-    'frame_fill_type': 'fake',
-    'generate_video': False,
-    'video_filename': '',
-    'video_title': '',
-    'skip_frame_regeneration': False,
-    'ffmpeg_preset': 'veryfast',
-    'perform_stabilization': False,
-    'stabilization_shift_y': 0,
-    'stabilization_shift_x': 0,
-    'perform_rotation': False,
-    'video_fps': '18',
-    'video_resolution': '1920x1440 (1080P)',
-    'current_bad_frame_index': 0,
-    'user_defined_left_stripe_width_proportion': 0.25,
-    'project_config_date': '',
-    'precise_template_match': False
-}
-
-default_general_config = {
-    'detect_minor_mismatches': False,
-    'enable_rectangle_popup': False,
-    'enable_soundtrack': False,
-    'ffmpeg_bin_name': 'ffmpeg',
-    'ffmpeg_hqdn_3d': '8:6:4:3',
-    'last_config_save_date': '',
-    'last_consent_date': '',
-    'popup_pos': '',
-    'precise_template_match': True,
-    'source_dir': '',
-    'template_popup_window_pos': '',
-    'user_consent': 'no',
-    'version': __version__,
-    'window_pos': ''
-}
-
-general_config = default_general_config.copy()
-project_repository = {}
-project_config = default_project_config.copy()
-"""
 config_manager: ConfigurationManager = {}
 batch_job_list: JobManager = {}
 
@@ -399,8 +295,6 @@ rectangle_bottom_right = (0, 0)
 # Rectangle of current cropping area
 crop_top_left = (0, 0)
 crop_bottom_right = (0, 0)
-# Rectangle of current custom template - delete_this
-## TemplateBottomRight = (0, 0)
 max_loop_count = 0
 stabilization_shift_y = 0
 stabilization_shift_x = 0
@@ -511,205 +405,11 @@ active_threads = 0
 num_threads = 0
 
 
-
-
-"""
-#################
-Utility functions
-#################
-"""
-
-""" delete_this
-# Define a function for
-# identifying a Digit
-def is_a_number(string):
-    # Make a regular expression
-    # for identifying a digit
-    regex = '^[0-9]+$'
-    # pass the regular expression
-    # and the string in search() method
-    if (re.search(regex, string)):
-        return True
-    else:
-        return False
-
-
-def empty_queue(q):
-    while not q.empty():
-        item = q.get()
-        logging.debug(f"Emptying queue: Got {item[0]}")
-"""
-
 """
 ####################################
 Configuration file support functions
 ####################################
 """
-
-""" delete_this
-def update_ui_from_config():
-    global project_config
-    global perform_cropping, generate_video, resolution_dropdown_selected, perform_gamma_correction
-    global frame_slider, encode_all_frames, frames_to_encode_str
-    global perform_stabilization, skip_frame_regeneration, ffmpeg_preset
-    global video_filename_str, video_title_str
-    global frame_from_str, frame_to_str
-    global frame_fill_type, extended_stabilization, low_contrast_custom_template
-    global perform_denoise, perform_sharpness
-
-    # Initialize TkInter variables with default values
-    perform_cropping.set(config_manager.get_perform_cropping())
-    perform_denoise.set(config_manager.get_perform_denoise())
-    perform_sharpness.set(config_manager.get_perform_sharpness())
-    perform_gamma_correction.set(config_manager.get_perform_gamma_correction())
-    frame_fill_type.set(config_manager.get_frame_fill_type())
-    generate_video.set(config_manager.get_generate_video())
-    frame_slider.set(config_manager.get_current_frame())
-    encode_all_frames.set(config_manager.get_encode_all_frames())
-    frame_from_str.set(config_manager.get_frame_from())
-    frame_to_str.set(config_manager.get_frame_to())
-    perform_stabilization.set(config_manager.get_perform_stabilization())
-    low_contrast_custom_template.set(config_manager.get_low_contrast_custom_template())
-    extended_stabilization.set(config_manager.get_extended_stabilization())
-    skip_frame_regeneration.set(config_manager.get_skip_frame_regeneration())
-    video_filename_str.set(config_manager.get_video_filename())
-    video_title_str.set(config_manager.get_video_title())
-"""
-
-""" delete_this
-def set_project_defaults():
-    global project_config
-    global perform_cropping, generate_video, resolution_dropdown_selected
-    global frame_slider, encode_all_frames, frames_to_encode_str
-    global perform_stabilization, skip_frame_regeneration, ffmpeg_preset
-    global video_filename_str, video_title_str
-    global frame_from_str, frame_to_str
-    global frame_fill_type, extended_stabilization, low_contrast_custom_template
-    global perform_denoise, perform_sharpness
-
-    project_config["perform_cropping"] = False
-    perform_cropping.set(project_config["perform_cropping"])
-    project_config["perform_denoise"] = False
-    perform_denoise.set(project_config["perform_denoise"])
-    project_config["perform_sharpness"] = False
-    perform_sharpness.set(project_config["perform_sharpness"])
-    project_config["perform_gamma_correction"] = False
-    perform_gamma_correction.set(project_config["perform_gamma_correction"])
-    project_config["frame_fill_type"] = 'none'
-    frame_fill_type.set(project_config["frame_fill_type"])
-    project_config["generate_video"] = False
-    generate_video.set(project_config["generate_video"])
-    project_config["current_frame"] = 0
-    frame_slider.set(project_config["current_frame"])
-    project_config["encode_all_frames"] = True
-    encode_all_frames.set(project_config["encode_all_frames"])
-    project_config["frame_from"] = 0
-    frame_from_str.set(str(project_config["frame_from"]))
-    project_config["frame_to"] = 0
-    frame_to_str.set(str(project_config["frame_to"]))
-    project_config["perform_stabilization"] = False
-    perform_stabilization.set(project_config["perform_stabilization"])
-    project_config["low_contrast_custom_template"] = False
-    low_contrast_custom_template.set(project_config["low_contrast_custom_template"])
-    project_config["extended_stabilization"] = False
-    extended_stabilization.set(project_config["extended_stabilization"])
-    project_config["skip_frame_regeneration"] = False
-    skip_frame_regeneration.set(project_config["skip_frame_regeneration"])
-    project_config["video_filename"] = ""
-    video_filename_str.set(project_config["video_filename"])
-    project_config["video_title"] = ""
-    video_title_str.set(project_config["video_title"])
-    project_config["stabilization_shift_y"] = 0
-    project_config["stabilization_shift_x"] = 0
-"""
-''' delete_this
-def sort_nested_json(data):
-    """Sorts keys in nested dictionaries."""
-    if isinstance(data, dict):
-        return {k: sort_nested_json(data[k]) for k in sorted(data)}
-    elif isinstance(data, list):
-        return [sort_nested_json(item) for item in data]
-    else:
-        return data
-
-
-def load_json_file(file_path: str) -> Dict[str, Any]:
-    """Helper to safely load a JSON file or return empty dict if not found."""
-    if not os.path.exists(file_path):
-        return {}
-    try:
-        with open(file_path, 'r') as f:
-            return json.load(f)
-    except Exception as e:
-        logging.error(f"Error loading {file_path}: {e}")
-        return {}
-
-
-def load_configuration(manager: ConfigurationManager):
-    """
-    Implements the backward-compatibility file loading strategy:
-    1. Try new file.
-    2. If missing, try legacy files.
-    """
-
-    if os.path.exists(config_filename):
-        logging.info("Found NEW unified config file. Loading directly.")
-        manager.load_configuration(config_filename)
-        return True
-
-    # --- Legacy Fallback Path ---
-    
-    if os.path.exists(general_config_filename) or os.path.exists(project_repository_filename):
-        logging.warning("NEW config file missing. Starting LEGACY MIGRATION.")
-        
-        # Load data from the two legacy sources
-        global_data = load_json_file(general_config_filename)
-        projects_data = load_json_file(project_repository_filename)
-
-        if len(projects_data) != 2:
-            logging.error("Missing or corrupt legacy projects file while migrating legacy data.")
-            manager.save_project_config('default', ProjectConfigEntry())
-            manager.set_active_project('default')
-            return True
-        
-        # Merge, migrate keys, and load into the manager
-        manager.migrate_legacy_data(global_data, projects_data)
-        
-        return True
-
-def save_configuration(manager: ConfigurationManager):
-    manager.set_version(__version__)
-    try:
-        if win is not None and win.winfo_exists():
-            manager.set_window_pos(win.geometry())
-    except Exception as e:
-        logging.error(f"Error while trying to save main window geometry: {e}")
-    if not ignore_config:
-        manager.save_configuration(config_filename)
-
-
-def rename_legacy_configuration_files():
-    # CRITICAL: Rename/archive legacy files after successful in-memory load
-    # TODO: This renaming should only be done on application exit, since system shutdown (top right x) does not save the configuration
-    any_renamed = False
-    try:
-        # We must check if the file still exists before attempting to rename/move it, 
-        # as it might have been only one of the two that triggered the load.
-        if os.path.exists(general_config_filename):
-            os.rename(general_config_filename, general_config_backup_filename)
-            any_renamed = True
-        if os.path.exists(project_repository_filename):
-            os.rename(project_repository_filename, project_repository_backup_filename)
-            any_renamed = True
-        if os.path.exists(default_job_list_filename_legacy):
-            os.rename(default_job_list_filename_legacy, default_job_list_backup_filename)
-            any_renamed = True
-        if any_renamed:
-            logging.info(f"Legacy files renamed to *.bak")
-    except Exception as e:
-            logging.error(f"Failed to rename legacy files: {e}. Migration successful, but cleanup failed.")
-'''
-
 
 # To be used during refactoring, should dissapear in the long run
 def decode_general_config(manager: ConfigurationManager):
@@ -743,151 +443,6 @@ def decode_general_config(manager: ConfigurationManager):
     enable_soundtrack = manager.get_enable_soundtrack()
     precise_template_match = manager.get_precise_template_match()
     detect_minor_mismatches = manager.get_detect_minor_mismatches()
-
-
-''' delete_this
-def save_general_config():
-    # Write config data upon exit
-    general_config["last_config_save_date"] = str(datetime.now())
-    general_config["window_pos"] = win.geometry()
-    general_config["version"] = __version__
-
-    try:
-        if template_popup_window is not None and template_popup_window.winfo_exists():
-            general_config["template_popup_window_pos"] = template_popup_window.geometry()
-    except Exception as e:
-        logging.debug(f"Error (expected) while trying to save template popup window geometry: {e}")
-    if not ignore_config:
-        """Saves sorted nested JSON data to a file."""
-        sorted_data = sort_nested_json(general_config)
-        with open(general_config_filename, 'w') as f:
-            json.dump(sorted_data, f, indent=4)
-
-            
-def load_general_config():
-    global general_config
-    global general_config_filename
-
-    # Check if persisted data file exist: If it does, load it
-    if not ignore_config and os.path.isfile(general_config_filename):
-        persisted_data_file = open(general_config_filename)
-        raw_config = json.load(persisted_data_file)
-        general_config = _migrate_keys(raw_config)
-        persisted_data_file.close()
-    else:   # No project config file. Set empty config to force defaults
-        general_config = {}
-
-    logging.debug("Reading general config")
-    for item in general_config:
-        logging.debug("%s=%s", item, str(general_config[item]))
-
-def decode_general_config():
-    global source_dir
-    global project_name
-    global ffmpeg_bin_name, ffmpeg_denoise_param, enable_rectangle_popup, enable_soundtrack
-    global general_config
-    global user_consent, anonymous_uuid, last_consent_date
-    global saved_with_version, job_list_filename
-    global precise_template_match, detect_minor_mismatches
-    global user_defined_left_stripe_width_proportion
-    if 'source_dir' in general_config or 'SourceDir' in general_config:
-        if 'source_dir' in general_config:
-            source_dir = general_config['source_dir']
-        if source_dir == '' and 'SourceDir' in general_config:
-            source_dir = general_config['SourceDir']
-            general_config['source_dir'] = source_dir
-            del general_config['SourceDir']
-        # If directory in configuration does not exist, set current working dir
-        if not os.path.isdir(source_dir):
-            source_dir = ""
-            project_name = "No Project"
-        else:
-            # Create a project id (folder name) for the stats logging below
-            # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
-            project_name = os.path.split(source_dir)[-1].replace(',', ';')
-
-    if 'ffmpeg_bin_name' in general_config:
-        ffmpeg_bin_name = general_config['ffmpeg_bin_name']
-    if ffmpeg_bin_name == '' and 'FfmpegBinName' in general_config:
-        ffmpeg_bin_name = general_config['FfmpegBinName']
-        general_config['ffmpeg_bin_name'] = ffmpeg_bin_name
-        del general_config['FfmpegBinName']
-
-    if 'user_consent' in general_config:
-        user_consent = general_config['user_consent']
-    if user_consent == '' and 'UserConsent' in general_config:
-        user_consent = general_config['UserConsent']
-        general_config['user_consent'] = user_consent
-        del general_config['UserConsent']
-    if 'anonymous_uuid' in general_config:
-        anonymous_uuid = general_config['anonymous_uuid']
-    if anonymous_uuid == '' and 'AnonymousUuid' in general_config:
-        anonymous_uuid = general_config['AnonymousUuid']
-        general_config['anonymous_uuid'] = anonymous_uuid
-        del general_config['AnonymousUuid']
-    if 'last_consent_date' in general_config:
-        last_consent_date = datetime.fromisoformat(general_config['last_consent_date'])
-    if last_consent_date == '' and 'LastConsentDate' in general_config:
-        last_consent_date = datetime.fromisoformat(general_config['LastConsentDate'])
-        general_config['last_consent_date'] = str(last_consent_date)
-        del general_config['LastConsentDate']
-    if 'version' in general_config:
-        saved_with_version = general_config["version"]
-    if 'job_list_filename' in general_config:
-        job_list_filename = general_config["job_list_filename"]
-    if job_list_filename == '' and 'JobListFilename' in general_config:
-        job_list_filename = general_config["JobListFilename"]
-        general_config['job_list_filename'] = job_list_filename
-        del general_config['JobListFilename']
-    if 'ffmpeg_hqdn_3d' in general_config:
-        ffmpeg_denoise_param = general_config['ffmpeg_hqdn_3d']
-    if ffmpeg_denoise_param == '' and 'FFmpegHqdn3d' in general_config:
-        ffmpeg_denoise_param = general_config['FFmpegHqdn3d']
-        general_config['ffmpeg_hqdn_3d'] = ffmpeg_denoise_param
-        del general_config['FFmpegHqdn3d']
-    if 'enable_rectangle_popup' in general_config:
-        enable_rectangle_popup = general_config["enable_rectangle_popup"]
-    if 'enable_soundtrack' in general_config and sound_file_available:
-        enable_soundtrack = general_config["enable_soundtrack"]
-    if 'precise_template_match' in general_config:
-        precise_template_match = general_config["precise_template_match"]
-    if 'detect_minor_mismatches' in general_config:
-        detect_minor_mismatches = general_config["detect_minor_mismatches"]
-'''
-
-
-def update_project_repository():
-    global source_dir
-    # source_dir is the key for each project config inside the global project settings
-    # config_manager.save_project_config(source_dir, project_instance.copy())
-    pass
-
-    """ delete this
-    if source_dir in project_repository:
-        project_repository.update({source_dir: project_config.copy()})
-    elif source_dir != '':
-        project_repository.update({source_dir: project_config.copy()})
-        # project_repository[project_config["source_dir"]] = project_config.copy()
-    """
-
-""" delete_this
-def save_project_repository():
-    global project_repository, project_repository_filename, project_repository_backup_filename
-
-    if not ignore_config:
-        # Delete existing backup file
-        if os.path.isfile(project_repository_backup_filename):
-            os.remove(project_repository_backup_filename)
-        # Rename current project file as backup
-        if os.path.isfile(project_repository_filename):
-            os.rename(project_repository_filename, project_repository_backup_filename)
-            logging.debug("Saving project settings:")
-        # Create list with global version info
-        global_info = {'data_version': __data_version__, 'code_version': __version__, 'save_date': str(datetime.now())}
-        list_to_save = [global_info, project_repository]
-        with open(project_repository_filename, 'w+') as f:
-            json.dump(list_to_save, f, indent=4)
-"""
 
 
 # Handle migration from old JSON names (CamelCase) to new ones (snake_case)
@@ -1000,58 +555,6 @@ def _migrate_keys(obj):
         return obj
 
 
-""" delete_this
-def load_project_repository():
-    global project_repository, project_repository_filename, default_project_config
-    global source_dir, files_to_delete
-    global project_name
-
-    projects_loaded = False
-    error_while_loading = False
-
-    if not ignore_config and os.path.isfile(project_repository_filename):
-        f = open(project_repository_filename)
-        try:
-            raw_list = json.load(f)
-            saved_list = _migrate_keys(raw_list)
-        except Exception as e:
-            logging.debug(f"Error while opening projects json file; {e}")
-            error_while_loading = True
-        f.close()
-        if not error_while_loading:
-            # Check if project if legacy, since we will not handle it
-            if isinstance(saved_list, dict):   # Old version of json files were directly a dictionary
-                tk.messagebox.showerror(
-                    "Invalid project file",
-                    f"The project file {project_repository_filename} saved in disk is invalid."
-                    "Project defaults will be loaded and existing file will be overwritten upon exit "
-                    "(and a backup file generated in case you want to recover information from it)")
-            else:
-                # New version is a list
-                logging.info(f"Loading project file: {saved_list[0]['data_version']},  {saved_list[0]['code_version']},  {saved_list[0]['save_date']}")
-                project_repository = saved_list[1]
-                projects_loaded = True
-                # Perform some cleanup, in case projects have been deleted
-                project_folders = list(project_repository.keys())  # freeze keys iterator into a list
-                for folder in project_folders:
-                    if not os.path.isdir(folder):   # If project folder no longer exists...
-                        if "custom_template_filename" in project_repository[folder]:
-                            aux_template_filename = os.path.join(source_dir, project_repository[folder]["custom_template_filename"])
-                            if os.path.isfile(aux_template_filename):
-                                os.remove(aux_template_filename)    # ...delete custom template, if it exists
-                        project_repository.pop(folder)
-                        logging.debug("Deleting %s from project settings, as it no longer exists", folder)
-                    elif not os.path.isdir(source_dir) and os.path.isdir(folder):
-                        source_dir = folder
-                        # Create a project id (folder name) for the stats logging below
-                        # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
-                        project_name = os.path.split(source_dir)[-1].replace(',', ';')
-
-    if not projects_loaded:   # No project settings file. Set empty config to force defaults
-        project_repository = {source_dir: default_project_config.copy()}
-        project_repository[source_dir]["source_dir"] = source_dir
-"""
-
 def update_config_from_ui():
     global template_manager
     global skip_frame_regeneration
@@ -1100,66 +603,7 @@ def update_config_from_ui():
     if not project_config_from_file or ignore_config:
         return
 
-    update_project_repository()
-    """ delete_this
-    save_project_repository()
-    """
     config_manager.save_configuration()
-
-""" delete_this
-def save_project_config():
-    global template_manager
-    global skip_frame_regeneration
-    global ffmpeg_preset
-    global stabilize_area_defined
-    global current_frame
-    global video_filename_str, video_title_str
-    global frame_from_str, frame_to_str
-    global perform_denoise, perform_sharpness, perform_gamma_correction
-
-    # Write project data upon exit
-    project_config["source_dir"] = source_dir
-    project_config["target_dir"] = target_dir
-    project_config["current_frame"] = current_frame
-    project_config["skip_frame_regeneration"] = skip_frame_regeneration.get()
-    project_config["ffmpeg_preset"] = ffmpeg_preset.get()
-    project_config["project_config_date"] = str(datetime.now())
-    project_config["perform_cropping"] = perform_cropping.get()
-    project_config["perform_denoise"] = perform_denoise.get()
-    project_config["perform_sharpness"] = perform_sharpness.get()
-    project_config["perform_gamma_correction"] = perform_gamma_correction.get()
-    project_config["gamma_correction_value"] = float(gamma_correction_str.get())
-    project_config["frame_fill_type"] = frame_fill_type.get()
-    project_config["extended_stabilization"] = extended_stabilization.get()
-    project_config["low_contrast_custom_template"] = low_contrast_custom_template.get()
-    project_config["video_title"] = video_title_str.get()
-    project_config["video_filename"] = video_filename_str.get()
-    project_config["frame_from"] = int(frame_from_str.get())
-    project_config["frame_to"] = int(frame_to_str.get())
-    # Next item: widget variable is inside popup, might not be available, so use global variable
-    project_config["current_bad_frame_index"] = current_bad_frame_index
-    if stabilize_area_defined:
-        project_config["perform_stabilization"] = perform_stabilization.get()
-        project_config["stabilization_shift_y"] = stabilization_shift_y_value.get()
-        project_config["stabilization_shift_x"] = stabilization_shift_x_value.get()
-        if not encode_all_frames.get():
-            project_config["hole_pos"] = template_manager.get_active_position()
-            project_config["hole_scale"] = template_manager.get_active_scale()
-
-    if len(bad_frame_list) > 0:
-        save_bad_frame_list()   # Bad frames need to be saved even in batch mode
-
-    # Do not save if current project comes from batch job
-    if not project_config_from_file or ignore_config:
-        return
-
-    # No longer saving to dedicated file, all project settings in common file now
-    # with open(project_config_filename, 'w+') as f:
-    #     json.dump(project_config, f)
-
-    update_project_repository()
-    save_project_repository()
-"""
 
 
 def load_project_config():
@@ -1177,10 +621,6 @@ def load_project_config():
     config_manager.set_active_project(source_dir)
     project_instance = config_manager.get_project_config(source_dir)
 
-    """ delete_this
-    for item in project_instance:
-        logging.debug("%s=%s", item, str(project_instance[item]))
-    """
     for field_name, value in asdict(project_instance).items():
         logging.debug(f"Field: {field_name}, Value: {value}, Type: {type(value).__name__}")
 
@@ -1190,43 +630,6 @@ def load_project_config():
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
-
-""" delete_this
-def load_project_config():
-    global source_dir
-    global project_config, project_config_from_file
-    global project_config_basename, project_config_filename
-    global project_repository
-    global default_project_config
-
-    if not ignore_config:
-        project_config_filename = os.path.join(source_dir, project_config_basename)
-    # Check if persisted project data file exist: If it does, load it
-    project_config = default_project_config.copy()  # set default config
-
-    if source_dir in project_repository:
-        logging.debug("Loading project config from consolidated project settings")
-        project_config |= project_repository[source_dir].copy()
-    elif os.path.isfile(project_config_filename):
-        logging.debug("Loading project config from dedicated project config file")
-        persisted_data_file = open(project_config_filename)
-        project_config |= json.load(persisted_data_file)
-        persisted_data_file.close()
-    else:  # No project config file. Set empty config to force defaults
-        logging.debug("No project config exists, initializing defaults")
-        project_config = default_project_config.copy()
-        project_config["source_dir"] = source_dir
-
-    for item in project_config:
-        logging.debug("%s=%s", item, str(project_config[item]))
-
-
-    # Allow to determine source of current project, to avoid
-    # saving it in case of batch processing
-    project_config_from_file = True
-    widget_status_update(NORMAL)
-    FrameSync_Viewer_popup_update_widgets(NORMAL)
-"""
 
 def delete_dict_key(dict, old_key):
     if old_key in dict:
@@ -1453,238 +856,6 @@ def decode_project_config():
 
     win.update()
 
-""" delete_this
-def decode_project_config():        
-    global source_dir, target_dir
-    global project_config
-    global template_manager
-    global project_config_basename, project_config_filename
-    global current_frame, frame_slider
-    global video_fps, video_fps_dropdown_selected
-    global resolution_dropdown, resolution_dropdown_selected
-    global encode_all_frames, frames_to_encode
-    global skip_frame_regeneration
-    global generate_video, video_filename_name
-    global crop_top_left, crop_bottom_right, perform_cropping
-    global stabilize_area_defined, film_type
-    global stabilization_threshold, low_contrast_custom_template
-    global rotation_angle
-    global frame_from_str, frame_to_str
-    global project_name
-    global force_4_3_crop, force_16_9_crop
-    global frame_fill_type
-    global extended_stabilization
-    global force_4_3, force_16_9
-    global perform_denoise, perform_sharpness, perform_gamma_correction, gamma_correction_str
-    global detect_minor_mismatches, current_bad_frame_index
-    global precise_template_match
-    global stabilization_shift_x, stabilization_shift_y
-    global user_defined_left_stripe_width_proportion
-
-    aux_value = project_config['source_dir']
-    source_dir = aux_value
-    if source_dir != '':
-        project_name = os.path.split(source_dir)[-1].replace(',', ';')
-        # If directory in configuration does not exist, set current working dir
-        if not os.path.isdir(source_dir):
-            source_dir = ""
-            project_name = "No Project"
-        else:
-            get_source_dir_file_list()
-        frames_source_dir.delete(0, 'end')
-        frames_source_dir.insert('end', source_dir)
-        frames_source_dir.after(100, frames_source_dir.xview_moveto, 1)
-        # Need to retrieve source file list at this point, since win.update at the end of thi sfunction will force a refresh of the preview
-        # If we don't do it here, an oimage from the previou ssource folder will be displayed instead
-
-    aux_value = project_config['target_dir']
-    target_dir = aux_value
-    if target_dir != '':
-        # If directory in configuration does not exist, set current working dir
-        if not os.path.isdir(target_dir):
-            target_dir = ""
-        else:
-            get_target_dir_file_list()
-        frames_target_dir.delete(0, 'end')
-        frames_target_dir.insert('end', target_dir)
-        frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
-
-    aux_value = project_config['video_target_dir']
-    video_target_dir_str.set(aux_value)
-    if video_target_dir_str.get() != '':
-        # If directory in configuration does not exist, set current working dir
-        if not os.path.isdir(video_target_dir_str.get()):
-            video_target_dir_str.set(target_dir)  # use frames target dir as fallback option
-        video_target_dir_entry.after(100, video_target_dir_entry.xview_moveto, 1)
-    current_frame = 0
-    if not batch_job_running: # only if project loaded by user, otherwise it alters start encoding frame in batch mode
-        aux_value = project_config['current_frame']
-        current_frame = aux_value
-        # frame_slider.set(current_frame)
-
-    aux_value = project_config['encode_all_frames']
-    encode_all_frames.set(aux_value)
-
-    aux_value = project_config['frame_from']
-    frame_from_str.set(str(aux_value))
-
-    aux_value = project_config['frame_to']
-    frame_to_str.set(str(aux_value))
-    if frame_to_str.get() != '' and frame_from_str.get() != '':
-        frames_to_encode = int(frame_to_str.get()) - int(frame_from_str.get()) + 1
-    else:
-        frames_to_encode = 0
-
-    aux_value = project_config['frames_to_encode']
-    if frames_to_encode != aux_value:
-        project_config['frames_to_encode'] = frames_to_encode
-    
-    delete_dict_key(project_config, "FillBorders")
-    delete_dict_key(project_config, "FillBordersThickness")
-    delete_dict_key(project_config, "FillBordersMode")
-    delete_dict_key(project_config, "FakeFillType")
-    delete_dict_key(project_config, "StabilizationShift")
-                    
-    aux_value = project_config['film_type']
-    film_type.set(aux_value)
-
-    aux_value = project_config['rotation_angle']
-    rotation_angle = aux_value
-    rotation_angle_str.set(rotation_angle)
-
-    if expert_mode:
-        aux_value = project_config['stabilization_threshold']
-        stabilization_threshold = aux_value
-        stabilization_threshold_str.set(stabilization_threshold)
-    else:
-        stabilization_threshold = 220.0
-
-    aux_value = project_config['low_contrast_custom_template']
-    low_contrast_custom_template.set(aux_value)
-
-    aux_value = project_config['extended_stabilization']
-    extended_stabilization.set(aux_value)
-
-    aux_value = project_config['custom_template_defined']
-    if not project_config["custom_template_defined"]:
-        # No custom template defined, set default one
-        set_film_type()
-    else:
-        aux_value = project_config['custom_template_name']
-        template_name = aux_value
-
-        aux_value = project_config['custom_template_expected_pos']
-        custom_template_expected_pos = aux_value
-
-        aux_value = project_config['custom_template_filename']
-        full_path_template_filename = aux_value
-        if not os.path.exists(full_path_template_filename):
-            tk.messagebox.showwarning(
-                "Template in project invalid",
-                f"The custom template saved for project {template_name} is invalid."
-                "Please redefine custom template for this project.")
-            if 'custom_template_filename' in project_config:
-                del project_config['custom_template_filename']
-            # Invalid custom template defined, set default one
-            set_film_type()
-            project_config["custom_template_defined"] = False
-        else:
-            logging.debug(f"Adding custom template {template_name} from configuration to template list (filename {full_path_template_filename})")
-            template_manager.add(template_name, full_path_template_filename, "custom", custom_template_expected_pos)
-            debug_template_refresh_template()
-
-    aux_value = project_config['perform_cropping']
-    perform_cropping.set(aux_value)
-
-    aux_value = project_config['perform_denoise']
-    perform_denoise.set(aux_value)
-
-    aux_value = project_config['perform_sharpness']
-    perform_sharpness.set(aux_value)
-
-    aux_value = project_config['perform_gamma_correction']
-    perform_gamma_correction.set(aux_value)
-
-    aux_value = project_config['gamma_correction_value']
-    gamma_correction_str.set(aux_value)
-
-    aux_value = project_config['crop_rectangle']
-    crop_top_left = aux_value[0]
-    crop_bottom_right = aux_value[1]
-    perform_cropping_selection()
-
-    aux_value = project_config['force_4_3']
-    force_4_3_crop.set(aux_value)
-
-    aux_value = project_config['force_16_9']
-    force_16_9_crop.set(aux_value)
-    if force_4_3_crop.get():    # 4:3 has priority if both set
-        force_16_9_crop.set(False)
-    force_4_3 = force_4_3_crop.get()
-    force_16_9 = force_16_9_crop.get()
-
-    aux_value = project_config['frame_fill_type']
-    frame_fill_type.set(aux_value)
-
-    aux_value = project_config['generate_video']
-    generate_video.set(aux_value)
-    generate_video_selection()
-
-    aux_value = project_config['video_filename']
-    video_filename_str.set(aux_value)
-
-    aux_value = project_config['video_title']
-    video_title_str.set(aux_value)
-
-    # Snake case from the start
-    aux_value = project_config['skip_frame_regeneration']
-    skip_frame_regeneration.set(aux_value)
-
-    aux_value = project_config['ffmpeg_preset']
-    ffmpeg_preset.set(aux_value)
-
-    aux_value = project_config['perform_stabilization']
-    perform_stabilization.set(aux_value)
-
-    aux_value = project_config['stabilization_shift_y']
-    stabilization_shift_y_value.set(aux_value)
-
-    aux_value = project_config['stabilization_shift_x']
-    stabilization_shift_x_value.set(aux_value)
-
-    aux_value = project_config['perform_rotation']
-    perform_rotation.set(aux_value)
-
-    aux_value = project_config['video_fps']
-    video_fps = eval(aux_value)
-    video_fps_dropdown_selected.set(video_fps)
-    set_fps(str(video_fps))
-
-    aux_value = project_config['video_resolution']
-    resolution_dropdown_selected.set(aux_value)
-
-    aux_value = project_config['current_bad_frame_index']
-    current_bad_frame_index = aux_value
-
-    aux_value = project_config['user_defined_left_stripe_width_proportion']
-    user_defined_left_stripe_width_proportion = aux_value
-    # Don't really need to retrieve the config date, this is intended only to be written. But anyhow...
-
-    aux_value = project_config['project_config_date']
-
-    aux_value = project_config['precise_template_match']
-    aux_value = project_config['precise_template_match']
-
-    if len(source_dir_file_list) > 0:
-        adjust_dimensions_based_on_frame()
-
-    widget_status_update(NORMAL)
-    FrameSync_Viewer_popup_update_widgets(NORMAL)
-
-    load_bad_frame_list()
-
-    win.update()
-"""
 
 """
 ##########################
@@ -1719,9 +890,6 @@ def job_list_process_selection(evt):
         if Name:
             entry = normalize_job_name(Name)  # Get the first element
             rerun_job_btn.config(text='Rerun job' if batch_job_list.is_job_done(entry) else rerun_job_btn.config(text='Mark as run'))
-            """ delete_this
-            rerun_job_btn.config(text='Rerun job' if job_list[entry]['done'] else rerun_job_btn.config(text='Mark as run'))
-            """
 
 
 def job_list_add_current():
@@ -1742,7 +910,6 @@ def job_list_add_current():
         return
 
     if config_manager.get_film_type() == 'R8':
-    ### if project_config["film_type"] == 'R8': # delete_this
         description = "R8, "
     else:
         description = "S8, "
@@ -1774,7 +941,6 @@ def job_list_add_current():
     if perform_gamma_correction.get():
         description = description + f", GC:{gamma_correction_str.get()}"
     description = description + f", fill: {frame_fill_type.get()}"
-    ### if project_config["generate_video"]: # delete_this
     if config_manager.get_generate_video():
         description = description + ", "
         if ffmpeg_preset.get() == 'veryslow':
@@ -1793,9 +959,6 @@ def job_list_add_current():
 
     save_project = True
     item_id = None
-    """ delete_this
-    if entry_name in job_list:
-    """
     if batch_job_list.job_exists(entry_name):
         if tk.messagebox.askyesno(
                 "Job already exists",
@@ -1806,31 +969,17 @@ def job_list_add_current():
             save_project = False
     if save_project:
         update_config_from_ui()  # Make sure all current settings are in project_config
-        ### job_list[entry_name] = {'project': project_config.copy(), 'done': False, 'attempted': False, 'description': description} # delete_this
         job = batch_job_list.create_new_job_entry(entry_name, description, config_manager.get_project_config(config_manager.get_active_project()))
         batch_job_list.add_job(job)
-        """ delete_this
-        job_list[entry_name] = {'project': project_instance.copy(), 'done': False, 'attempted': False, 'description': description}
-        """
         # If a custom pattern is used, copy it with the name of the job, and change it in the joblist/project item
         if template_manager.get_active_type() == 'custom' and os.path.isfile(template_manager.get_active_filename()):
             custom_template_dir = os.path.dirname(template_manager.get_active_filename())    # should be resources_dir, but better be safe
             # Maybe we should check here if a video filename has been defined
             target_template_file = os.path.join(custom_template_dir, os.path.splitext(batch_job_list.get_job(entry_name).project.get_video_filename())[0]+'.jpg' )
-            """ delete_this
-            target_template_file = os.path.join(custom_template_dir, os.path.splitext(job_list[entry_name]['project']['video_filename'])[0]+'.jpg' )
-            """
             if template_manager.get_active_filename() != target_template_file:
                 shutil.copyfile(template_manager.get_active_filename(), target_template_file)
             batch_job_list.get_job(entry_name).project.set_custom_template_filename(target_template_file)
-            """ delete_this
-            job_list[entry_name]['project']['custom_template_filename'] = target_template_file
-            """
         else:
-            """ delete_this
-            if 'custom_template_filename' in project_config:
-                del project_config['custom_template_filename']
-            """
             config_manager.set_custom_template_filename('')   # better remove it, but no method for now
 
         if item_id is None:
@@ -1839,10 +988,6 @@ def job_list_add_current():
         else:   # Update existing
             job_list_treeview.item(item_id, text=entry_name, values=(description,), 
                                    tags=("done","joblist_font",) if batch_job_list.is_job_done(entry_name) else ("pending","joblist_font",))
-            """ delete_this
-            job_list_treeview.item(item_id, text=entry_name, values=(description,), 
-                                   tags=("pending","joblist_font",) if job_list[entry_name]['done'] == False else ("done","joblist_font",))
-            """
 
         job_list_treeview.selection_set(item_id)  # Select the row
         job_list_treeview.see(item_id)
@@ -1871,9 +1016,6 @@ def job_list_load_selected():
         Name = job_list_treeview.item(item_id, "text")  # Get Name (Colmun #0)
         if Name:
             entry_name = normalize_job_name(Name)  # Get the first element
-            """ delete_this
-            if entry_name in job_list:
-            """
             if batch_job_list.job_exists(entry_name):
                 # Save misaligned frame list in case new job switches to a different source folder
                 if len(bad_frame_list) > 0:
@@ -1886,28 +1028,18 @@ def job_list_load_selected():
                 config_manager.save_project_config(entry_name, project_instance)
                 config_manager.set_active_project(entry_name)
                 config_manager.set_source_dir(project_instance.get_project_source_dir())
-                """ delete_this
-                project_instance = job_list[entry_name]['project']
-                project_config = job_list[entry_name]['project']
-                """
                 decode_project_config()
 
                 # Refresh project loaded from Job list in project list (plus set it as active)
                 config_manager.save_project_config(source_dir, project_instance)
                 config_manager.set_active_project(source_dir)
                 config_manager.set_source_dir(source_dir)
-                """ delete_this
-                general_config["source_dir"] = source_dir
-                """
 
                 if encode_all_frames:
                     current_frame = first_absolute_frame + (last_absolute_frame - first_absolute_frame) // 2
                 else:
                     # Set current_frame in the middle of the project frame range
                     current_frame = config_manager.get_frame_from() + (config_manager.get_frame_to() - config_manager.get_frame_from()) // 2
-                    """delete_this
-                    current_frame = project_config["frame_from"] + (project_config["frame_to"] - project_config["frame_from"]) // 2
-                    """
 
                 # Enable Start and Crop buttons, plus slider, once we have files to handle
                 cropping_btn.config(state=NORMAL)
@@ -1935,9 +1067,6 @@ def job_list_delete_selected():
             index = items.index(item_id) if item_id in items else -1
             entry = normalize_job_name(Name)  # Get the first element
             batch_job_list.delete_job(entry)
-            """ delete_this
-            job_list.pop(entry) # Delete from job list
-            """
             job_list_treeview.delete(item_id)    # Delete from tree view
             # Try to select the previous row if it exists
             if index > 0:
@@ -1964,21 +1093,12 @@ def job_list_rerun_selected():
             batch_job_list.mark_job_attempted(entry, batch_job_list.is_job_done(entry))
             job_list_treeview.item(item_id, tags=("done","joblist_font",) if batch_job_list.is_job_done(entry) else ("pending","joblist_font",))
             rerun_job_btn.config(text='Rerun job' if batch_job_list.is_job_done(entry) else 'Mark as run')
-            """ delete_this
-            job_list[entry]['done'] = not job_list[entry]['done']
-            job_list[entry]['attempted'] = job_list[entry]['done']
-            job_list_treeview.item(item_id, tags=("done","joblist_font",) if job_list[entry]['done'] else ("pending","joblist_font",))
-            rerun_job_btn.config(text='Rerun job' if job_list[entry]['done'] else 'Mark as run')
-            """
 
 def create_alternate_job_name(name):
     index = 2
     done = False
     new_name = name[:JOB_LIST_NAME_LENGTH]
     while not done:
-        """ delete_this
-        if new_name in job_list:
-        """
         if batch_job_list.job_exists(new_name):
             name_len = len(name)
             name_appendix = f"({index})"
@@ -2009,14 +1129,6 @@ def search_job_name_in_job_treeview(job_name):
             return item_id
     return -1
 
-""" delete_this
-def generate_dict_hash(dictionary):
-    print(f"******* type(dictionary): {type(dictionary)}")
-    # Generates a SHA-256 hash from a dictionary.
-    serialized_dict = json.dumps(dictionary, sort_keys=True).encode('utf-8')
-    hash_object = hashlib.sha256(serialized_dict)
-    return hash_object.hexdigest()
-"""
 def generate_dict_hash(dictionary: Dict[str, Any]) -> str:
     """
     Generates a consistent SHA256 hash from a dictionary containing custom objects.
@@ -2047,9 +1159,6 @@ def save_named_job_list():
         title="Select file to save job list")
     if len(aux_file) > 0:
         job_list_hash = generate_dict_hash(batch_job_list.get_all_jobs())
-        """ delete_this
-        job_list_hash = generate_dict_hash(job_list)
-        """
         # Remove only the exact suffix if present
         if not aux_file.endswith(".joblist.json"):
             # Remove .json or .joblist if they exist separately
@@ -2057,15 +1166,8 @@ def save_named_job_list():
             # Append the correct suffix
             aux_file = f"{aux_file}.joblist.json"
         batch_job_list.save_to_file(aux_file)
-        """ delete_this
-        with open(aux_file, 'w+') as f:
-            json.dump(job_list, f, indent=4)
-        """
         job_list_filename = aux_file
         config_manager.set_job_list_filename(job_list_filename)
-        """ delete_this
-        general_config["job_list_filename"] = job_list_filename
-        """
         display_window_title()
 
 
@@ -2073,9 +1175,6 @@ def load_named_job_list():
     global job_list, job_list_filename, job_list_hash
 
     aux_hash = generate_dict_hash(batch_job_list.get_all_jobs())
-    """ delete_this
-    aux_hash = generate_dict_hash(job_list)
-    """
     if job_list_hash != aux_hash:   # Current job list modified since loaded
         if tk.messagebox.askyesno(
             "Save job list?",
@@ -2091,103 +1190,11 @@ def load_named_job_list():
     if len(aux_file) > 0:
         batch_job_list.load_from_file(aux_file)
         refresh_job_tree()
-        """ delete_this
-        load_job_list(aux_file)
-        """
         job_list_filename = aux_file
         config_manager.set_job_list_filename(job_list_filename)
-        """ delete_this
-        general_config["job_list_filename"] = job_list_filename
-        """
         job_list_hash = generate_dict_hash(batch_job_list.get_all_jobs())
-        """ delete_this
-        job_list_hash = generate_dict_hash(job_list)
-        """
         display_window_title()
 
-""" delete_this
-def save_job_list():
-    global job_list, default_job_list_filename
-
-    if not ignore_config:
-        with open(default_job_list_filename, 'w+') as f:
-            json.dump(job_list, f, indent=4)
-
-def load_job_list(filename = None):
-    global job_list, default_job_list_filename, job_list_treeview, job_list_hash
-
-    if filename is None:
-        if not os.path.isfile(default_job_list_filename):   
-            # if default job list file does not exist, try with legacy one (before 1.20.13)
-            filename = default_job_list_filename_legacy
-        else:
-            filename = default_job_list_filename
-
-    display_window_title()  # setting title of the window
-
-    if not ignore_config and os.path.isfile(filename):
-        f = open(filename)
-        job_list = json.load(f)
-        # Explicitly copy keys
-        keys = list(job_list.keys())
-        for item_id in job_list_treeview.get_children():
-            job_list_treeview.delete(item_id)
-        for entry in keys:
-            # Check if 'description' field exists
-            if "description" not in job_list[entry]:  # Legacy entry, need to adapt
-                # Split legacy entry name (long) in two
-                parts = entry.split(",", 1)
-                new_entry_name = parts[0].strip()  # First part, always exists
-                new_entry_name = os.path.splitext(new_entry_name)[0][:JOB_LIST_NAME_LENGTH] # Remove extension if any, limit to 25
-                description = parts[1].strip()[:JOB_LIST_DESCRIPTION_LENGTH] if len(parts) > 1 else ""  # Second part or empty string
-                # Step 0: check is new entry key already exists
-                if new_entry_name in job_list:
-                    new_entry_name = create_alternate_job_name(new_entry_name)
-                logging.error(f"Detected legacy job list, replacing '{entry}' by '{new_entry_name}'")
-                # Step 1: Update entry with new key name
-                new_key = entry.replace(entry, new_entry_name)
-                job_list[new_key] = job_list.pop(entry)
-                # Step 2: Add new field
-                job_list[new_key]["description"] = description
-                # Update variable with new name for later use
-                entry = new_key
-            elif len(entry) > JOB_LIST_NAME_LENGTH:  # In case name is longer than JOB_LIST_NAME_LENGTH (25)
-                new_entry_name = normalize_job_name(entry)
-                logging.error(f"Detected name too long in job list, replacing '{entry}' by '{new_entry_name}'")
-                new_key = entry.replace(entry, new_entry_name)
-                job_list[new_key] = job_list.pop(entry)
-                entry = new_key
-            # Add to listbox
-            job_list_treeview.insert('', 'end', text=entry, values=(job_list[entry]["description"],),
-                                     tags=("pending","joblist_font",) if job_list[entry]['done'] == False else ("done","joblist_font",))
-            job_list[entry]['attempted'] = job_list[entry]['done']  # Add default value for new json field
-        f.close()
-        for entry in job_list:
-            item_id = search_job_name_in_job_treeview(entry)
-            if item_id is not None:
-                job_list_treeview.item(item_id, tags=("done","joblist_font",) if job_list[entry]['done'] else ("pending","joblist_font",))
-
-        job_list_hash = generate_dict_hash(job_list)
-    else:   # No job list file. Set empty config to force defaults
-        job_list = {}
-
-def load_job_list(filename = None):
-    global job_list_treeview, job_list_hash
-    global job_list_filename, default_job_list_filename_legacy
-
-    if filename is None:
-        if os.path.isfile(job_list_filename):
-            filename = job_list_filename
-        elif os.path.isfile(default_job_list_filename):   # if current job list file does not exist, try with default one
-            filename = default_job_list_filename
-        elif os.path.isfile(default_job_list_filename_legacy):     # if default job list file does not exist, try with legacy one
-            filename = default_job_list_filename_legacy
-    else:
-        logging.warning(f"No job files found.")
-        return
-    display_window_title()  # setting title of the window
-    batch_job_list.load_from_file(filename)
-"""
 
 def refresh_job_tree():
     global job_list_treeview, job_list_hash
@@ -2224,10 +1231,6 @@ def start_processing_job_list():
         widget_status_update(DISABLED, start_batch_btn)
         FrameSync_Viewer_popup_update_widgets(DISABLED)
 
-        """ delete_this
-        for entry in job_list:
-            job_list[entry]['attempted'] = job_list[entry]['done'] # Reset attempted flag for those not done yet
-        """
         for job_name, job_entry in batch_job_list.get_all_jobs().items():
             batch_job_list.mark_job_attempted(job_name, batch_job_list.is_job_done(job_name))
 
@@ -2245,10 +1248,6 @@ def job_processing_loop():
 
     logging.debug(f"Starting batch loop")
     job_started = False
-    """ delete_this
-    for entry in job_list:
-        if not job_list[entry]['done'] and not job_list[entry]['attempted']:
-    """
     for job_name, job_entry in batch_job_list.get_all_jobs().items():
         if not batch_job_list.is_job_done(job_name) and not not batch_job_list.is_job_attempted(job_name):
             # Save bad frame list if any
@@ -2258,19 +1257,12 @@ def job_processing_loop():
                 bad_frame_list.clear()
                 current_bad_frame_index = -1
             batch_job_list.mark_job_attempted(job_name)
-            """ delete_this
-            job_list[entry]['attempted'] = True
-            """
             for item_id in job_list_treeview.selection():  
                 job_list_treeview.selection_remove(item_id)  # Unselect each selected item
             item_id = search_job_name_in_job_treeview(job_name)
             if item_id is not None:
                 job_list_treeview.item(item_id, tags=("ongoing","joblist_font",))
             current_job_entry = job_name
-            """ delete_this
-            if 'frame_from' in job_list[entry]['project']:
-                current_frame = int(job_list[entry]['project']['frame_from'])
-            """
             if batch_job_list.get_job(job_name).project.get_frame_from() is not None:
                 # At some point frame_from and frame_to were saved to project file as strings, so just in case, convert them.
                 current_frame = int(batch_job_list.get_job(job_name).project.get_frame_from())
@@ -2280,10 +1272,6 @@ def job_processing_loop():
             logging.debug(f"Processing {job_name}, starting from frame {current_frame}, {batch_job_list.get_job(job_name).project.get_frame_from()} frames")
             project_config_from_file = False
             project_instance = batch_job_list.get_job(job_name).project.copy()
-            """ delete_this
-            project_instance = job_list[entry]['project'].copy()
-            project_config = job_list[entry]['project'].copy()
-            """
             decode_project_config()
 
             # Refresh project loaded from Job list in project list (plus set it as active)
@@ -2345,19 +1333,6 @@ def job_list_rerun_current(event):
         job_list_treeview.selection_set(next_item)  # Select next row
         job_list_treeview.focus(next_item)  # Move focus to it
 
-""" delete_this
-def sync_job_list_with_treeview():
-    global job_list_treeview, job_list
-
-    order_list = []
-    for item_id in job_list_treeview.get_children():
-        name = job_list_treeview.item(item_id, "text")  # Get Name (column #0)
-        if name:  
-            order_list.append(normalize_job_name(name))  # First column value
-
-    # Create a new dictionary with the desired order
-    job_list = {key: job_list[key] for key in order_list if key in job_list}
-"""
 def sync_job_list_with_treeview(job_manager: JobManager):
     """
     Reads the order from the Tkinter Treeview and re-creates the 
@@ -2412,11 +1387,6 @@ def job_list_move_up(event):
                 if batch_job_list.job_exists(Name):
                     if batch_job_list.is_job_done(Name):    # TODO - Remove this if (otherwise following statemetn does not make sense)
                         job_list_treeview.item(item_id, tags=("done","joblist_font",) if batch_job_list.is_job_done(Name) else ("pending","joblist_font",))
-                """ delete_this
-                if Name in job_list:
-                    if job_list[Name]['done'] == True:
-                        job_list_treeview.item(item_id, tags=("pending","joblist_font",) if job_list[Name]['done'] == False else ("done","joblist_font",))
-                """
                 sync_job_list_with_treeview(batch_job_list)
 
 
@@ -2439,11 +1409,6 @@ def job_list_move_down(event):
                 if batch_job_list.job_exists(Name):
                     if batch_job_list.is_job_done(Name):    # TODO - Remove this if (otherwise following statemetn does not make sense)
                         job_list_treeview.item(item_id, tags=("done","joblist_font",) if batch_job_list.is_job_done(Name) else ("pending","joblist_font",))
-                """ delete_this
-                if Name in job_list:
-                    if job_list[Name]['done'] == True:
-                        job_list_treeview.item(item_id, tags=("pending","joblist_font",) if job_list[Name]['done'] == False else ("done","joblist_font",))
-                """
                 sync_job_list_with_treeview(batch_job_list)
 
 
@@ -2470,33 +1435,6 @@ def display_ffmpeg_result(ffmpeg_output):
     # binding scrollbar with other widget (Text, Listbox, Frame, etc)
     ffmpeg_label.config(yscrollcommand=ffmpeg_result_sb.set)
     ffmpeg_result_sb.config(command=ffmpeg_label.yview)
-
-
-""" delete_this
-def register_frame():
-    global fps_last_minute_frame_times
-    global fps_start_time
-    global fps_calculated_value
-
-    # Get current time
-    frame_time = time.time()
-    # Determine if we should start new count (last capture older than 5 seconds)
-    if len(fps_last_minute_frame_times) == 0 or fps_last_minute_frame_times[-1] < frame_time - 12:
-        fps_start_time = frame_time
-        fps_last_minute_frame_times.clear()
-        fps_calculated_value = -1
-    # Add current time to list
-    fps_last_minute_frame_times.append(frame_time)
-    # Remove entries older than one minute
-    fps_last_minute_frame_times.sort()
-    while fps_last_minute_frame_times[0] <= frame_time-60:
-        fps_last_minute_frame_times.remove(fps_last_minute_frame_times[0])
-    # Calculate current value, only if current count has been going for more than 10 seconds
-    if frame_time - fps_start_time > 60:  # no calculations needed, frames in list are all in the last 60 seconds
-        fps_calculated_value = len(fps_last_minute_frame_times)/60
-    elif frame_time - fps_start_time > 10:  # some  calculations needed if less than 60 sec
-        fps_calculated_value = int((len(fps_last_minute_frame_times) * 60) / (frame_time - fps_start_time))/60
-"""
 
 
 """
@@ -2539,9 +1477,6 @@ def set_source_folder():
         # Replace any commas by semi colon to avoid problems when generating csv by AfterScanAnalysis
         project_name = os.path.split(source_dir)[-1].replace(',', ';')
         config_manager.set_source_dir(source_dir)
-        """ delete_this
-        general_config["source_dir"] = source_dir
-        """
 
 
     load_project_config()  # Needs source_dir defined
@@ -2557,13 +1492,7 @@ def set_source_folder():
         frames_target_dir.delete(0, 'end')
         frames_target_dir.insert('end', target_dir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
-        """ delete_this
-        update_ui_from_config()
-        """
         config_manager.set_target_dir(target_dir)
-        """ delete_this
-        project_config["target_dir"] = target_dir
-        """
 
     # Enable Start and Crop buttons, plus slider, once we have files to handle
     cropping_btn.config(state=NORMAL)
@@ -2600,13 +1529,7 @@ def set_frames_target_folder():
         frames_target_dir.delete(0, 'end')
         frames_target_dir.insert('end', target_dir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
-        """ delete_this
-        update_ui_from_config()
-        """
         config_manager.set_target_dir(target_dir)
-        """ delete_this
-        project_config["target_dir"] = target_dir
-        """
 
 
 def set_video_target_folder():
@@ -2628,9 +1551,6 @@ def set_video_target_folder():
         video_target_dir_entry.after(100, video_target_dir_entry.xview_moveto, 1)
 
     config_manager.set_video_target_dir(video_target_dir_str.get())
-    """ delete_this
-    project_config["video_target_dir"] = video_target_dir_str.get()
-    """
 
 """
 ###############################
@@ -2731,23 +1651,6 @@ def widget_status_update(widget_state=0, button_action=0):
         ffmpeg_preset_rb2.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
         ffmpeg_preset_rb3.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
         video_play_btn.config(state=widget_state if config_manager.get_generate_video() else DISABLED)
-        """ delete_this
-        skip_frame_regeneration_cb.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        video_target_dir_entry.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        video_target_folder_btn.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        video_filename_label.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        video_title_label.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        video_title_name.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        video_fps_dropdown.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        resolution_dropdown.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        video_fps_label.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        resolution_label.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        video_filename_name.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        ffmpeg_preset_rb1.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        ffmpeg_preset_rb2.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        ffmpeg_preset_rb3.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        video_play_btn.config(state=widget_state if project_config["generate_video"] else DISABLED)
-        """
         start_batch_btn.config(state=widget_state if button_action != start_batch_btn else NORMAL)
         add_job_btn.config(state=widget_state)
         delete_job_btn.config(state=widget_state)
@@ -2814,9 +1717,6 @@ def perform_rotation_selection():
     rotation_angle_label.config(
         state=NORMAL if perform_rotation.get() else DISABLED)
     config_manager.set_perform_rotation(perform_rotation.get())
-    """ delete_this
-    project_config["perform_rotation"] = perform_rotation.get()
-    """
     win.after(5, scale_display_update)
 
 
@@ -2825,9 +1725,6 @@ def rotation_angle_selection():
     global rotation_angle
     rotation_angle = rotation_angle_spinbox.get()
     config_manager.set_rotation_angle(rotation_angle)
-    """ delete_this
-    project_config["rotation_angle"] = rotation_angle
-    """
     win.after(5, scale_display_update)
 
 
@@ -2836,9 +1733,6 @@ def rotation_angle_spinbox_focus_out(event):
     global rotation_angle
     rotation_angle = rotation_angle_spinbox.get()
     config_manager.set_rotation_angle(rotation_angle)
-    """ delete_this
-    project_config["rotation_angle"] = rotation_angle
-    """
     win.after(5, scale_display_update)
 
 
@@ -2849,9 +1743,6 @@ def perform_stabilization_selection():
         stabilization_threshold_spinbox.config(
             state=NORMAL if perform_stabilization.get() else DISABLED)
     config_manager.set_perform_stabilization(perform_stabilization.get())
-    """ delete_this
-    project_config["perform_stabilization"] = perform_stabilization.get()
-    """
     win.after(5, scale_display_update)
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
@@ -2861,9 +1752,6 @@ def low_contrast_custom_template_selection():
     global low_contrast_custom_template
 
     config_manager.set_low_contrast_custom_template(low_contrast_custom_template.get())
-    """ delete_this
-    project_config["low_contrast_custom_template"] = low_contrast_custom_template.get()
-    """
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
@@ -2871,9 +1759,6 @@ def low_contrast_custom_template_selection():
 def extended_stabilization_selection():
     global extended_stabilization, hole_search_area_adjustment_pending
     config_manager.set_extended_stabilization(extended_stabilization.get())
-    """ delete_this
-    project_config["extended_stabilization"] = extended_stabilization.get()
-    """
     hole_search_area_adjustment_pending = True
     win.after(5, scale_display_update)
     widget_status_update(NORMAL)
@@ -2884,9 +1769,6 @@ def select_stabilization_shift_y(even=None):
     global stabilization_shift_y
     stabilization_shift_y = stabilization_shift_y_value.get()
     config_manager.set_stabilization_shift_y(stabilization_shift_y)
-    """ delete_this
-    project_config["stabilization_shift_y"] = stabilization_shift_y
-    """
     win.after(5, scale_display_update)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
@@ -2895,9 +1777,6 @@ def select_stabilization_shift_x(even=None):
     global stabilization_shift_x
     stabilization_shift_x = stabilization_shift_x_value.get()
     config_manager.set_stabilization_shift_x(stabilization_shift_x)
-    """ delete_this
-    project_config["stabilization_shift_x"] = stabilization_shift_x
-    """
     win.after(5, scale_display_update)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
@@ -2907,9 +1786,6 @@ def stabilization_threshold_selection(updown):
     global stabilization_threshold
     stabilization_threshold = stabilization_threshold_spinbox.get()
     config_manager.set_stabilization_threshold(stabilization_threshold)
-    """ delete_this
-    project_config["stabilization_threshold"] = stabilization_threshold
-    """
 
 
 def stabilization_threshold_spinbox_focus_out(event):
@@ -2917,9 +1793,6 @@ def stabilization_threshold_spinbox_focus_out(event):
     global stabilization_threshold
     stabilization_threshold = stabilization_threshold_spinbox.get()
     config_manager.set_stabilization_threshold(stabilization_threshold)
-    """ delete_this
-    project_config["stabilization_threshold"] = stabilization_threshold
-    """
 
 
 def perform_cropping_selection():
@@ -2931,9 +1804,6 @@ def perform_cropping_selection():
     generate_video_checkbox.config(state=NORMAL if ffmpeg_installed
                                    else DISABLED)
     config_manager.set_perform_cropping(perform_cropping.get())
-    """ delete_this
-    project_config["perform_cropping"] = perform_cropping.get()
-    """
     if ui_init_done:
         win.after(5, scale_display_update)
 
@@ -2942,9 +1812,6 @@ def perform_sharpness_selection():
     global perform_sharpness
 
     config_manager.set_perform_sharpness(perform_sharpness.get())
-    """ delete_this
-    project_config["perform_sharpness"] = perform_sharpness.get()
-    """
     if ui_init_done:
         win.after(5, scale_display_update)
 
@@ -2953,18 +1820,12 @@ def perform_denoise_selection():
     global perform_denoise
 
     config_manager.set_perform_denoise(perform_denoise.get())
-    """ delete_this
-    project_config["perform_denoise"] = perform_denoise.get()
-    """
     if ui_init_done:
         win.after(5, scale_display_update)
 
 
 def perform_gamma_correction_selection():
     config_manager.set_perform_gamma_correction(perform_gamma_correction.get())
-    """ delete_this
-    project_config["perform_gamma_correction"] = perform_gamma_correction.get()
-    """
     if ui_init_done:
         win.after(5, scale_display_update)
 
@@ -2987,10 +1848,6 @@ def force_4_3_selection():
         force_16_9 = False
     config_manager.set_force_4_3(force_4_3_crop.get())
     config_manager.set_force_16_9(force_16_9_crop.get())
-    """ delete_this
-    project_config["force_4_3"] = force_4_3_crop.get()
-    project_config["force_16_9"] = force_16_9_crop.get()
-    """
 
 
 def force_16_9_selection():
@@ -3006,18 +1863,11 @@ def force_16_9_selection():
         force_4_3= False
     config_manager.set_force_4_3(force_4_3_crop.get())
     config_manager.set_force_16_9(force_16_9_crop.get())
-    """ delete_this
-    project_config["force_4_3"] = force_4_3_crop.get()
-    project_config["force_16_9"] = force_16_9_crop.get()
-    """
 
 
 def encode_all_frames_selection():
     global encode_all_frames
     config_manager.set_encode_all_frames(encode_all_frames.get())
-    """ delete_this
-    project_config["encode_all_frames"] = encode_all_frames.get()
-    """
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
@@ -3026,9 +1876,6 @@ def generate_video_selection():
     global generate_video
 
     config_manager.set_generate_video(generate_video.get())
-    """ delete_this
-    project_config["generate_video"] = generate_video.get()
-    """
     widget_status_update(NORMAL)
     FrameSync_Viewer_popup_update_widgets(NORMAL)
 
@@ -3037,18 +1884,12 @@ def set_fps(selected):
     global video_fps
 
     config_manager.set_video_fps(selected)
-    """ delete_this
-    project_config["video_fps"] = selected
-    """
     video_fps = eval(selected)
 
 
 def set_resolution(selected):
     global resolution_dict
     config_manager.set_video_resolution(selected)
-    """ delete_this
-    project_config["video_resolution"] = selected
-    """
 
 
 def display_template_popup_closure():
@@ -3083,9 +1924,6 @@ def cmd_settings_popup_accept():
     global enable_soundtrack, user_defined_left_stripe_width_proportion
 
     config_manager.set_template_popup_window_pos(options_dlg.geometry())
-    """ delete_this
-    general_config["popup_pos"] = options_dlg.geometry()
-    """
 
     save_FfmpegBinName = ffmpeg_bin_name
     ffmpeg_bin_name = custom_ffmpeg_path.get()
@@ -3098,30 +1936,15 @@ def cmd_settings_popup_accept():
     else:
         ffmpeg_bin_name = custom_ffmpeg_path.get()
         config_manager.set_ffmpeg_bin_name(ffmpeg_bin_name)
-        """ delete_this
-        general_config["ffmpeg_bin_name"] = ffmpeg_bin_name
-        """
     ffmpeg_denoise_param = ffmpeg_denoise_value.get()
     config_manager.set_ffmpeg_hqdn_3d(ffmpeg_denoise_param)
-    """ delete_this
-    general_config["ffmpeg_hqdn_3d"] = ffmpeg_denoise_param
-    """
     enable_rectangle_popup = enable_rectangle_popup_value.get()
     config_manager.set_enable_rectangle_popup(enable_rectangle_popup)
-    """ delete_this
-    general_config["enable_rectangle_popup"] = enable_rectangle_popup
-    """
     if sound_file_available:
         enable_soundtrack = enable_soundtrack_value.get()
         config_manager.set_enable_soundtrack(enable_soundtrack)
-        """ delete_this
-        general_config["enable_soundtrack"] = enable_soundtrack
-        """
     user_defined_left_stripe_width_proportion = left_stripe_width_value.get() / 100
     config_manager.set_user_defined_left_stripe_width_proportion(user_defined_left_stripe_width_proportion)
-    """ delete_this
-    project_config["user_defined_left_stripe_width_proportion"] = user_defined_left_stripe_width_proportion
-    """
 
     options_dlg.grab_release()
     options_dlg.destroy()
@@ -3139,12 +1962,6 @@ def cmd_settings_popup():
     options_dlg = tk.Toplevel(win)
 
     options_dlg.geometry(f"+{config_manager.get_template_popup_window_pos().split('+', 1)[1]}")
-    """ delete_this
-    if 'popup_pos' in general_config:
-        options_dlg.geometry(f"+{general_config['popup_pos'].split('+', 1)[1]}")
-    elif 'PopupPos' in general_config:
-        options_dlg.geometry(f"+{general_config['PopupPos'].split('+', 1)[1]}")
-    """
 
     options_dlg.title("AfterScan Settings")
     # options_dlg.geometry(f"300x100")
@@ -3514,9 +2331,6 @@ def FrameSync_Viewer_popup_refresh():
         x = 0
         y = 0
     config_manager.set_current_frame(current_frame)
-    """ delete_this
-    project_config["current_frame"] = current_frame
-    """
     refresh_current_frame_ui_info(current_frame, first_absolute_frame)
     frame_selected.set(current_frame)
     frame_slider.set(current_frame)
@@ -3847,9 +2661,6 @@ def FrameSync_Viewer_popup():
         frame_sync_viewer_opened = False # Set to false first, to avoid interactions with deleted elements
         stabilization_threshold = stabilization_threshold_default   # Restore original value
         config_manager.set_template_popup_window_pos(template_popup_window.geometry())
-        """ delete_this
-        general_config["template_popup_window_pos"] = template_popup_window.geometry()
-        """
         template_canvas.destroy()
         left_stripe_canvas.destroy()
         left_stripe_stabilized_canvas.destroy()
@@ -3872,10 +2683,6 @@ def FrameSync_Viewer_popup():
 
     
     template_popup_window.geometry(f"+{config_manager.get_template_popup_window_pos().split('+', 1)[1]}")
-    """ delete_this
-    if 'template_popup_window_pos' in general_config:
-        template_popup_window.geometry(f"+{general_config['template_popup_window_pos'].split('+', 1)[1]}")
-    """
 
     # Create three vertical frames in the bottom horizontal frame
     left_frame = Frame(template_popup_window, width=60, height=8)
@@ -4241,14 +3048,8 @@ def FrameSync_Viewer_popup():
 
     precise_template_match = precise_template_match_value.get()
     config_manager.set_precise_template_match(precise_template_match)
-    """ delete_this
-    general_config["precise_template_match"] = precise_template_match
-    """
     detect_minor_mismatches = detect_minor_mismatches_value.get()
     config_manager.set_detect_minor_mismatches(detect_minor_mismatches)
-    """ delete_this
-    general_config["detect_minor_mismatches"] = detect_minor_mismatches
-    """
 
     frame_sync_viewer_opened = False
 
@@ -4427,9 +3228,6 @@ def select_scale_frame(selected_frame):
         frame_slider.focus()
         current_frame = int(selected_frame)
         config_manager.set_current_frame(current_frame)
-        """ delete_this
-        project_config["current_frame"] = current_frame
-        """
         refresh_current_frame_ui_info(current_frame, first_absolute_frame)
         if frame_scale_refresh_done:
             frame_scale_refresh_done = False
@@ -4466,9 +3264,6 @@ def detect_film_type():
     # Initialize work values
     count1 = 0
     count2 = 0
-    """ delete_this
-    if project_config["film_type"] == 'R8':
-    """
     if config_manager.get_film_type() == 'R8':
         template_1 = template_manager.get_template_image_by_key('aux','WB')
         template_2 = template_manager.get_template_image_by_key('aux','BW')
@@ -4503,9 +3298,6 @@ def detect_film_type():
             count2 += 1
     if not batch_job_running and count1 > count2:
         type = config_manager.get_film_type()
-        """ delete_this
-        type = project_config['film_type']
-        """
         if tk.messagebox.askyesno(
             "Wrong film type detected",
             f"Current project is defined to handle {type}"
@@ -4874,9 +3666,6 @@ def select_cropping_area():
         crop_bottom_right = (0, 0)
 
     config_manager.set_crop_rectangle((crop_top_left, crop_bottom_right))
-    """ delete_this
-    project_config["crop_rectangle"] = (crop_top_left, crop_bottom_right)
-    """
     perform_cropping_checkbox.config(state=NORMAL if crop_area_defined
                                      else DISABLED)
 
@@ -4947,9 +3736,6 @@ def select_custom_template():
 
             # Write template to disk
             config_manager.set_custom_template_filename(full_path_template_filename)
-            """ delete_this
-            project_config["custom_template_filename"] = full_path_template_filename
-            """
             cv2.imwrite(full_path_template_filename, img_final)
 
             # Add template to list
@@ -4961,10 +3747,6 @@ def select_custom_template():
 
             config_manager.set_custom_template_expected_pos(template_manager.get_active_position())
             config_manager.set_custom_template_name(template_manager.get_active_name())
-            """ delete_this
-            project_config['custom_template_expected_pos'] = template_manager.get_active_position()
-            project_config['custom_template_name'] = template_manager.get_active_name()
-            """
 
             define_template_search_area(full_img)  # Adjust hole search area to new template
 
@@ -4996,9 +3778,6 @@ def select_custom_template():
             FrameSync_Viewer_popup_update_widgets(DISABLED)
 
     config_manager.set_custom_template_defined(True if template_manager.get_active_type() == 'custom' else False)
-    """ delete_this
-    project_config["custom_template_defined"] = True if template_manager.get_active_type() == 'custom' else False
-    """
     debug_template_refresh_template()
 
     # Enable all buttons in main window
@@ -5013,9 +3792,6 @@ def set_film_type():
 
     if template_manager.set_active_template(film_type.get(), film_type.get()):
         config_manager.set_film_type(film_type.get())
-        """ delete_this
-        project_config["film_type"] = film_type.get()
-        """
         debug_template_refresh_template()
         video_fps_dropdown_selected.set('18' if film_type.get() == 'S8' else '16')
         return True
@@ -5339,27 +4115,6 @@ def resize_image(img, ratio):
     # resize image
     return cv2.resize(img, dsize)
 
-""" delete_this
-# This old code was supposed to optimize the size of the search area, as it was assumed that the smaller the area, 
-# the fastest OpenCV would be in finding the template. However, once simplified (hardcoded to 20% left stripe of 
-# the image), it does not seem to cause any additional delay. We leav ethe old code here for the moment.
-def get_image_left_stripe_old(img):
-    global hole_search_top_left, hole_search_bottom_right
-    global template_manager
-    # Get partial image where the hole should be (to facilitate template search
-    # by OpenCV). We do the calculations inline instead of calling the function
-    # since we need the intermediate values
-    # Default values defined at display initialization time, after source
-    # folder is defined
-    # If template wider than search area, make search area bigger (including +100 to have some margin)
-    if template_manager.get_active_size()[0] > hole_search_bottom_right[0] - hole_search_top_left[0]:
-        logging.debug(f"Making left stripe wider: {hole_search_bottom_right[0] - hole_search_top_left[0]}")
-        hole_search_bottom_right = (hole_search_bottom_right[0] + template_manager.get_active_size()[0], hole_search_bottom_right[1])
-        logging.debug(f"Making left stripe wider: {hole_search_bottom_right[0] - hole_search_top_left[0]}")
-    horizontal_range = (hole_search_top_left[0], hole_search_bottom_right[0])
-    vertical_range = (hole_search_top_left[1], hole_search_bottom_right[1])
-    return np.copy(img[vertical_range[0]:vertical_range[1], horizontal_range[0]:horizontal_range[1]])
-"""
 
 def get_image_left_stripe(img, calculated=True):
     global template_manager
@@ -6101,17 +4856,9 @@ def start_convert():
         gamma_enforce_min_value()
         # Save current project status
         config_manager.save_configuration()
-        """ delete_this
-        save_general_config()
-        save_project_config()
-        save_job_list()
-        """
         batch_job_list.save_to_file(job_list_filename)
         # Empty FPS register list
         fps_tracker.reset()
-        """ delete_this
-        fps_last_minute_frame_times.clear()
-        """
         # Centralize 'frames_to_encode' update here
         if encode_all_frames.get():
             start_frame = 0
@@ -6149,9 +4896,6 @@ def start_convert():
         win.update()
 
         config_manager.set_film_type(film_type.get())
-        """ delete_this
-        if project_config["generate_video"]:
-        """
         if config_manager.get_generate_video():
             target_video_filename = video_filename_str.get()
             name, ext = os.path.splitext(target_video_filename)
@@ -6199,9 +4943,6 @@ def start_convert():
             win.after(1, frame_generation_loop)
         elif generate_video.get():
             # first check if resolution has been set
-            """ delete_this
-            if resolution_dict[project_config["video_resolution"]] == '':
-            """
             if resolution_dict[config_manager.get_video_resolution()] == '':
                 if not batch_job_running:
                     logging.error("Error, no video resolution selected")
@@ -6236,9 +4977,6 @@ def generation_exit(success = True):
         else:
             if success:
                 batch_job_list.mark_job_done(current_job_entry)
-                """ delete_this
-                job_list[current_job_entry]['done'] = True    # Flag as done
-                """
                 item_id = search_job_name_in_job_treeview(current_job_entry)
                 if item_id != -1:
                     job_list_treeview.item(item_id, tags=("done","joblist_font",))
@@ -6337,9 +5075,6 @@ def frame_encode(frame_idx, id, do_save = True, offset_x = 0, offset_y = 0):
             "Error reading frame %i, skipping", frame_idx)
     else:
         fps_tracker.register_frame()
-        """ delete_this
-        register_frame()
-        """
         if perform_rotation.get():
             img = rotate_image(img)
         # If FrameSync editor opened, call stabilize_image even when not enabled just to display FrameSync images. Image would not be stabilized
@@ -6393,10 +5128,6 @@ def frame_update_ui(frame_idx, merged):
     status_str = f"Status: Generating{' merged' if merged else ''} frames {((frame_idx - start_frame+1) * 100 / frames_to_encode):.1f}%"
     if fps_tracker.get_fps() != -1:
         status_str = status_str + f' (FPS:{fps_tracker.get_fps():.1f})'
-    """ delete_this
-    if fps_calculated_value != -1:  # FPS not calculated yet, display some indication
-        status_str = status_str + f' (FPS:{fps_calculated_value:.1f})'
-    """
     app_status_label.config(text=status_str, fg='black')
 
 
@@ -6492,9 +5223,6 @@ def frame_generation_loop():
 
     if current_frame >= start_frame + frames_to_encode and last_displayed_image+1 >= start_frame + frames_to_encode:
         fps_tracker.reset()
-        """ delete_this
-        fps_calculated_value = -1
-        """
         # write average match quality in the status line, and in the widget
         status_str = f"Status: Frame generation OK - AvgQ: {int(match_level_average.get_average()*100)}"
         app_status_label.config(text=status_str, fg='green')
@@ -6552,9 +5280,6 @@ def frame_generation_loop():
         generation_exit(success = False)
         stabilization_threshold_match_label.config(fg='lightgray', bg='lightgray', text='')
         fps_tracker.reset()
-        """ delete_this
-        fps_calculated_value = -1
-        """
         # Refresh popup window
         FrameSync_Viewer_popup_refresh()
         # Enable manual stabilize popup widgets
@@ -6571,9 +5296,6 @@ def frame_generation_loop():
             time.sleep(0.3)
         current_frame += 1
         config_manager.set_current_frame(current_frame)
-        """ delete_this
-        project_config["current_frame"] = current_frame
-        """
         win.after(1, frame_generation_loop)
     else:   # If queue is full, wait a bit longer
         win.after(100, frame_generation_loop)
@@ -6710,9 +5432,6 @@ def call_ffmpeg():
     global title_num_frames
     global file_type_out
 
-    """ delete_this
-    if resolution_dict[project_config["video_resolution"]] != '':
-    """
     if resolution_dict[config_manager.get_video_resolution()] != '':
         video_width = resolution_dict[config_manager.get_video_resolution()].split(':')[0]
         video_height = resolution_dict[config_manager.get_video_resolution()].split(':')[1]
@@ -7134,10 +5853,6 @@ def afterscan_init():
     
     if config_manager.get_window_pos() != '':
         win.geometry(f"+{config_manager.get_window_pos().split('+', 1)[1]}")
-    """ delete_this
-    if 'window_pos' in general_config:
-         win.geometry(f"+{general_config['window_pos'].split('+', 1)[1]}")
-    """
 
     win.update_idletasks()
 
@@ -7170,18 +5885,6 @@ def afterscan_init():
 
     logging.debug("AfterScan initialized")
 
-""" delete_this
-def display_window_title():
-    title = f"{__module__} {__version__}"
-    if job_list_filename != default_job_list_filename:
-        aux = os.path.split(job_list_filename)[1]
-        if aux.endswith('.json'):
-            aux = aux.removesuffix('.json')
-        if aux.endswith('.joblist'):
-            aux = aux.removesuffix('.joblist')
-        title += f" - {aux}"
-    win.title(title)  # setting title of the window
-"""
 
 def display_window_title():
     job_name = batch_job_list.get_job_list_name()
@@ -8088,11 +6791,6 @@ def exit_app():  # Exit Application
         config_manager.save_configuration()
     config_manager.rename_legacy_configuration_files()
     batch_job_list.rename_legacy_configuration_files()
-    """ delete_this
-    save_general_config()
-    save_project_config()
-    save_job_list()
-    """
     batch_job_list.save_to_file(job_list_filename)
     win.destroy()
 
@@ -8119,9 +6817,6 @@ def get_user_id():
             anonymous_uuid = hashlib.sha256(serial.encode()).hexdigest()
             logging.debug(f"Generating RPi uuid: {anonymous_uuid}")
         config_manager.set_anonymous_uuid(anonymous_uuid)
-        """ delete_this
-        general_config["anonymous_uuid"] = anonymous_uuid
-        """
         return anonymous_uuid
 
 
@@ -8136,14 +6831,8 @@ def get_consent(force = False):
             )
             last_consent_date = datetime.today()
             config_manager.set_last_consent_date(last_consent_date.isoformat())
-            """ delete_this
-            general_config["last_consent_date"] = last_consent_date.isoformat()
-            """
             user_consent = "yes" if consent else "no"
             config_manager.set_user_consent(user_consent)
-            """ delete_this
-            general_config["user_consent"] = user_consent
-            """
 
 
 # Ping server if requests is available (call once at startup)
@@ -8172,10 +6861,6 @@ def main(argv):
     global expert_mode
     global ffmpeg_bin_name
     global is_windows, is_linux, is_mac
-    """ delete_this
-    global project_config_filename
-    global project_config_basename
-    """
     global perform_stabilization
     global ui_init_done
     global ignore_config
@@ -8196,15 +6881,6 @@ def main(argv):
     go_disable_tooptips = False
     goanyway = False
 
-    """ delete_this
-    # Create job dictionary
-    # Dictionary fields
-    # 'description': Added in 1.12.09, to split job list entry name in two
-    # 'project': Contents of project_config
-    # 'done': Job already completed
-    # 'attempted': Job started but not completed
-    job_list = {}
-    """
 
     opts, args = getopt.getopt(argv, "hiel:dcst:12nab", ["goanyway"])
 
@@ -8266,18 +6942,6 @@ def main(argv):
 
     # Create and initialize TemplateManager: Add default templates to template list
     template_manager = TemplateManager.initialize(script_dir)
-    """ delete_this
-    template_manager.add("S8", hole_template_filename_s8, "S8", (66, 838))     # New, smaller
-    template_manager.add("R8", hole_template_filename_r8, "R8", (65, 1080)) # Default R8 (bottom hole)
-    template_manager.add("BW", hole_template_filename_bw, "aux", (0, 0))
-    template_manager.add("WB", hole_template_filename_wb, "aux", (0, 0))
-    template_manager.add("Corner", hole_template_filename_corner, "aux", (0, 0))
-    
-    templates_ok, error_msg = verify_templates()
-    if not templates_ok:
-        logging.error(error_msg)
-        return
-    """
 
     config_manager = ConfigurationManager.initialize(script_dir)
     batch_job_list = JobManager.initialize(script_dir)
@@ -8287,10 +6951,6 @@ def main(argv):
     else:
         config_manager = ConfigurationManager.initialize(script_dir)
 
-    """ delete_this
-    load_general_config()
-    load_project_repository()
-    """
 
     afterscan_init()
 
@@ -8346,17 +7006,9 @@ def main(argv):
     win.config(cursor="watch")  # Set cursor to hourglass
     widget_status_update()
 
-    """ delete_this
-    if source_dir is not None:
-        project_config_filename = os.path.join(source_dir, project_config_basename)
-    """
-
     load_project_config()
     decode_project_config()
 
-    """ delete_this
-    load_job_list()
-    """
     if not ignore_config:
         batch_job_list.load_from_file(None)
         refresh_job_tree()

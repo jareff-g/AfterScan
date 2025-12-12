@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "configuration_manager"
-__version__ = "1.0.8"
+__version__ = "1.0.9"
 __data_version__ = "1.0"
 __date__ = "2025-12-12"
-__version_highlight__ = "WIP: Move high level methods (included filename handling) to load configuration and job lists to classes."
+__version_highlight__ = "WIP: Remove commented code."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -191,22 +191,6 @@ class GlobalConfig:
         filtered_data = {key: value for key, value in data.items() if key in valid_fields}
         return cls(**filtered_data)
 
-    """ delete_this
-    def to_dict(self):
-        output = asdict(self)
-        
-        # Custom conversion step:
-        if isinstance(output['last_consent_date'], datetime.datetime):
-            # Convert the datetime object to an ISO 8601 string, 
-            # which is globally recognized and easily reversible.
-            output['last_consent_date'] = output['last_consent_date'].isoformat()
-        if isinstance(output['last_config_save_date'], datetime.datetime):
-            # Convert the datetime object to an ISO 8601 string, 
-            # which is globally recognized and easily reversible.
-            output['last_config_save_date'] = output['last_config_save_date'].isoformat()
-            
-        return output
-    """
     def to_dict(self) -> Dict[str, Any]:
         """
         Manually iterates through fields to perform custom serialization 
