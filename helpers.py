@@ -12,18 +12,41 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "helpers"
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __data_version__ = "1.0"
-__date__ = "2025-12-11"
-__version_highlight__ = "WIP - Helper classes, first version (Rolling average integrated from its own file)"
+__date__ = "2025-12-12"
+__version_highlight__ = "WIP: Move utility static functions to helpers module."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
 
 import time
 from collections import deque
+import logging
 
 
+# --- Static functions ---
+# Define a function for
+# identifying a Digit
+def is_a_number(string):
+    # Make a regular expression
+    # for identifying a digit
+    regex = '^[0-9]+$'
+    # pass the regular expression
+    # and the string in search() method
+    if (re.search(regex, string)):
+        return True
+    else:
+        return False
+
+
+def empty_queue(q):
+    while not q.empty():
+        item = q.get()
+        logging.debug(f"Emptying queue: Got {item[0]}")
+
+
+# --- Utility classes ---
 class FPSTracker:
     """
     A class to Calculate the number of processed frames per second.

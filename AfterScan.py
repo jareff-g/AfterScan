@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.25"
+__version__ = "1.40.26"
 __data_version__ = "1.0"
 __date__ = "2025-12-12"
-__version_highlight__ = "WIP: Rename save_project_config as update_config_from_ui."
+__version_highlight__ = "WIP: Move utility static functions to helpers module. Delete update_ui_from_config. Refresh config from UI when saving."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -160,7 +160,7 @@ from template_manager import TemplateManager
 from configuration_manager import ConfigurationManager, ProjectConfigEntry
 from job_manager import JobManager
 from custom_json_encoder import AppEncoder
-from helpers import RollingAverage, FPSTracker
+from helpers import RollingAverage, FPSTracker, is_a_number, empty_queue
 
 # Check for temporalDenoise in OpenCV at startup
 HAS_TEMPORAL_DENOISE = hasattr(cv2, 'temporalDenoising')
@@ -180,7 +180,7 @@ global work_image, base_image, original_image
 
 # --- FPS calculation (taken from ALT-Scann8) ---
 fps_tracker = FPSTracker()
-"""
+""" delete_this
 fps_last_minute_frame_times = list()
 fps_start_time = time.ctime()
 fps_calculated_value = -1
@@ -519,7 +519,7 @@ Utility functions
 #################
 """
 
-
+""" delete_this
 # Define a function for
 # identifying a Digit
 def is_a_number(string):
@@ -538,7 +538,7 @@ def empty_queue(q):
     while not q.empty():
         item = q.get()
         logging.debug(f"Emptying queue: Got {item[0]}")
-
+"""
 
 """
 ####################################
@@ -546,8 +546,8 @@ Configuration file support functions
 ####################################
 """
 
-
-def set_project_defaults():
+""" delete_this
+def update_ui_from_config():
     global project_config
     global perform_cropping, generate_video, resolution_dropdown_selected, perform_gamma_correction
     global frame_slider, encode_all_frames, frames_to_encode_str
@@ -574,7 +574,7 @@ def set_project_defaults():
     skip_frame_regeneration.set(config_manager.get_skip_frame_regeneration())
     video_filename_str.set(config_manager.get_video_filename())
     video_title_str.set(config_manager.get_video_title())
-
+"""
 
 """ delete_this
 def set_project_defaults():
@@ -2557,7 +2557,9 @@ def set_source_folder():
         frames_target_dir.delete(0, 'end')
         frames_target_dir.insert('end', target_dir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
-        set_project_defaults()
+        """ delete_this
+        update_ui_from_config()
+        """
         config_manager.set_target_dir(target_dir)
         """ delete_this
         project_config["target_dir"] = target_dir
@@ -2598,7 +2600,9 @@ def set_frames_target_folder():
         frames_target_dir.delete(0, 'end')
         frames_target_dir.insert('end', target_dir)
         frames_target_dir.after(100, frames_target_dir.xview_moveto, 1)
-        set_project_defaults()
+        """ delete_this
+        update_ui_from_config()
+        """
         config_manager.set_target_dir(target_dir)
         """ delete_this
         project_config["target_dir"] = target_dir
@@ -8074,6 +8078,7 @@ def exit_app():  # Exit Application
         time.sleep(0.2)
 
     if not ignore_config:
+        update_config_from_ui()
         config_manager.set_version(__version__)
         try:
             if win is not None and win.winfo_exists():
