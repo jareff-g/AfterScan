@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.24"
+__version__ = "1.40.25"
 __data_version__ = "1.0"
 __date__ = "2025-12-12"
-__version_highlight__ = "WIP: Move high level methods (included filename handling) to load configuration and job lists to classes."
+__version_highlight__ = "WIP: Rename save_project_config as update_config_from_ui."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -319,13 +319,7 @@ project_repository = {}
 project_config = default_project_config.copy()
 """
 config_manager: ConfigurationManager = {}
-project_instance: ProjectConfigEntry = {}   # this will replace project_config
 batch_job_list: JobManager = {}
-
-
-# Film hole search vars
-hole_search_top_left = (0, 0)
-hole_search_bottom_right = (0, 0)
 
 # Film frames (in/out) file vars
 target_video_filename = ""
@@ -1058,7 +1052,7 @@ def load_project_repository():
         project_repository[source_dir]["source_dir"] = source_dir
 """
 
-def save_project_config():
+def update_config_from_ui():
     global template_manager
     global skip_frame_regeneration
     global ffmpeg_preset
@@ -1173,7 +1167,7 @@ def load_project_config():
     global project_config, project_config_from_file
     global project_repository
     global default_project_config
-    global project_repository, project_instance
+    global project_repository
 
     if ignore_config:
         return
@@ -1811,7 +1805,7 @@ def job_list_add_current():
         else:
             save_project = False
     if save_project:
-        save_project_config()  # Make sure all current settings are in project_config
+        update_config_from_ui()  # Make sure all current settings are in project_config
         ### job_list[entry_name] = {'project': project_config.copy(), 'done': False, 'attempted': False, 'description': description} # delete_this
         job = batch_job_list.create_new_job_entry(entry_name, description, config_manager.get_project_config(config_manager.get_active_project()))
         batch_job_list.add_job(job)
@@ -1865,7 +1859,6 @@ def job_list_load_selected():
     global resolution_dropdown_selected
     global job_list_listbox_disabled
     global current_bad_frame_index
-    global project_instance
 
     if job_list_listbox_disabled:
         return
@@ -2249,7 +2242,6 @@ def job_processing_loop():
     global project_config_from_file
     global suspend_on_completion
     global current_frame, current_bad_frame_index
-    global project_instance
 
     logging.debug(f"Starting batch loop")
     job_started = False
@@ -2523,7 +2515,7 @@ def set_source_folder():
     global ui_init_done
 
     # Write project data before switching project
-    save_project_config()
+    update_config_from_ui()
 
     aux_dir = filedialog.askdirectory(
         initialdir=source_dir,
@@ -3827,7 +3819,7 @@ def FrameSync_Viewer_popup():
     global crop_top_left, crop_bottom_right
     global frame_sync_viewer_opened, debug_template_width, debug_template_height
     global current_frame_text, crop_text, film_type_text
-    global search_area_text, template_type_text, hole_pos_text, template_size_text, template_wb_proportion_text, template_threshold_text
+    global template_type_text, hole_pos_text, template_size_text, template_wb_proportion_text, template_threshold_text
     global left_stripe_canvas, left_stripe_stabilized_canvas, template_canvas
     global source_dir_file_list
     global bad_frame_text, corrected_bad_frame_text, bad_frames_on_left_value, bad_frames_on_right_value
@@ -4001,16 +3993,6 @@ def FrameSync_Viewer_popup():
         template_threshold_label.pack(pady=5, padx=10, anchor="center")
     template_threshold_text.set("Threshold: 0")
     as_tooltips.add(template_threshold_label, "Threshold used to match template")
-
-    #Label with search area
-    search_area_text = tk.StringVar()
-    search_area_label = Label(right_frame, textvariable=search_area_text, font=("Arial", font_size))
-    if not dev_debug_enabled:
-        search_area_label.forget()
-    else:
-        search_area_label.pack(pady=5, padx=10, anchor="center")
-    search_area_text.set(f"Search Area: {hole_search_top_left}, {hole_search_bottom_right})")
-    as_tooltips.add(search_area_label, "Area where template will be searched")
 
     #Label with current Frame details
     current_frame_text = tk.StringVar()
@@ -5353,7 +5335,7 @@ def resize_image(img, ratio):
     # resize image
     return cv2.resize(img, dsize)
 
-
+""" delete_this
 # This old code was supposed to optimize the size of the search area, as it was assumed that the smaller the area, 
 # the fastest OpenCV would be in finding the template. However, once simplified (hardcoded to 20% left stripe of 
 # the image), it does not seem to cause any additional delay. We leav ethe old code here for the moment.
@@ -5373,9 +5355,9 @@ def get_image_left_stripe_old(img):
     horizontal_range = (hole_search_top_left[0], hole_search_bottom_right[0])
     vertical_range = (hole_search_top_left[1], hole_search_bottom_right[1])
     return np.copy(img[vertical_range[0]:vertical_range[1], horizontal_range[0]:horizontal_range[1]])
+"""
 
 def get_image_left_stripe(img, calculated=True):
-    global hole_search_top_left, hole_search_bottom_right
     global template_manager
 
     width = calculated_left_stripe_width if calculated else int(user_defined_left_stripe_width_proportion*img.shape[1])
@@ -6036,7 +6018,6 @@ def valid_generated_frame_range():
 
 # Determine width of template search area based on the template used
 def define_template_search_area(img):
-    global hole_search_top_left, hole_search_bottom_right
     global template_manager
     global template_wb_proportion_text
     global extended_stabilization
@@ -8203,7 +8184,7 @@ def main(argv):
     global num_threads
     global use_simple_stabilization
     global dev_debug_enabled
-    global config_manager, project_instance
+    global config_manager
     global batch_job_list
     
     logging_mode = "INFO"
@@ -8294,7 +8275,6 @@ def main(argv):
     """
 
     config_manager = ConfigurationManager.initialize(script_dir)
-    project_instance = ProjectConfigEntry()
     batch_job_list = JobManager.initialize(script_dir)
 
     if config_manager.load_configuration():
