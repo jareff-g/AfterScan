@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "job_manager"
-__version__ = "1.0.6"
+__version__ = "1.0.7"
 __data_version__ = "1.0"
-__date__ = "2025-12-12"
-__version_highlight__ = "WIP: Move high level methods (included filename handling) to load configuration and job lists to classes."
+__date__ = "2025-12-13"
+ig__version_highlight__ = "WIP - Bugfix: Do not try to load configuration if no configuration files exist"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -179,7 +179,7 @@ class JobManager:
         self.job_list_filename = filepath
 
         """Loads a dedicated 'joblist-only' JSON file and replaces the active queue."""
-        if not os.path.exists(filepath):
+        if filepath is None or not os.path.exists(filepath):
             logging.error(f"Cannot load jobs: File not found at '{filepath}'")
             return False
 

@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.29"
+__version__ = "1.40.30"
 __data_version__ = "1.0"
 __date__ = "2025-12-13"
-__version_highlight__ = "WIP: Aftr integration in helpers, rename AppEncoder to CustomJsonEncoder."
+__version_highlight__ = "WIP: Fix issues when first loading without configuration files. Add AfterScanApp class skeleton to allow progress in OOP conversion."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -602,7 +602,6 @@ def update_config_from_ui():
 
 
 def load_project_config():
-    global source_dir
     global project_config, project_config_from_file
     global project_repository
     global default_project_config
@@ -611,10 +610,8 @@ def load_project_config():
     if ignore_config:
         return
 
-    #if source_dir == '':
-    #    source_dir = 'default'
-    config_manager.set_active_project(source_dir)
-    project_instance = config_manager.get_project_config(source_dir)
+    config_manager.set_active_project(config_manager.get_source_dir())
+    project_instance = config_manager.get_project_config(config_manager.get_source_dir())
 
     for field_name, value in asdict(project_instance).items():
         logging.debug(f"Field: {field_name}, Value: {value}, Type: {type(value).__name__}")
@@ -1448,7 +1445,8 @@ def set_source_folder():
     global ui_init_done
 
     # Write project data before switching project
-    update_config_from_ui()
+    if source_dir is not None and source_dir != '':   
+        update_config_from_ui()
 
     aux_dir = filedialog.askdirectory(
         initialdir=source_dir,
@@ -6896,13 +6894,18 @@ def main(argv):
     template_manager = TemplateManager.initialize(script_dir)
 
     config_manager = ConfigurationManager.initialize(script_dir)
-    batch_job_list = JobManager.initialize(script_dir)
 
     if config_manager.load_configuration():
         decode_general_config(config_manager)
-    else:
-        config_manager = ConfigurationManager.initialize(script_dir)
+        config_manager.set_active_project(config_manager.get_source_dir())
+    else:   # No configurati exist, assign hardcoded values to some critical attributes
+        config_manager.set_source_dir(script_dir)
+        #config_manager = ConfigurationManager.initialize(script_dir)
+        aux_project = config_manager.get_project_config("no project")
+        config_manager.save_project_config(script_dir, aux_project)
+        config_manager.set_active_project(script_dir)
 
+    batch_job_list = JobManager.initialize(script_dir)
 
     afterscan_init()
 
@@ -6976,7 +6979,7 @@ def main(argv):
     ui_init_done = True
 
     # Disable a few items that should be not operational without source folder
-    if len(source_dir) == 0:
+    if len(config_manager.get_source_dir()) == 0:
         Go_btn.config(state=DISABLED)
         cropping_btn.config(state=DISABLED)
         frame_slider.config(state=DISABLED)
@@ -7001,6 +7004,22 @@ def main(argv):
     # Main Loop
     win.mainloop()  # running the loop that works as a trigger
 
-
+'''
 if __name__ == '__main__':
     main(sys.argv[1:])
+'''
+# --- MAIN EXECUTION SWITCH ---
+
+# Set this flag to True when you want to test the new Application class,
+# and set it to False to run the stable, legacy version.
+USE_NEW_APPLICATION_STRUCTURE = False
+
+if __name__ == '__main__':
+    if USE_NEW_APPLICATION_STRUCTURE:
+        root = tk.Tk()
+        app = AfterScanApp(root)
+        app.run()
+    else:
+        main(sys.argv[1:])
+        
+    print("AfterScanApp finished.")
