@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.40.28"
+__version__ = "1.40.29"
 __data_version__ = "1.0"
-__date__ = "2025-12-12"
-__version_highlight__ = "WIP: Remove legacy HDR support (hdrpic files)."
+__date__ = "2025-12-13"
+__version_highlight__ = "WIP: Aftr integration in helpers, rename AppEncoder to CustomJsonEncoder."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -159,8 +159,7 @@ from define_rectangle import DefineRectangle
 from template_manager import TemplateManager
 from configuration_manager import ConfigurationManager, ProjectConfigEntry
 from job_manager import JobManager
-from custom_json_encoder import AppEncoder
-from helpers import RollingAverage, FPSTracker, is_a_number, empty_queue
+from helpers import RollingAverage, FPSTracker, CustomJsonEncoder, is_a_number, empty_queue
 
 # Check for temporalDenoise in OpenCV at startup
 HAS_TEMPORAL_DENOISE = hasattr(cv2, 'temporalDenoising')
@@ -1129,7 +1128,7 @@ def generate_dict_hash(dictionary: Dict[str, Any]) -> str:
     """
     Generates a consistent SHA256 hash from a dictionary containing custom objects.
     
-    The custom AppEncoder handles the serialization of JobEntry and datetime objects.
+    The CustomJsonEncoder handles the serialization of JobEntry and datetime objects.
     """
     
     # 1. Serialize the dictionary using the custom encoder
@@ -1137,7 +1136,7 @@ def generate_dict_hash(dictionary: Dict[str, Any]) -> str:
     serialized_dict = json.dumps(
         dictionary, 
         sort_keys=True, 
-        cls=AppEncoder # <-- This is the key change!
+        cls=CustomJsonEncoder # <-- This is the key change!
     ).encode('utf-8')
     
     # 2. Generate and return the hash

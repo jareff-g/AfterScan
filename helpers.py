@@ -12,10 +12,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "helpers"
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __data_version__ = "1.0"
-__date__ = "2025-12-12"
-__version_highlight__ = "WIP: Move utility static functions to helpers module."
+__date__ = "2025-12-13"
+__version_highlight__ = "WIP: Move custom_json_encoder to helpers.py"
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -23,6 +23,11 @@ __status__ = "Development"
 import time
 from collections import deque
 import logging
+import json
+from datetime import datetime
+from dataclasses import asdict
+from job_manager import JobEntry
+from configuration_manager import ProjectConfigEntry
 
 
 # --- Static functions ---
@@ -132,28 +137,20 @@ class RollingAverage:
         self.sum = 0
 
 
-'''
-class AverageTracker:
+class CustomJsonEncoder(json.JSONEncoder):
     """
-    A class to track a single series of values and calculate the running average.
-    
-    The methods (add_value and calculate_average) are instance methods 
-    because they must access the instance's state (self.values).
+    A custom JSON Encoder that handles dataclasses and datetime objects 
+    by automatically converting them to serializable dictionaries or strings.
     """
-    def __init__(self):
-        # Initialize the state (the values being tracked)
-        self.values: list[float] = []
-
-    def add_value(self, value: float):
-        """Adds a new value to the series."""
-        self.values.append(value)
-
-    # This is an INSTANCE METHOD (no decorator needed)
-    # It must take 'self' to access 'self.values'.
-    def calculate_average(self) -> float:
-        """Calculates the current average of all tracked values."""
-        if not self.values:
-            return 0.0
-        return sum(self.values) / len(self.values)
-'''
-
+    def default(self, obj):
+        # 1. Handle dataclasses (like JobEntry or ProjectConfigEntry)
+        # Note: This automatically respects nested fields.
+        if hasattr(obj, '__dataclass_fields__'):
+            return asdict(obj)
+        
+        # 2. Handle datetime objects
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+            
+        # 3. For all other types, use the default encoder behavior
+        return super().default(obj)
