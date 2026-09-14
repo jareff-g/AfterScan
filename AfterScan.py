@@ -20,10 +20,10 @@ __copyright__ = "Copyright 2022-25, Juan Remirez de Esparza"
 __credits__ = ["Juan Remirez de Esparza"]
 __license__ = "MIT"
 __module__ = "AfterScan"
-__version__ = "1.30.28"
+__version__ = "1.31.00"
 __data_version__ = "1.0"
-__date__ = "2025-11-26"
-__version_highlight__ = "Factorize code in Template and TemplateList classes"
+__date__ = "2026-09-14"
+__version_highlight__ = "Add code to enable GPU usage in ffmpeg if available, and update GUI accordingly."
 __maintainer__ = "Juan Remirez de Esparza"
 __email__ = "jremirez@hotmail.com"
 __status__ = "Development"
@@ -290,7 +290,7 @@ FfmpegBinName = ""
 FFmpeg_denoise_param='8:6:4:3'
 ui_init_done = False
 IgnoreConfig = False
-global ffmpeg_installed
+ffmpeg_installed = False
 ffmpeg_state = Enum('ffmpeg_state', ['Pending', 'Running', 'Completed'])
 resolution_dict = {
     "Unchanged": "",
@@ -807,6 +807,7 @@ def save_project_config():
     project_config["CurrentFrame"] = CurrentFrame
     project_config["skip_frame_regeneration"] = skip_frame_regeneration.get()
     project_config["FFmpegPreset"] = ffmpeg_preset.get()
+    project_config["EnableGpu"] = enable_gpu.get()
     project_config["ProjectConfigDate"] = str(datetime.now())
     project_config["PerformCropping"] = perform_cropping.get()
     project_config["PerformDenoise"] = perform_denoise.get()
@@ -1083,7 +1084,10 @@ def decode_project_config():
         ffmpeg_preset.set(project_config["FFmpegPreset"])
     else:
         ffmpeg_preset.set("veryfast")
-
+    if 'EnableGpu' in project_config:
+        enable_gpu.set(project_config["EnableGpu"])
+    else:
+        enable_gpu.set(False)
     if 'PerformStabilization' in project_config:
         perform_stabilization.set(project_config["PerformStabilization"])
     else:
@@ -1138,6 +1142,148 @@ def decode_project_config():
     win.update()
 
 
+def set_ffmpeg_bin_name():
+    global FfmpegBinName, AltFfmpegBinName
+    global IsWindows, IsLinux, IsMac
+    global ffmpeg_installed
+
+    # Try to detect if ffmpeg is installed
+    ffmpeg_installed = False
+    if platform.system() == 'Windows':
+        IsWindows = True
+        if FfmpegBinName is None or FfmpegBinName == "":
+            FfmpegBinName = 'C:\\ffmpeg\\bin\\ffmpeg.exe'
+        AltFfmpegBinName = 'ffmpeg.exe'
+        logging.debug("Detected Windows OS")
+    elif platform.system() == 'Linux':
+        IsLinux = True
+        if FfmpegBinName is None or FfmpegBinName == "":
+            FfmpegBinName = 'ffmpeg'
+        AltFfmpegBinName = 'ffmpeg'
+        logging.debug("Detected Linux OS")
+    elif platform.system() == 'Darwin':
+        IsMac = True
+        if FfmpegBinName is None or FfmpegBinName == "":
+            FfmpegBinName = 'ffmpeg'
+        AltFfmpegBinName = 'ffmpeg'
+        logging.debug("Detected Darwin (MacOS) OS")
+    else:
+        if FfmpegBinName is None or FfmpegBinName == "":
+            FfmpegBinName = 'ffmpeg'
+        AltFfmpegBinName = 'ffmpeg'
+        logging.debug("OS not recognized: " + platform.system())
+
+    if is_ffmpeg_installed():
+        ffmpeg_installed = True
+    elif platform.system() == 'Windows':
+        FfmpegBinName = AltFfmpegBinName
+        if is_ffmpeg_installed():
+            ffmpeg_installed = True
+    if not ffmpeg_installed:
+        tk.messagebox.showerror(
+            "Error: ffmpeg is not installed",
+            f"FFmpeg is not installed in this computer at the designated path '{FfmpegBinName}'.\r\n"
+            "It is not mandatory for the application to run; "
+            "Frame stabilization and cropping will still work, "
+            "video generation will not")
+
+
+def check_encoder_support(ffmpeg_bin, encoder_name):
+  """Prueba si el ejecutable de FFmpeg soporta un encoder."""
+  try:
+    cmd = [ffmpeg_bin, "-hide_banner", "-encoders"]
+    output = sp.check_output(cmd, stderr=sp.STDOUT, text=True)
+    return encoder_name in output
+  except Exception:
+    return False
+
+
+def detect_best_ffmpeg_encoder(ffmpeg_bin):
+  os_type = platform.system()
+
+  # 1. macOS
+  if os_type == "Darwin":
+    if check_encoder_support(ffmpeg_bin, "h264_videotoolbox"):
+      return "h264_videotoolbox", []
+
+  # 2. Windows
+  elif os_type == "Windows":
+    for encoder in ["h264_nvenc", "h264_amf", "h264_qsv"]:
+      if check_encoder_support(ffmpeg_bin, encoder):
+        return encoder, []
+
+  # 3. Linux
+  elif os_type == "Linux":
+    # Solo usar NVENC si existe la librería libcuda en el sistema
+    has_cuda = os.path.exists("/usr/lib/x86_64-linux-gnu/libcuda.so.1") or os.path.exists("/usr/lib64/libcuda.so.1")
+    if has_cuda and check_encoder_support(ffmpeg_bin, "h264_nvenc"):
+      return "h264_nvenc", []
+
+    # Para tu AMD RX 6750 XT (VAAPI)
+    if os.path.exists("/dev/dri/renderD128") and check_encoder_support(
+        ffmpeg_bin, "h264_vaapi"
+    ):
+      return "h264_vaapi", ["-vaapi_device", "/dev/dri/renderD128"]
+
+  # Fallback universal a CPU
+  return "libx264", []
+
+
+def get_gpu_quality_args(encoder_codec, ui_quality_setting):
+  """Devuelve los argumentos de FFmpeg según el encoder y la calidad elegida en la UI.
+
+  ui_quality_setting puede ser: 'veryslow', 'medium', 'veryfast' (o los valores de tu
+  Combobox).
+  """
+  # Normalizamos la entrada de la UI por si viene en mayúsculas o con espacios
+  quality = ui_quality_setting.lower().strip()
+
+  # 1. AMD Linux (VAAPI)
+  if encoder_codec == "h264_vaapi":
+    if "veryslow" in quality:
+      return ["-qp", "16"]
+    elif "veryfast" in quality:
+      return ["-qp", "24"]
+    else:  # Medium / Default
+      return ["-qp", "20"]
+
+  # 2. NVIDIA (NVENC)
+  elif encoder_codec == "h264_nvenc":
+    if "veryslow" in quality:
+      return ["-preset", "p7", "-cq", "16"]
+    elif "veryfast" in quality:
+      return ["-preset", "p1", "-cq", "24"]
+    else:  # Medium
+      return ["-preset", "p4", "-cq", "20"]
+
+  # 3. AMD Windows (AMF)
+  elif encoder_codec == "h264_amf":
+    if "veryslow" in quality:
+      return ["-quality", "quality", "-qp_i", "16"]
+    elif "veryfast" in quality:
+      return ["-quality", "speed", "-qp_i", "24"]
+    else:  # Medium
+      return ["-quality", "balanced", "-qp_i", "20"]
+
+  # 4. macOS (VideoToolbox)
+  elif encoder_codec == "h264_videotoolbox":
+    if "veryslow" in quality:
+      return ["-q:v", "75"]
+    elif "veryfast" in quality:
+      return ["-q:v", "50"]
+    else:  # Medium
+      return ["-q:v", "65"]
+
+  # 5. Fallback CPU (libx264)
+  else:
+    if "veryslow" in quality:
+      return ["-preset", "slow", "-crf", "16"]
+    elif "veryfast" in quality:
+      return ["-preset", "fast", "-crf", "22"]
+    else:  # Medium
+      return ["-preset", "medium", "-crf", "18"]
+
+    
 """
 ##########################
 Job list support functions
@@ -1957,6 +2103,7 @@ def widget_status_update(widget_state=0, button_action=0):
         ffmpeg_preset_rb1.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         ffmpeg_preset_rb2.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         ffmpeg_preset_rb3.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
+        enable_gpu_checkbox.config(state=widget_state if project_config["GenerateVideo"] and ffmpeg_installed else DISABLED)
         start_batch_btn.config(state=widget_state if button_action != start_batch_btn else NORMAL)
         video_play_btn.config(state=widget_state if project_config["GenerateVideo"] else DISABLED)
         add_job_btn.config(state=widget_state)
@@ -5787,11 +5934,23 @@ def call_ffmpeg():
         video_width = resolution_dict[project_config["VideoResolution"]].split(':')[0]
         video_height = resolution_dict[project_config["VideoResolution"]].split(':')[1]
 
-    cmd_ffmpeg = [FfmpegBinName,
-                  '-y',
-                  '-loglevel', 'error',
-                  '-stats',
-                  '-flush_packets', '1']
+    cmd_ffmpeg = [FfmpegBinName]
+
+    if enable_gpu.get():
+        # Obtain the appropriate codec for the current machine
+        encoder_codec, extra_gpu_args = detect_best_ffmpeg_encoder(FfmpegBinName)
+
+        # If initial parameters are used (like the VAAPI device in Linux)
+        if extra_gpu_args:
+            cmd_ffmpeg.extend(extra_gpu_args)
+    else:
+        encoder_codec = 'libx264'
+
+    cmd_ffmpeg.extend(['-y',
+                       '-loglevel', 'error',
+                       '-stats',
+                       '-flush_packets', '1'])
+
     if title_num_frames > 0:   # There is a title
         pattern = TitleOutputFilenamePattern_for_ffmpeg + file_type_out
         cmd_ffmpeg.extend(['-f', 'image2',
@@ -5836,17 +5995,26 @@ def call_ffmpeg():
     # Concatenate title (if exists) + main video
     if title_num_frames > 0:   # There is a title
         filter_complex_options += '[v0]'
-    filter_complex_options+='[v2]concat=n='+str(2 if title_num_frames>0 else 1)+':v=1[v]'
+    if enable_gpu.get() and encoder_codec == "h264_vaapi":
+        # Añadimos la conversión HW justo al final del grafo de filtros
+        filter_complex_options += '[v2]concat=n='+str(2 if title_num_frames>0 else 1)+':v=1,format=nv12,hwupload[v]'
+    else:
+        filter_complex_options += '[v2]concat=n='+str(2 if title_num_frames>0 else 1)+':v=1[v]'
+
     cmd_ffmpeg.extend(['-filter_complex', filter_complex_options])
 
     if not enable_soundtrack:
         cmd_ffmpeg.extend(['-an'])  # no audio
+
     cmd_ffmpeg.extend(
-        ['-vcodec', 'libx264',
-         '-preset', ffmpeg_preset.get(),
-         '-crf', '18',
+        ['-vcodec', encoder_codec,
          '-pix_fmt', 'yuv420p',
          '-map', '[v]'])
+
+    # Assign quality parameters unique to the detected encoder
+    quality_args = get_gpu_quality_args(encoder_codec, ffmpeg_preset.get())
+    cmd_ffmpeg.extend(quality_args)
+
     if enable_soundtrack:
         if title_num_frames > 0:   # There is a title
             cmd_ffmpeg.extend(['-map', '2:a'])
@@ -6316,6 +6484,7 @@ def build_ui():
     global stabilization_shift_y_value, stabilization_shift_label, stabilization_shift_y_spinbox
     global stabilization_shift_x_value, stabilization_shift_x_spinbox
     global video_play_btn
+    global enable_gpu_checkbox, enable_gpu
 
     # Menu bar
     menu_bar = tk.Menu(win)
@@ -6896,6 +7065,17 @@ def build_ui():
     ffmpeg_preset.set('medium')
     video_row += 1
 
+    # Checkbox to enable GPU in ffmpeg. Only works if ffmpeg is compiled with GPU support (e.g. NVIDIA CUDA). If not, ffmpeg will ignore it and use CPU.
+    enable_gpu = tk.BooleanVar(value=False)
+    enable_gpu_checkbox = tk.Checkbutton(
+        video_frame, text='Use GPU', variable=enable_gpu,
+        onvalue=True, offvalue=False,
+        width=10, font=("Arial", FontSize))
+    enable_gpu_checkbox.grid(row=video_row, column=0, sticky=W, padx=5)
+    enable_gpu_checkbox.config(DISABLED)
+    as_tooltips.add(enable_gpu_checkbox, "If enabled, ffmpeg will use GPU (if available) to accelerate video encoding. If not available, ffmpeg will use CPU.")
+    video_row += 1
+
     # Drop down to select resolution
     # datatype of menu text
     resolution_dropdown_selected = StringVar()
@@ -7321,44 +7501,7 @@ def main(argv):
     multiprocessing_init()
 
     # Try to detect if ffmpeg is installed
-    ffmpeg_installed = False
-    if platform.system() == 'Windows':
-        IsWindows = True
-        if FfmpegBinName is None or FfmpegBinName == "":
-            FfmpegBinName = 'C:\\ffmpeg\\bin\\ffmpeg.exe'
-        AltFfmpegBinName = 'ffmpeg.exe'
-        logging.debug("Detected Windows OS")
-    elif platform.system() == 'Linux':
-        IsLinux = True
-        if FfmpegBinName is None or FfmpegBinName == "":
-            FfmpegBinName = 'ffmpeg'
-        AltFfmpegBinName = 'ffmpeg'
-        logging.debug("Detected Linux OS")
-    elif platform.system() == 'Darwin':
-        IsMac = True
-        if FfmpegBinName is None or FfmpegBinName == "":
-            FfmpegBinName = 'ffmpeg'
-        AltFfmpegBinName = 'ffmpeg'
-        logging.debug("Detected Darwin (MacOS) OS")
-    else:
-        if FfmpegBinName is None or FfmpegBinName == "":
-            FfmpegBinName = 'ffmpeg'
-        AltFfmpegBinName = 'ffmpeg'
-        logging.debug("OS not recognized: " + platform.system())
-
-    if is_ffmpeg_installed():
-        ffmpeg_installed = True
-    elif platform.system() == 'Windows':
-        FfmpegBinName = AltFfmpegBinName
-        if is_ffmpeg_installed():
-            ffmpeg_installed = True
-    if not ffmpeg_installed:
-        tk.messagebox.showerror(
-            "Error: ffmpeg is not installed",
-            f"FFmpeg is not installed in this computer at the designated path '{FfmpegBinName}'.\r\n"
-            "It is not mandatory for the application to run; "
-            "Frame stabilization and cropping will still work, "
-            "video generation will not")
+    set_ffmpeg_bin_name()
 
     build_ui()
     win.config(cursor="watch")  # Set cursor to hourglass
