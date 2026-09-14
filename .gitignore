@@ -247,6 +247,7 @@ developer.txt
 # Temporary directories and build artifacts
 temp/
 aux/
+Resources/
 __pycache__/
 *.pyc
 
