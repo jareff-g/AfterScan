@@ -235,3 +235,21 @@ fabric.properties
 
 # Android studio 3.1+ serialized cache file
 .idea/caches/build_file_checksums.ser
+
+# AfterScan specific
+# Application State & Local Configurations
+*.json
+*.json.bak
+*.json.legacy*
+!Resources/*.json  # Keep default configuration templates if any exist in Resources
+developer.txt
+
+# Temporary directories and build artifacts
+temp/
+aux/
+__pycache__/
+*.pyc
+
+# Local Scratchpads & OS Files
+.DS_Store
+*.log
